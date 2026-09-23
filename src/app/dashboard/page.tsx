@@ -45,6 +45,9 @@ export default async function DashboardPage() {
         <a href="/payments" className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition">
           Plăți
         </a>
+        <a href="/alerts" className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition">
+          Alerte documente
+        </a>
         {session.user.role === "admin" && (
           <>
             <a href="/dispatchers" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
