@@ -43,7 +43,6 @@ const created = await auth.api.createUser({
   await createDispatcherRecord({
     userId: created.user.id,
     name: invite.name,
-    email: invite.email,
   });
   await markInviteUsed(invite.id);
 
