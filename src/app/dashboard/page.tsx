@@ -11,9 +11,12 @@ export default async function DashboardPage() {
         Bine ai venit, {session.user.name || session.user.email}
       </h1>
       <p className="text-slate-600 mt-2">
-        Modulele operaționale (Job Center, Planificare, Rapoarte) urmează în etapele următoare.
+        Planificare, Rapoarte și celelalte module operaționale urmează în etapele următoare.
       </p>
       <div className="flex flex-wrap gap-3 mt-6">
+        <a href="/jobs" className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition">
+          Job Center
+        </a>
         <a href="/drivers" className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition">
           Șoferi
         </a>
