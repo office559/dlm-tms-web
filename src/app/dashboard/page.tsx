@@ -15,17 +15,11 @@ export default async function DashboardPage() {
         Modulele operaționale (Job Center, Planificare, Rapoarte) urmează în etapele următoare.
       </p>
       <div className="flex flex-wrap gap-3 mt-6">
-        
-          href="/drivers"
-          className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition"
-        >
+        <a href="/drivers" className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition">
           Șoferi
         </a>
         {session.user.role === "admin" && (
-          
-            href="/dispatchers"
-            className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition"
-          >
+          <a href="/dispatchers" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
             Gestionează dispecerii
           </a>
         )}
