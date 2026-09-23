@@ -3,12 +3,21 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { listTrailers } from "@/lib/trailers";
 import { DeleteButton } from "@/components/DeleteButton";
+import { matchesQuery } from "@/lib/search";
 
-export default async function TrailersPage() {
+export default async function TrailersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
+  const { q = "" } = await searchParams;
+
   const trailers = await listTrailers();
+
+  const filteredTrailers = trailers.filter((t) => matchesQuery([t.plate, t.type], q));
 
   return (
     <div className="min-h-screen p-8 space-y-6">
@@ -22,6 +31,24 @@ export default async function TrailersPage() {
         </a>
       </div>
 
+      <form className="flex gap-2">
+        <input
+          type="text"
+          name="q"
+          defaultValue={q}
+          placeholder="Caută după număr, tip..."
+          className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
+        />
+        <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
+          Caută
+        </button>
+        {q && (
+          <a href="/trailers" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-500 hover:bg-slate-50 transition">
+            Resetează
+          </a>
+        )}
+      </form>
+
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-left">
@@ -33,7 +60,7 @@ export default async function TrailersPage() {
             </tr>
           </thead>
           <tbody>
-            {trailers.map((t) => (
+            {filteredTrailers.map((t) => (
               <tr key={t.id} className="border-t border-slate-100">
                 <td className="px-4 py-3 font-medium">{t.plate}</td>
                 <td className="px-4 py-3">{t.type || "—"}</td>
@@ -56,10 +83,10 @@ export default async function TrailersPage() {
                 </td>
               </tr>
             ))}
-            {trailers.length === 0 && (
+            {filteredTrailers.length === 0 && (
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
-                  Nicio remorcă încă. Adaugă prima mai sus.
+                  {q ? `Nicio remorcă găsită pentru „${q}".` : "Nicio remorcă încă. Adaugă prima mai sus."}
                 </td>
               </tr>
             )}
