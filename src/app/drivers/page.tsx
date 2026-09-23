@@ -17,10 +17,7 @@ export default async function DriversPage() {
           <h1 className="text-2xl font-semibold text-brand-dark">Șoferi</h1>
           <p className="text-slate-600 mt-1">Lista șoferilor din flotă.</p>
         </div>
-        
-          href="/drivers/new"
-          className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition"
-        >
+        <a href="/drivers/new" className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition">
           + Adaugă șofer
         </a>
       </div>
