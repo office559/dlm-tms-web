@@ -39,6 +39,9 @@ export default async function DashboardPage() {
         <a href="/reports" className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition">
           Rapoarte &amp; Profituri
         </a>
+        <a href="/planning" className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition">
+          Planificare
+        </a>
         {session.user.role === "admin" && (
           <a href="/dispatchers" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
             Gestionează dispecerii
