@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { listExpiryAlerts } from "@/lib/alerts";
+import { listExpiryAlerts, ExpiryAlert } from "@/lib/alerts";
 import { getSettings } from "@/lib/settings";
+import { listDrivers } from "@/lib/drivers";
+import { WhatsAppLink } from "@/components/WhatsAppLink";
+import { waLink } from "@/lib/whatsapp";
 
 function badgeClass(daysLeft: number) {
   if (daysLeft < 0) return "bg-red-50 text-red-700";
@@ -16,6 +19,15 @@ function daysLabel(daysLeft: number) {
   return `${daysLeft} zile rămase`;
 }
 
+function alertMessage(a: ExpiryAlert, driverName: string) {
+  return [
+    `Salut ${driverName},`,
+    `Documentul ${a.doc} pentru ${a.plate} (${daysLabel(a.days_left).toLowerCase()}).`,
+    `Data expirării: ${new Date(a.exp_date).toLocaleDateString("ro-RO")}.`,
+    `Te rog rezolvă cât mai curând.`,
+  ].join("\n");
+}
+
 export default async function AlertsPage({
   searchParams,
 }: {
@@ -25,13 +37,24 @@ export default async function AlertsPage({
   if (!session) redirect("/login");
 
   const params = await searchParams;
-  const settings = await getSettings();
+  const [settings, drivers] = await Promise.all([getSettings(), listDrivers()]);
   const defaultDays = settings?.alert_days ?? 30;
   const days = params.days && !Number.isNaN(Number(params.days)) ? Number(params.days) : defaultDays;
+  const waCountry = settings?.wa_country ?? null;
+  const driverName = new Map(drivers.map((d) => [d.id, d.name]));
+  const driverPhone = new Map(drivers.map((d) => [d.id, d.phone]));
 
   const alerts = await listExpiryAlerts(days);
   const expired = alerts.filter((a) => a.days_left < 0);
   const upcoming = alerts.filter((a) => a.days_left >= 0);
+
+  function waHrefFor(a: ExpiryAlert) {
+    if (!a.driver_id) return null;
+    const name = driverName.get(a.driver_id);
+    const phone = driverPhone.get(a.driver_id);
+    if (!name || !phone) return null;
+    return waLink(phone, waCountry, alertMessage(a, name));
+  }
 
   return (
     <div className="min-h-screen p-8 space-y-6">
@@ -90,7 +113,8 @@ export default async function AlertsPage({
                       {daysLabel(a.days_left)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right space-x-3">
+                    <WhatsAppLink href={waHrefFor(a)} label="Anunță șofer" />
                     <a href={a.kind === "vehicul" ? `/vehicles/${a.id}` : `/trailers/${a.id}`} className="text-brand hover:text-brand-dark text-sm">
                       Editează
                     </a>
@@ -131,7 +155,8 @@ export default async function AlertsPage({
                     {daysLabel(a.days_left)}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right space-x-3">
+                  <WhatsAppLink href={waHrefFor(a)} label="Anunță șofer" />
                   <a href={a.kind === "vehicul" ? `/vehicles/${a.id}` : `/trailers/${a.id}`} className="text-brand hover:text-brand-dark text-sm">
                     Editează
                   </a>
