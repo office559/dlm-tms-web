@@ -4,14 +4,29 @@ import { auth } from "@/lib/auth";
 import { listCosts } from "@/lib/costs";
 import { listVehicles } from "@/lib/vehicles";
 import { DeleteButton } from "@/components/DeleteButton";
+import { matchesQuery } from "@/lib/search";
 
-export default async function CostsPage() {
+export default async function CostsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
+  const { q = "" } = await searchParams;
+
   const [costs, vehicles] = await Promise.all([listCosts(), listVehicles()]);
   const vehiclePlate = new Map(vehicles.map((v) => [v.id, v.plate]));
-  const total = costs.reduce((sum, c) => sum + Number(c.amount), 0);
+
+  const filteredCosts = costs.filter((c) =>
+    matchesQuery(
+      [c.category, c.note, c.vehicle_id ? vehiclePlate.get(c.vehicle_id) : null],
+      q
+    )
+  );
+
+  const total = filteredCosts.reduce((sum, c) => sum + Number(c.amount), 0);
 
   return (
     <div className="min-h-screen p-8 space-y-6">
@@ -27,6 +42,24 @@ export default async function CostsPage() {
         </a>
       </div>
 
+      <form className="flex gap-2">
+        <input
+          type="text"
+          name="q"
+          defaultValue={q}
+          placeholder="Caută după categorie, vehicul, observații..."
+          className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
+        />
+        <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
+          Caută
+        </button>
+        {q && (
+          <a href="/costs" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-500 hover:bg-slate-50 transition">
+            Resetează
+          </a>
+        )}
+      </form>
+
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-left">
@@ -40,7 +73,7 @@ export default async function CostsPage() {
             </tr>
           </thead>
           <tbody>
-            {costs.map((c) => (
+            {filteredCosts.map((c) => (
               <tr key={c.id} className="border-t border-slate-100">
                 <td className="px-4 py-3">{new Date(c.date).toLocaleDateString("ro-RO")}</td>
                 <td className="px-4 py-3 font-medium">{c.category}</td>
@@ -55,10 +88,10 @@ export default async function CostsPage() {
                 </td>
               </tr>
             ))}
-            {costs.length === 0 && (
+            {filteredCosts.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
-                  Nicio cheltuială încă. Adaugă prima mai sus.
+                  {q ? `Nicio cheltuială găsită pentru „${q}".` : "Nicio cheltuială încă. Adaugă prima mai sus."}
                 </td>
               </tr>
             )}
