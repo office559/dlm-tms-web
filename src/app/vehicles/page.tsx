@@ -5,10 +5,17 @@ import { listVehicles } from "@/lib/vehicles";
 import { listDrivers } from "@/lib/drivers";
 import { listTrailers } from "@/lib/trailers";
 import { DeleteButton } from "@/components/DeleteButton";
+import { matchesQuery } from "@/lib/search";
 
-export default async function VehiclesPage() {
+export default async function VehiclesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
+
+  const { q = "" } = await searchParams;
 
   const [vehicles, drivers, trailers] = await Promise.all([
     listVehicles(),
@@ -18,6 +25,18 @@ export default async function VehiclesPage() {
 
   const driverName = new Map(drivers.map((d) => [d.id, d.name]));
   const trailerPlate = new Map(trailers.map((t) => [t.id, t.plate]));
+
+  const filteredVehicles = vehicles.filter((v) =>
+    matchesQuery(
+      [
+        v.plate,
+        v.type,
+        v.driver_id ? driverName.get(v.driver_id) : null,
+        v.trailer_id ? trailerPlate.get(v.trailer_id) : null,
+      ],
+      q
+    )
+  );
 
   return (
     <div className="min-h-screen p-8 space-y-6">
@@ -30,6 +49,24 @@ export default async function VehiclesPage() {
           + Adaugă vehicul
         </a>
       </div>
+
+      <form className="flex gap-2">
+        <input
+          type="text"
+          name="q"
+          defaultValue={q}
+          placeholder="Caută după număr, tip, șofer, remorcă..."
+          className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
+        />
+        <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
+          Caută
+        </button>
+        {q && (
+          <a href="/vehicles" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-500 hover:bg-slate-50 transition">
+            Resetează
+          </a>
+        )}
+      </form>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
@@ -45,7 +82,7 @@ export default async function VehiclesPage() {
             </tr>
           </thead>
           <tbody>
-            {vehicles.map((v) => (
+            {filteredVehicles.map((v) => (
               <tr key={v.id} className="border-t border-slate-100">
                 <td className="px-4 py-3 font-medium">{v.plate}</td>
                 <td className="px-4 py-3">{v.type || "—"}</td>
@@ -71,10 +108,10 @@ export default async function VehiclesPage() {
                 </td>
               </tr>
             ))}
-            {vehicles.length === 0 && (
+            {filteredVehicles.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-6 text-center text-slate-400">
-                  Niciun vehicul încă. Adaugă primul mai sus.
+                  {q ? `Niciun vehicul găsit pentru „${q}".` : "Niciun vehicul încă. Adaugă primul mai sus."}
                 </td>
               </tr>
             )}
