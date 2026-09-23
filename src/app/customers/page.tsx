@@ -3,12 +3,23 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { listCustomers } from "@/lib/customers";
 import { DeleteButton } from "@/components/DeleteButton";
+import { matchesQuery } from "@/lib/search";
 
-export default async function CustomersPage() {
+export default async function CustomersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
+  const { q = "" } = await searchParams;
+
   const customers = await listCustomers();
+
+  const filteredCustomers = customers.filter((c) =>
+    matchesQuery([c.name, c.code, c.email, c.type], q)
+  );
 
   return (
     <div className="min-h-screen p-8 space-y-6">
@@ -21,6 +32,24 @@ export default async function CustomersPage() {
           + Adaugă client
         </a>
       </div>
+
+      <form className="flex gap-2">
+        <input
+          type="text"
+          name="q"
+          defaultValue={q}
+          placeholder="Caută după nume, cod, email..."
+          className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
+        />
+        <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
+          Caută
+        </button>
+        {q && (
+          <a href="/customers" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-500 hover:bg-slate-50 transition">
+            Resetează
+          </a>
+        )}
+      </form>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
@@ -35,7 +64,7 @@ export default async function CustomersPage() {
             </tr>
           </thead>
           <tbody>
-            {customers.map((c) => (
+            {filteredCustomers.map((c) => (
               <tr key={c.id} className="border-t border-slate-100">
                 <td className="px-4 py-3 font-medium">{c.name}</td>
                 <td className="px-4 py-3">{c.type || "—"}</td>
@@ -50,10 +79,10 @@ export default async function CustomersPage() {
                 </td>
               </tr>
             ))}
-            {customers.length === 0 && (
+            {filteredCustomers.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-slate-400">
-                  Niciun client încă. Adaugă primul mai sus.
+                  {q ? `Niciun client găsit pentru „${q}".` : "Niciun client încă. Adaugă primul mai sus."}
                 </td>
               </tr>
             )}
