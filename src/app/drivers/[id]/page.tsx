@@ -2,7 +2,10 @@ import { redirect, notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getDriver } from "@/lib/drivers";
+import { getSettings } from "@/lib/settings";
 import { DriverForm } from "@/components/DriverForm";
+import { WhatsAppLink } from "@/components/WhatsAppLink";
+import { waLink } from "@/lib/whatsapp";
 
 export default async function EditDriverPage({
   params,
@@ -13,12 +16,17 @@ export default async function EditDriverPage({
   if (!session) redirect("/login");
 
   const { id } = await params;
-  const driver = await getDriver(id);
+  const [driver, settings] = await Promise.all([getDriver(id), getSettings()]);
   if (!driver) notFound();
+
+  const waHref = waLink(driver.phone, settings?.wa_country ?? null, `Bună, ${driver.name}!`);
 
   return (
     <div className="min-h-screen p-8 space-y-6">
-      <h1 className="text-2xl font-semibold text-brand-dark">Editează șofer</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-brand-dark">Editează șofer</h1>
+        {waHref && <WhatsAppLink href={waHref} label="Deschide WhatsApp" />}
+      </div>
       <div className="bg-white rounded-2xl border border-slate-200 p-6">
         <DriverForm
           initial={{
