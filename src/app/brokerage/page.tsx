@@ -1,9 +1,9 @@
-
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { listBrokerage } from "@/lib/brokerage";
 import { DeleteButton } from "@/components/DeleteButton";
+import { matchesQuery } from "@/lib/search";
 
 const STATUS_STYLES: Record<string, string> = {
   "În curs": "bg-amber-50 text-amber-700",
@@ -11,12 +11,23 @@ const STATUS_STYLES: Record<string, string> = {
   "Anulat": "bg-slate-100 text-slate-500",
 };
 
-export default async function BrokeragePage() {
+export default async function BrokeragePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
+  const { q = "" } = await searchParams;
+
   const items = await listBrokerage();
-  const totalMargin = items.reduce((sum, b) => {
+
+  const filteredItems = items.filter((b) =>
+    matchesQuery([b.client, b.sub, b.ref, b.route], q)
+  );
+
+  const totalMargin = filteredItems.reduce((sum, b) => {
     const cp = Number(b.client_price ?? 0);
     const sp = Number(b.sub_price ?? 0);
     return sum + (cp - sp);
@@ -36,6 +47,24 @@ export default async function BrokeragePage() {
         </a>
       </div>
 
+      <form className="flex gap-2">
+        <input
+          type="text"
+          name="q"
+          defaultValue={q}
+          placeholder="Caută după client, subcontractor, referință, rută..."
+          className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
+        />
+        <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
+          Caută
+        </button>
+        {q && (
+          <a href="/brokerage" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-500 hover:bg-slate-50 transition">
+            Resetează
+          </a>
+        )}
+      </form>
+
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-500 text-left">
@@ -53,7 +82,7 @@ export default async function BrokeragePage() {
             </tr>
           </thead>
           <tbody>
-            {items.map((b) => {
+            {filteredItems.map((b) => {
               const cp = Number(b.client_price ?? 0);
               const sp = Number(b.sub_price ?? 0);
               const margin = cp - sp;
@@ -90,10 +119,10 @@ export default async function BrokeragePage() {
                 </tr>
               );
             })}
-            {items.length === 0 && (
+            {filteredItems.length === 0 && (
               <tr>
                 <td colSpan={10} className="px-4 py-6 text-center text-slate-400">
-                  Nicio înregistrare de brokeraj încă. Adaugă prima mai sus.
+                  {q ? `Nicio înregistrare găsită pentru „${q}".` : "Nicio înregistrare de brokeraj încă. Adaugă prima mai sus."}
                 </td>
               </tr>
             )}
