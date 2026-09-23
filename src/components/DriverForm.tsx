@@ -198,7 +198,7 @@ export function DriverForm({
           className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition disabled:opacity-60"
         >
           {status === "loading" ? "Se salvează..." : isEdit ? "Salvează modificările" : "Adaugă șofer"}
-        </button>
+              </button>
         
           href="/drivers"
           className="rounded-lg border border-slate-300 px-4 py-2 text-slate-600 hover:bg-slate-50 transition"
@@ -206,6 +206,3 @@ export function DriverForm({
           Anulează
         </a>
       </div>
-    </form>
-  );
-}
