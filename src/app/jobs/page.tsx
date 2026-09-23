@@ -5,8 +5,11 @@ import { listJobs } from "@/lib/jobs";
 import { listCustomers } from "@/lib/customers";
 import { listDrivers } from "@/lib/drivers";
 import { listVehicles } from "@/lib/vehicles";
+import { getSettings } from "@/lib/settings";
 import { DeleteButton } from "@/components/DeleteButton";
+import { WhatsAppLink } from "@/components/WhatsAppLink";
 import { matchesQuery } from "@/lib/search";
+import { waLink } from "@/lib/whatsapp";
 
 const STATUS_LABELS: Record<string, string> = {
   planificare: "Planificare",
@@ -22,6 +25,22 @@ const STATUS_STYLES: Record<string, string> = {
   anulat: "text-red-700 bg-red-50",
 };
 
+function jobMessage(j: {
+  ref: string | null;
+  load_place: string | null;
+  unload_place: string | null;
+  start_at: Date | null;
+}, driverName: string, clientName: string | null) {
+  const lines = [
+    `Salut ${driverName}, cursă nouă:`,
+    `${j.load_place || "—"} → ${j.unload_place || "—"}`,
+  ];
+  if (j.start_at) lines.push(`Start: ${new Date(j.start_at).toLocaleString("ro-RO")}`);
+  if (clientName) lines.push(`Client: ${clientName}`);
+  if (j.ref) lines.push(`Referință: ${j.ref}`);
+  return lines.join("\n");
+}
+
 export default async function JobsPage({
   searchParams,
 }: {
@@ -32,16 +51,19 @@ export default async function JobsPage({
 
   const { q = "" } = await searchParams;
 
-  const [jobs, customers, drivers, vehicles] = await Promise.all([
+  const [jobs, customers, drivers, vehicles, settings] = await Promise.all([
     listJobs(),
     listCustomers(),
     listDrivers(),
     listVehicles(),
+    getSettings(),
   ]);
 
   const customerName = new Map(customers.map((c) => [c.id, c.name]));
   const driverName = new Map(drivers.map((d) => [d.id, d.name]));
+  const driverPhone = new Map(drivers.map((d) => [d.id, d.phone]));
   const vehiclePlate = new Map(vehicles.map((v) => [v.id, v.plate]));
+  const waCountry = settings?.wa_country ?? null;
 
   const filteredJobs = jobs.filter((j) =>
     matchesQuery(
@@ -102,33 +124,40 @@ export default async function JobsPage({
             </tr>
           </thead>
           <tbody>
-            {filteredJobs.map((j) => (
-              <tr key={j.id} className="border-t border-slate-100">
-                <td className="px-4 py-3 font-medium">
-                  {j.load_place || "—"} → {j.unload_place || "—"}
-                </td>
-                <td className="px-4 py-3">{j.client_id ? customerName.get(j.client_id) ?? "—" : "—"}</td>
-                <td className="px-4 py-3">{j.driver_id ? driverName.get(j.driver_id) ?? "—" : "—"}</td>
-                <td className="px-4 py-3">{j.vehicle_id ? vehiclePlate.get(j.vehicle_id) ?? "—" : "—"}</td>
-                <td className="px-4 py-3">
-                  {j.start_at ? new Date(j.start_at).toLocaleString("ro-RO") : "—"}
-                </td>
-                <td className="px-4 py-3">
-                  {j.rate != null ? `${j.rate} ${j.currency ?? ""}` : "—"}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[j.status] ?? "text-slate-600 bg-slate-100"}`}>
-                    {STATUS_LABELS[j.status] ?? j.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-right space-x-3">
-                  <a href={`/jobs/${j.id}`} className="text-brand hover:text-brand-dark text-sm">
-                    Editează
-                  </a>
-                  <DeleteButton url={`/api/jobs/${j.id}`} confirmText={`Ștergi cursa ${j.ref || j.id}?`} />
-                </td>
-              </tr>
-            ))}
+            {filteredJobs.map((j) => {
+              const dName = j.driver_id ? driverName.get(j.driver_id) : null;
+              const dPhone = j.driver_id ? driverPhone.get(j.driver_id) : null;
+              const cName = j.client_id ? customerName.get(j.client_id) ?? null : null;
+              const waHref = dName && dPhone ? waLink(dPhone, waCountry, jobMessage(j, dName, cName)) : null;
+              return (
+                <tr key={j.id} className="border-t border-slate-100">
+                  <td className="px-4 py-3 font-medium">
+                    {j.load_place || "—"} → {j.unload_place || "—"}
+                  </td>
+                  <td className="px-4 py-3">{cName ?? "—"}</td>
+                  <td className="px-4 py-3">{dName ?? "—"}</td>
+                  <td className="px-4 py-3">{j.vehicle_id ? vehiclePlate.get(j.vehicle_id) ?? "—" : "—"}</td>
+                  <td className="px-4 py-3">
+                    {j.start_at ? new Date(j.start_at).toLocaleString("ro-RO") : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {j.rate != null ? `${j.rate} ${j.currency ?? ""}` : "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[j.status] ?? "text-slate-600 bg-slate-100"}`}>
+                      {STATUS_LABELS[j.status] ?? j.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right space-x-3">
+                    <WhatsAppLink href={waHref} label="Anunță șofer" />
+                    <a href={`/jobs/${j.id}`} className="text-brand hover:text-brand-dark text-sm">
+                      Editează
+                    </a>
+                    <DeleteButton url={`/api/jobs/${j.id}`} confirmText={`Ștergi cursa ${j.ref || j.id}?`} />
+                  </td>
+                </tr>
+              );
+            })}
             {filteredJobs.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
