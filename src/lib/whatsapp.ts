@@ -56,3 +56,16 @@ export function waLink(
   const base = `https://wa.me/${formatted}`;
   return message ? `${base}?text=${encodeURIComponent(message)}` : base;
 }
+
+/**
+ * Normalizes a phone number into E.164 format (e.g. "+40722123456"), the
+ * format Twilio's WhatsApp API requires. Returns null when there's no
+ * usable phone number.
+ */
+export function toE164(
+  phone: string | null | undefined,
+  waCountry?: string | null
+): string | null {
+  const digits = formatWaPhone(phone, waCountry);
+  return digits ? `+${digits}` : null;
+}
