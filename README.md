@@ -69,3 +69,4 @@ npm run dev
 După ce fundația asta e testată și funcțională, urmează etapa 2 din plan:
 migrarea datelor (șoferi, vehicule, clienți, curse) din aplicația de pe
 Claude în această bază de date reală.
+ 
