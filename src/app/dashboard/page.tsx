@@ -46,9 +46,14 @@ export default async function DashboardPage() {
           Plăți
         </a>
         {session.user.role === "admin" && (
-          <a href="/dispatchers" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
-            Gestionează dispecerii
-          </a>
+          <>
+            <a href="/dispatchers" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
+              Gestionează dispecerii
+            </a>
+            <a href="/settings" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
+              Setări
+            </a>
+          </>
         )}
       </div>
     </div>
