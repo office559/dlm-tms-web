@@ -2,8 +2,11 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { listDrivers } from "@/lib/drivers";
+import { getSettings } from "@/lib/settings";
 import { DeleteButton } from "@/components/DeleteButton";
+import { WhatsAppLink } from "@/components/WhatsAppLink";
 import { matchesQuery } from "@/lib/search";
+import { waLink } from "@/lib/whatsapp";
 
 export default async function DriversPage({
   searchParams,
@@ -15,7 +18,8 @@ export default async function DriversPage({
 
   const { q = "" } = await searchParams;
 
-  const drivers = await listDrivers();
+  const [drivers, settings] = await Promise.all([listDrivers(), getSettings()]);
+  const waCountry = settings?.wa_country ?? null;
 
   const filteredDrivers = drivers.filter((d) => matchesQuery([d.name, d.phone], q));
 
@@ -78,6 +82,9 @@ export default async function DriversPage({
                   )}
                 </td>
                 <td className="px-4 py-3 text-right space-x-3">
+                  <WhatsAppLink
+                    href={waLink(d.phone, waCountry, `Bună, ${d.name}!`)}
+                  />
                   <a href={`/drivers/${d.id}`} className="text-brand hover:text-brand-dark text-sm">
                     Editează
                   </a>
