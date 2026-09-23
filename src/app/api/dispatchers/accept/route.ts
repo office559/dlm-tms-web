@@ -32,15 +32,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invitația a expirat" }, { status: 410 });
   }
 
-  const created = await auth.api.createUser({
+const created = await auth.api.createUser({
     body: {
       email: invite.email,
       password,
       name: invite.name,
-      role: "dispatcher",
     },
-  });
-
+  }); 
+  
   await createDispatcherRecord({
     userId: created.user.id,
     name: invite.name,
