@@ -6,6 +6,7 @@ import { listCustomers } from "@/lib/customers";
 import { listDrivers } from "@/lib/drivers";
 import { listVehicles } from "@/lib/vehicles";
 import { DeleteButton } from "@/components/DeleteButton";
+import { matchesQuery } from "@/lib/search";
 
 const STATUS_LABELS: Record<string, string> = {
   planificare: "Planificare",
@@ -21,9 +22,15 @@ const STATUS_STYLES: Record<string, string> = {
   anulat: "text-red-700 bg-red-50",
 };
 
-export default async function JobsPage() {
+export default async function JobsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
+
+  const { q = "" } = await searchParams;
 
   const [jobs, customers, drivers, vehicles] = await Promise.all([
     listJobs(),
@@ -36,6 +43,20 @@ export default async function JobsPage() {
   const driverName = new Map(drivers.map((d) => [d.id, d.name]));
   const vehiclePlate = new Map(vehicles.map((v) => [v.id, v.plate]));
 
+  const filteredJobs = jobs.filter((j) =>
+    matchesQuery(
+      [
+        j.ref,
+        j.load_place,
+        j.unload_place,
+        j.client_id ? customerName.get(j.client_id) : null,
+        j.driver_id ? driverName.get(j.driver_id) : null,
+        j.vehicle_id ? vehiclePlate.get(j.vehicle_id) : null,
+      ],
+      q
+    )
+  );
+
   return (
     <div className="min-h-screen p-8 space-y-6">
       <div className="flex items-center justify-between">
@@ -47,6 +68,24 @@ export default async function JobsPage() {
           + Adaugă cursă
         </a>
       </div>
+
+      <form className="flex gap-2">
+        <input
+          type="text"
+          name="q"
+          defaultValue={q}
+          placeholder="Caută după traseu, referință, client, șofer, vehicul..."
+          className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
+        />
+        <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
+          Caută
+        </button>
+        {q && (
+          <a href="/jobs" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-500 hover:bg-slate-50 transition">
+            Resetează
+          </a>
+        )}
+      </form>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
         <table className="w-full text-sm">
@@ -63,7 +102,7 @@ export default async function JobsPage() {
             </tr>
           </thead>
           <tbody>
-            {jobs.map((j) => (
+            {filteredJobs.map((j) => (
               <tr key={j.id} className="border-t border-slate-100">
                 <td className="px-4 py-3 font-medium">
                   {j.load_place || "—"} → {j.unload_place || "—"}
@@ -90,10 +129,10 @@ export default async function JobsPage() {
                 </td>
               </tr>
             ))}
-            {jobs.length === 0 && (
+            {filteredJobs.length === 0 && (
               <tr>
                 <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
-                  Nicio cursă încă. Adaugă prima mai sus.
+                  {q ? `Nicio cursă găsită pentru „${q}".` : "Nicio cursă încă. Adaugă prima mai sus."}
                 </td>
               </tr>
             )}
