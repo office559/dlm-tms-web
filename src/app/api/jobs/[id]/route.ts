@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { updateJob, deleteJob } from "@/lib/jobs";
+import { getJob, updateJob, deleteJob } from "@/lib/jobs";
+import { notifyJobChanges } from "@/lib/job-notifications";
 
 export async function PATCH(
   req: NextRequest,
@@ -13,11 +14,17 @@ export async function PATCH(
   }
 
   const { id } = await params;
+  const before = await getJob(id);
   const body = await req.json();
   const job = await updateJob(id, body);
   if (!job) {
     return NextResponse.json({ error: "Cursa nu a fost găsită" }, { status: 404 });
   }
+
+  notifyJobChanges(before, job).catch((err) =>
+    console.error("WhatsApp notify (update job) failed:", err)
+  );
+
   return NextResponse.json(job);
 }
 
