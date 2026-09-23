@@ -12,17 +12,24 @@ export default async function DashboardPage() {
         Bine ai venit, {session.user.name || session.user.email}
       </h1>
       <p className="text-slate-600 mt-2">
-        Aceasta e prima versiune a fundației — autentificare și conturi de dispecer. Modulele
-        operaționale (Job Center, Planificare, Rapoarte) urmează în etapele următoare.
+        Modulele operaționale (Job Center, Planificare, Rapoarte) urmează în etapele următoare.
       </p>
-      {session.user.role === "admin" && (
-        <a
-          href="/dispatchers"
-          className="inline-block mt-6 rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition"
+      <div className="flex flex-wrap gap-3 mt-6">
+        
+          href="/drivers"
+          className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition"
         >
-          Gestionează dispecerii
+          Șoferi
         </a>
-      )}
+        {session.user.role === "admin" && (
+          
+            href="/dispatchers"
+            className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition"
+          >
+            Gestionează dispecerii
+          </a>
+        )}
+      </div>
     </div>
   );
 }
