@@ -7,6 +7,7 @@ import { DeleteButton } from "@/components/DeleteButton";
 import { WhatsAppLink } from "@/components/WhatsAppLink";
 import { matchesQuery } from "@/lib/search";
 import { waLink } from "@/lib/whatsapp";
+import { AppShell } from "@/components/AppShell";
 
 export default async function DriversPage({
   searchParams,
@@ -24,7 +25,8 @@ export default async function DriversPage({
   const filteredDrivers = drivers.filter((d) => matchesQuery([d.name, d.phone], q));
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
+    <AppShell active="drivers" crumb="Șoferi">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand-dark">Șoferi</h1>
@@ -102,6 +104,7 @@ export default async function DriversPage({
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
