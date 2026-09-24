@@ -9,6 +9,7 @@ import {
   getBrokerageSummary,
   getJobsSummary,
 } from "@/lib/reports";
+import { AppShell } from "@/components/AppShell";
 
 function firstOfMonth() {
   const d = new Date();
@@ -43,7 +44,8 @@ export default async function ReportsPage({
   ]);
 
   return (
-    <div className="min-h-screen p-8 space-y-8">
+    <AppShell active="reports" crumb="Rapoarte & Profituri">
+      <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-brand-dark">Rapoarte &amp; Profituri</h1>
         <p className="text-slate-600 mt-1">Situație agregată pentru perioada selectată.</p>
@@ -191,6 +193,7 @@ export default async function ReportsPage({
       <p className="text-xs text-slate-400">
         Notă: veniturile din curse sunt afișate pe monedă (pot fi în EUR, USD, GBP sau RON), iar cheltuielile și marja de brokeraj sunt în RON — profitul net trebuie calculat manual dacă monedele diferă.
       </p>
-    </div>
+      </div>
+    </AppShell>
   );
 }
