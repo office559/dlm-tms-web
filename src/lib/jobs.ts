@@ -24,6 +24,10 @@ export type Job = {
   invoice: string;
   paid_at: string | null;
   created_at: Date;
+  wa_message_sid: string | null;
+  wa_sent_at: Date | null;
+  wa_read_at: Date | null;
+  wa_confirmed_at: Date | null;
 };
 
 export type JobInput = {
@@ -141,4 +145,53 @@ export async function updateJob(id: string, input: JobInput) {
 
 export async function deleteJob(id: string) {
   await pool.query(`delete from jobs where id = $1`, [id]);
+}
+
+/**
+ * Salvează SID-ul mesajului WhatsApp trimis automat pentru această cursă și
+ * resetează starea de citire/confirmare (folosit când se trimite o
+ * notificare nouă de alocare — de ex. dacă șoferul e schimbat din nou).
+ */
+export async function setJobWhatsAppSent(id: string, messageSid: string) {
+  await pool.query(
+    `update jobs
+       set wa_message_sid = $2, wa_sent_at = now(), wa_read_at = null, wa_confirmed_at = null
+     where id = $1`,
+    [id, messageSid]
+  );
+}
+
+/**
+ * Marchează mesajul cu acest SID ca citit (apelat din webhook-ul de status
+ * al Twilio, când MessageStatus devine "read"). Nu suprascrie o citire deja
+ * înregistrată.
+ */
+export async function markWhatsAppReadBySid(messageSid: string) {
+  await pool.query(
+    `update jobs set wa_read_at = now() where wa_message_sid = $1 and wa_read_at is null`,
+    [messageSid]
+  );
+}
+
+/**
+ * Găsește cea mai recentă cursă a unui șofer pentru care s-a trimis un
+ * mesaj WhatsApp și care încă nu a fost confirmată (folosit din webhook-ul
+ * de mesaje primite, când șoferul apasă butonul "Confirmă").
+ */
+export async function findLatestPendingJobForDriver(driverId: string) {
+  const { rows } = await pool.query<Job>(
+    `select * from jobs
+      where driver_id = $1
+        and wa_message_sid is not null
+        and wa_confirmed_at is null
+      order by wa_sent_at desc nulls last
+      limit 1`,
+    [driverId]
+  );
+  return rows[0] ?? null;
+}
+
+/** Marchează o cursă ca fiind confirmată de șofer prin WhatsApp. */
+export async function markJobConfirmed(jobId: string) {
+  await pool.query(`update jobs set wa_confirmed_at = now() where id = $1`, [jobId]);
 }
