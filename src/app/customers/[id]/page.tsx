@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getCustomer } from "@/lib/customers";
 import { CustomerForm } from "@/components/CustomerForm";
+import { AppShell } from "@/components/AppShell";
 
 export default async function EditCustomerPage({
   params,
@@ -17,22 +18,24 @@ export default async function EditCustomerPage({
   if (!customer) notFound();
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
-      <h1 className="text-2xl font-semibold text-brand-dark">Editează client</h1>
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <CustomerForm
-          initial={{
-            id: customer.id,
-            name: customer.name,
-            type: customer.type ?? "",
-            code: customer.code ?? "",
-            termDays: customer.term_days != null ? String(customer.term_days) : "",
-            commission: customer.commission != null ? String(customer.commission) : "",
-            terms: customer.terms ?? "",
-            email: customer.email ?? "",
-          }}
-        />
+    <AppShell active="customers" crumb="Editează client">
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold text-brand-dark">Editează client</h1>
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <CustomerForm
+            initial={{
+              id: customer.id,
+              name: customer.name,
+              type: customer.type ?? "",
+              code: customer.code ?? "",
+              termDays: customer.term_days != null ? String(customer.term_days) : "",
+              commission: customer.commission != null ? String(customer.commission) : "",
+              terms: customer.terms ?? "",
+              email: customer.email ?? "",
+            }}
+          />
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
