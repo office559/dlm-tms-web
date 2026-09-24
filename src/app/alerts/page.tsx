@@ -6,6 +6,7 @@ import { getSettings } from "@/lib/settings";
 import { listDrivers } from "@/lib/drivers";
 import { WhatsAppLink } from "@/components/WhatsAppLink";
 import { waLink } from "@/lib/whatsapp";
+import { AppShell } from "@/components/AppShell";
 
 function badgeClass(daysLeft: number) {
   if (daysLeft < 0) return "bg-red-50 text-red-700";
@@ -57,7 +58,8 @@ export default async function AlertsPage({
   }
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
+    <AppShell active="alerts" crumb="Alerte documente">
+      <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-brand-dark">Alerte expirare documente</h1>
@@ -180,6 +182,7 @@ export default async function AlertsPage({
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
