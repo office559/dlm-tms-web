@@ -56,7 +56,7 @@ export function JobForm({
   initial?: Partial<JobFormValues> & { id: string };
   customers: { id: string; name: string }[];
   drivers: { id: string; name: string }[];
-  vehicles: { id: string; plate: string }[];
+  vehicles: { id: string; plate: string; driverId: string | null; trailerId: string | null }[];
   trailers: { id: string; plate: string }[];
   dispatchers: { id: string; name: string }[];
 }) {
@@ -68,6 +68,27 @@ export function JobForm({
 
   function set<K extends keyof JobFormValues>(key: K, value: JobFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
+  }
+
+  /** Alege șoferul și, dacă are un tractor/remorcă alocate, le completează automat. */
+  function selectDriver(driverId: string) {
+    const match = vehicles.find((v) => v.driverId === driverId);
+    setValues((v) => ({
+      ...v,
+      driverId,
+      vehicleId: match ? match.id : v.vehicleId,
+      trailerId: match && match.trailerId ? match.trailerId : v.trailerId,
+    }));
+  }
+
+  /** Alege tractorul și, dacă are o remorcă alocată, o completează automat. */
+  function selectVehicle(vehicleId: string) {
+    const match = vehicles.find((v) => v.id === vehicleId);
+    setValues((v) => ({
+      ...v,
+      vehicleId,
+      trailerId: match && match.trailerId ? match.trailerId : v.trailerId,
+    }));
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -226,7 +247,7 @@ export function JobForm({
           <label className="text-sm text-slate-600">Șofer</label>
           <select
             value={values.driverId}
-            onChange={(e) => set("driverId", e.target.value)}
+            onChange={(e) => selectDriver(e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
           >
             <option value="">— Niciunul —</option>
@@ -242,7 +263,7 @@ export function JobForm({
           <label className="text-sm text-slate-600">Vehicul</label>
           <select
             value={values.vehicleId}
-            onChange={(e) => set("vehicleId", e.target.value)}
+            onChange={(e) => selectVehicle(e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
           >
             <option value="">— Niciunul —</option>
@@ -252,6 +273,10 @@ export function JobForm({
               </option>
             ))}
           </select>
+          <p className="text-xs text-slate-400">
+            Selectând șoferul sau tractorul, remorca alocată se completează automat — poți totuși
+            s-o schimbi mai jos.
+          </p>
         </div>
 
         <div className="space-y-1">
