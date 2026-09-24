@@ -5,18 +5,13 @@ import { listVehicles } from "@/lib/vehicles";
 import { listDrivers } from "@/lib/drivers";
 import { listTrailers } from "@/lib/trailers";
 import { AppShell } from "@/components/AppShell";
-import {
-  fleetState,
-  FLEET_STATE_LABELS,
-  FLEET_STATE_STYLES,
-  currentJobsByVehicle,
-} from "@/lib/fleet";
+import { fleetState, currentJobsByVehicle } from "@/lib/fleet";
 import {
   DriverSelect,
   LocationInput,
   PauseControl,
   ProgramEditor,
-  JobStatusControl,
+  StareControl,
 } from "@/components/PlanningCells";
 import type { Job } from "@/lib/jobs";
 
@@ -170,12 +165,7 @@ export default async function PlanningPage({
                       {job?.start_at ? fmtDate(job.start_at) : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs ${FLEET_STATE_STYLES[state]}`}>
-                        {FLEET_STATE_LABELS[state]}
-                      </span>
-                      {job && (job.status === "planificare" || job.status === "activ") && (
-                        <JobStatusControl jobId={job.id} status={job.status} />
-                      )}
+                      <StareControl vehicleId={v.id} jobId={job ? job.id : null} state={state} />
                     </td>
                     <td className="px-4 py-3">
                       <DriverSelect
