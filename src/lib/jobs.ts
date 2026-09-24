@@ -148,6 +148,19 @@ export async function deleteJob(id: string) {
 }
 
 /**
+ * Schimbare rapidă doar a statusului unei curse (Alocat → Tranzit / Anulare,
+ * apoi Tranzit → Finalizare) — folosită din Planificare, unde nu vrem să
+ * suprascriem tot formularul cursei ca la PATCH /api/jobs/[id].
+ */
+export async function patchJobStatus(id: string, status: string) {
+  const { rows } = await pool.query<Job>(
+    `update jobs set status = $2 where id = $1 returning *`,
+    [id, status]
+  );
+  return rows[0] ?? null;
+}
+
+/**
  * Salvează SID-ul mesajului WhatsApp trimis automat pentru această cursă și
  * resetează starea de citire/confirmare (folosit când se trimite o
  * notificare nouă de alocare — de ex. dacă șoferul e schimbat din nou).
