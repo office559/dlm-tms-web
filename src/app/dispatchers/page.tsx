@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { listDispatchers } from "@/lib/db";
 import { InviteDispatcherForm } from "@/components/InviteDispatcherForm";
+import { AppShell } from "@/components/AppShell";
 
 export default async function DispatchersPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -12,7 +13,8 @@ export default async function DispatchersPage() {
   const dispatchers = await listDispatchers();
 
   return (
-    <div className="min-h-screen p-8 space-y-8">
+    <AppShell active="dispatchers" crumb="Dispeceri">
+      <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-brand-dark">Dispeceri</h1>
         <p className="text-slate-600 mt-1">
@@ -65,6 +67,7 @@ export default async function DispatchersPage() {
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
