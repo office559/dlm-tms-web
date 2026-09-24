@@ -25,6 +25,35 @@ const STATUS_STYLES: Record<string, string> = {
   anulat: "text-red-700 bg-red-50",
 };
 
+function WaConfirmBadge({
+  waMessageSid,
+  waReadAt,
+  waConfirmedAt,
+}: {
+  waMessageSid: string | null;
+  waReadAt: Date | null;
+  waConfirmedAt: Date | null;
+}) {
+  if (!waMessageSid) return <span className="text-slate-300 text-xs">—</span>;
+
+  if (waConfirmedAt) {
+    return (
+      <span className="rounded-full px-2 py-0.5 text-xs text-green-700 bg-green-50">
+        Confirmat
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="rounded-full px-2 py-0.5 text-xs text-amber-700 bg-amber-50">
+        Pending
+      </span>
+      {waReadAt && <span className="text-slate-400 text-xs">(citit)</span>}
+    </span>
+  );
+}
+
 function jobMessage(j: {
   ref: string | null;
   load_place: string | null;
@@ -120,6 +149,7 @@ export default async function JobsPage({
               <th className="px-4 py-3">Start</th>
               <th className="px-4 py-3">Tarif</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">WhatsApp</th>
               <th className="px-4 py-3"></th>
             </tr>
           </thead>
@@ -148,6 +178,13 @@ export default async function JobsPage({
                       {STATUS_LABELS[j.status] ?? j.status}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    <WaConfirmBadge
+                      waMessageSid={j.wa_message_sid}
+                      waReadAt={j.wa_read_at}
+                      waConfirmedAt={j.wa_confirmed_at}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-right space-x-3">
                     <WhatsAppLink href={waHref} label="Anunță șofer" />
                     <a href={`/jobs/${j.id}`} className="text-brand hover:text-brand-dark text-sm">
@@ -160,7 +197,7 @@ export default async function JobsPage({
             })}
             {filteredJobs.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={9} className="px-4 py-6 text-center text-slate-400">
                   {q ? `Nicio cursă găsită pentru „${q}".` : "Nicio cursă încă. Adaugă prima mai sus."}
                 </td>
               </tr>
