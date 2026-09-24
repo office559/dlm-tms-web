@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getCost } from "@/lib/costs";
 import { listVehicles } from "@/lib/vehicles";
 import { CostForm } from "@/components/CostForm";
+import { AppShell } from "@/components/AppShell";
 
 export default async function EditCostPage({
   params,
@@ -18,21 +19,23 @@ export default async function EditCostPage({
   if (!cost) notFound();
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
-      <h1 className="text-2xl font-semibold text-brand-dark">Editează cheltuială</h1>
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <CostForm
-          initial={{
-            id: cost.id,
-            date: String(cost.date).slice(0, 10),
-            category: cost.category,
-            vehicleId: cost.vehicle_id ?? "",
-            amount: String(cost.amount),
-            note: cost.note ?? "",
-          }}
-          vehicles={vehicles.map((v) => ({ id: v.id, plate: v.plate }))}
-        />
+    <AppShell active="costs" crumb="Editează cheltuială">
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold text-brand-dark">Editează cheltuială</h1>
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <CostForm
+            initial={{
+              id: cost.id,
+              date: String(cost.date).slice(0, 10),
+              category: cost.category,
+              vehicleId: cost.vehicle_id ?? "",
+              amount: String(cost.amount),
+              note: cost.note ?? "",
+            }}
+            vehicles={vehicles.map((v) => ({ id: v.id, plate: v.plate }))}
+          />
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
