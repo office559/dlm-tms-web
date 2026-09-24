@@ -6,6 +6,7 @@ import { listDrivers } from "@/lib/drivers";
 import { listTrailers } from "@/lib/trailers";
 import { DeleteButton } from "@/components/DeleteButton";
 import { matchesQuery } from "@/lib/search";
+import { AppShell } from "@/components/AppShell";
 
 export default async function VehiclesPage({
   searchParams,
@@ -39,7 +40,8 @@ export default async function VehiclesPage({
   );
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
+    <AppShell active="vehicles" crumb="Vehicule">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand-dark">Vehicule</h1>
@@ -118,6 +120,7 @@ export default async function VehiclesPage({
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
