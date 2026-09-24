@@ -55,9 +55,23 @@ export function DriverSelect({
   );
 }
 
-export function LocationInput({ vehicleId, value }: { vehicleId: string; value: string | null }) {
+/**
+ * Câmp de locație: dacă dispecerul n-a pus nimic manual, se completează
+ * automat cu locul ultimei descărcări a vehiculului (fallback), dar
+ * rămâne editabil — la prima modificare se salvează valoarea nouă.
+ */
+export function LocationInput({
+  vehicleId,
+  value,
+  fallback,
+}: {
+  vehicleId: string;
+  value: string | null;
+  fallback?: string | null;
+}) {
   const router = useRouter();
-  const [val, setVal] = useState(value ?? "");
+  const initial = value ?? fallback ?? "";
+  const [val, setVal] = useState(initial);
 
   return (
     <input
@@ -67,7 +81,7 @@ export function LocationInput({ vehicleId, value }: { vehicleId: string; value: 
       placeholder="—"
       onChange={(e) => setVal(e.target.value)}
       onBlur={async () => {
-        if (val === (value ?? "")) return;
+        if (val === initial) return;
         await patchVehicle(vehicleId, { location: val || null });
         router.refresh();
       }}
@@ -99,6 +113,22 @@ function endPauseBody(): Record<string, unknown> {
     restStartAt: null,
     restEndAt: null,
   };
+}
+
+/** Ora "HH:MM" combinată cu data de azi. */
+function combineDateTime(time: string, base: Date = new Date()): Date {
+  const [h, m] = time.split(":").map((n) => Number(n) || 0);
+  const d = new Date(base);
+  d.setHours(h, m, 0, 0);
+  return d;
+}
+
+/** "3h 42m" / "42m" dintr-o durată în milisecunde (minim 0). */
+function fmtCountdown(ms: number): string {
+  const totalMin = Math.max(0, Math.round(ms / 60000));
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 type StareOption = {
@@ -255,65 +285,148 @@ function addHoursToTime(time: string, hours: number): string {
 }
 
 /**
- * Editor pentru programul vehiculului: ora de start + durata (13/15/21h).
- * Ora de final se calculează automat și se salvează pe vehicul.
+ * Program vehicul: dacă nu e setat, arată „— [+]" (apasă ca să adaugi);
+ * dacă e setat, arată o pastilă cu ora de start-final și, dedesubt,
+ * „începe în Xh Ym" sau „Mai are Xh Ym", calculate din data+ora exactă
+ * salvată la ultima setare.
  */
-export function ProgramEditor({
+export function ProgramControl({
   vehicleId,
   programStart,
   programEnd,
+  programStartAt,
+  programEndAt,
 }: {
   vehicleId: string;
   programStart: string | null;
   programEnd: string | null;
+  programStartAt: string | null;
+  programEndAt: string | null;
 }) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [start, setStart] = useState(programStart ?? "");
   const [duration, setDuration] = useState<number | "">(() => {
     if (!programStart || !programEnd) return "";
     const guess = PROGRAM_DURATIONS.find((d) => addHoursToTime(programStart, d) === programEnd);
     return guess ?? "";
   });
-  const [saving, setSaving] = useState(false);
 
-  async function save(nextStart: string, nextDuration: number | "") {
+  async function save() {
+    if (!start || !duration) {
+      setOpen(false);
+      return;
+    }
     setSaving(true);
-    const end = nextStart && nextDuration ? addHoursToTime(nextStart, Number(nextDuration)) : null;
+    const end = addHoursToTime(start, Number(duration));
+    const startAt = combineDateTime(start);
+    let endAt = combineDateTime(end);
+    if (endAt.getTime() <= startAt.getTime()) {
+      endAt = new Date(endAt.getTime() + 24 * 60 * 60 * 1000);
+    }
     await patchVehicle(vehicleId, {
-      programStart: nextStart || null,
+      programStart: start,
       programEnd: end,
+      programStartAt: startAt.toISOString(),
+      programEndAt: endAt.toISOString(),
     });
     setSaving(false);
+    setOpen(false);
     router.refresh();
   }
 
+  const startAtDate = programStartAt ? new Date(programStartAt) : null;
+  const endAtDate = programEndAt ? new Date(programEndAt) : null;
+  const now = Date.now();
+
+  let subText: string | null = null;
+  if (startAtDate && endAtDate) {
+    if (now < startAtDate.getTime()) {
+      subText = `începe în ${fmtCountdown(startAtDate.getTime() - now)}`;
+    } else if (now < endAtDate.getTime()) {
+      subText = `Mai are ${fmtCountdown(endAtDate.getTime() - now)}`;
+    } else {
+      subText = "Program încheiat";
+    }
+  }
+
   return (
-    <div className="flex flex-col gap-1">
-      <input
-        type="time"
-        className="rounded-lg border border-slate-200 px-2 py-1 text-xs w-24 disabled:opacity-50"
-        value={start}
-        disabled={saving}
-        onChange={(e) => setStart(e.target.value)}
-        onBlur={() => save(start, duration)}
-      />
-      <select
-        className="rounded-lg border border-slate-200 px-2 py-1 text-xs w-24 disabled:opacity-50"
-        value={duration}
-        disabled={saving}
-        onChange={(e) => {
-          const d = e.target.value ? Number(e.target.value) : "";
-          setDuration(d);
-          save(start, d);
-        }}
-      >
-        <option value="">— ore</option>
-        {PROGRAM_DURATIONS.map((d) => (
-          <option key={d} value={d}>
-            {d}h
-          </option>
-        ))}
-      </select>
+    <div className="flex flex-col gap-0.5">
+      {programStart && programEnd ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="w-fit rounded-lg bg-orange-100 px-2 py-1 text-sm font-semibold text-orange-800 hover:bg-orange-200 transition"
+        >
+          {programStart} - {programEnd}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600"
+        >
+          <span>—</span>
+          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-base leading-none text-slate-500">
+            +
+          </span>
+        </button>
+      )}
+      {subText && <div className="text-[11px] text-slate-400">{subText}</div>}
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-brand-dark">Program vehicul</h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-lg leading-none text-slate-400 hover:text-slate-600"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <input
+                type="time"
+                className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                value={start}
+                disabled={saving}
+                onChange={(e) => setStart(e.target.value)}
+              />
+              <select
+                className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                value={duration}
+                disabled={saving}
+                onChange={(e) => setDuration(e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">— ore</option>
+                {PROGRAM_DURATIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}h
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={saving || !start || !duration}
+                onClick={save}
+                className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
+              >
+                Salvează
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -321,92 +434,146 @@ export function ProgramEditor({
 const PAUSE_DURATIONS = [9, 11, 24];
 
 /**
- * Control pentru pauza vehiculului: bifă activare + durata (opțiuni rapide
- * 9/11/24h, sau o durată personalizată). La activare calculează automat ora
- * de start/final a pauzei (de la momentul curent) și le salvează pe
- * vehicul; la dezactivare le șterge.
+ * Pauză vehicul: dacă nu e activă, arată „— [+]"; dacă e activă, arată o
+ * pastilă roșu (start) / verde (final) cu creion de editare, și dedesubt
+ * „Mai are Xh Ym" calculat din ora exactă de final a pauzei.
  */
-export function PauseControl({
+export function PauseBadgeControl({
   vehicleId,
-  value,
-  restDurH,
+  pause,
+  restStart,
+  restEnd,
+  restEndAt,
 }: {
   vehicleId: string;
-  value: boolean;
-  restDurH: number | null;
+  pause: boolean;
+  restStart: string | null;
+  restEnd: string | null;
+  restEndAt: string | null;
 }) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [on, setOn] = useState(value);
-  const isPreset = restDurH != null && PAUSE_DURATIONS.includes(restDurH);
-  const [dur, setDur] = useState<number | "">(isPreset ? (restDurH as number) : "");
-  const [custom, setCustom] = useState<string>(!isPreset && restDurH != null ? String(restDurH) : "");
-  const [useCustom, setUseCustom] = useState(!isPreset && restDurH != null);
+  const [custom, setCustom] = useState("");
 
-  async function applyPause(nextOn: boolean, nextDur: number | "") {
+  async function start(hours: number) {
     setSaving(true);
-    if (nextOn && nextDur) {
-      await patchVehicle(vehicleId, startPauseBody(Number(nextDur)));
-    } else {
-      await patchVehicle(vehicleId, endPauseBody());
-    }
+    await patchVehicle(vehicleId, startPauseBody(hours));
     setSaving(false);
+    setOpen(false);
     router.refresh();
   }
 
+  async function end() {
+    setSaving(true);
+    await patchVehicle(vehicleId, endPauseBody());
+    setSaving(false);
+    setOpen(false);
+    router.refresh();
+  }
+
+  const endAtDate = restEndAt ? new Date(restEndAt) : null;
+  const now = Date.now();
+  let subText: string | null = null;
+  if (pause && endAtDate) {
+    subText =
+      now < endAtDate.getTime() ? `Mai are ${fmtCountdown(endAtDate.getTime() - now)}` : "Pauză încheiată";
+  }
+
   return (
-    <div className="flex flex-col gap-1">
-      <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={on}
-          disabled={saving}
-          onChange={(e) => {
-            const checked = e.target.checked;
-            setOn(checked);
-            applyPause(checked, useCustom ? (custom ? Number(custom) : "") : dur);
-          }}
-        />
-        Pauză
-      </label>
-      {on && (
-        <>
-          <select
-            className="rounded-lg border border-slate-200 px-2 py-1 text-xs w-24 disabled:opacity-50"
-            value={useCustom ? "custom" : dur}
-            disabled={saving}
-            onChange={(e) => {
-              if (e.target.value === "custom") {
-                setUseCustom(true);
-                return;
-              }
-              const d = e.target.value ? Number(e.target.value) : "";
-              setUseCustom(false);
-              setDur(d);
-              applyPause(true, d);
-            }}
+    <div className="flex flex-col gap-0.5">
+      {pause && restStart && restEnd ? (
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex overflow-hidden rounded-lg text-sm font-semibold">
+            <span className="bg-red-500 px-2 py-1 text-white">{restStart}</span>
+            <span className="bg-emerald-500 px-2 py-1 text-white">{restEnd}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Editează pauza"
+            className="text-slate-400 hover:text-slate-600"
           >
-            <option value="">— ore</option>
-            {PAUSE_DURATIONS.map((d) => (
-              <option key={d} value={d}>
-                {d}h
-              </option>
-            ))}
-            <option value="custom">Personalizat</option>
-          </select>
-          {useCustom && (
-            <input
-              type="number"
-              min={1}
-              placeholder="ore"
-              className="rounded-lg border border-slate-200 px-2 py-1 text-xs w-24 disabled:opacity-50"
-              value={custom}
-              disabled={saving}
-              onChange={(e) => setCustom(e.target.value)}
-              onBlur={() => custom && applyPause(true, Number(custom))}
-            />
-          )}
-        </>
+            ✎
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600"
+        >
+          <span>—</span>
+          <span className="flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-base leading-none text-slate-500">
+            +
+          </span>
+        </button>
+      )}
+      {subText && <div className="text-[11px] text-slate-400">{subText}</div>}
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-brand-dark">Pauză vehicul</h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-lg leading-none text-slate-400 hover:text-slate-600"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {PAUSE_DURATIONS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => start(d)}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-left text-sm hover:border-brand hover:bg-slate-50 transition disabled:opacity-50"
+                >
+                  {d}h
+                </button>
+              ))}
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="ore personalizat"
+                  className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                  value={custom}
+                  disabled={saving}
+                  onChange={(e) => setCustom(e.target.value)}
+                />
+                <button
+                  type="button"
+                  disabled={saving || !custom}
+                  onClick={() => start(Number(custom))}
+                  className="shrink-0 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
+                >
+                  OK
+                </button>
+              </div>
+              {pause && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={end}
+                  className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 transition"
+                >
+                  Finalizează pauza
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
