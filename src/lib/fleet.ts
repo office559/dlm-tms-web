@@ -70,7 +70,18 @@ export async function currentJobsByVehicle(vehicleIds: string[]): Promise<Map<st
 /** Actualizare rapidă a unui vehicul din tabelul de Planificare (fără să ceară tot formularul). */
 export async function patchVehicleQuick(
   id: string,
-  fields: { driverId?: string | null; location?: string | null; pause?: boolean }
+  fields: {
+    driverId?: string | null;
+    location?: string | null;
+    pause?: boolean;
+    programStart?: string | null;
+    programEnd?: string | null;
+    restDurH?: number | null;
+    restStart?: string | null;
+    restEnd?: string | null;
+    restStartAt?: string | null;
+    restEndAt?: string | null;
+  }
 ) {
   const sets: string[] = [];
   const vals: unknown[] = [id];
@@ -85,6 +96,34 @@ export async function patchVehicleQuick(
   if (fields.pause !== undefined) {
     vals.push(fields.pause);
     sets.push(`pause = $${vals.length}`);
+  }
+  if (fields.programStart !== undefined) {
+    vals.push(fields.programStart || null);
+    sets.push(`program_start = $${vals.length}`);
+  }
+  if (fields.programEnd !== undefined) {
+    vals.push(fields.programEnd || null);
+    sets.push(`program_end = $${vals.length}`);
+  }
+  if (fields.restDurH !== undefined) {
+    vals.push(fields.restDurH ?? null);
+    sets.push(`rest_dur_h = $${vals.length}`);
+  }
+  if (fields.restStart !== undefined) {
+    vals.push(fields.restStart || null);
+    sets.push(`rest_start = $${vals.length}`);
+  }
+  if (fields.restEnd !== undefined) {
+    vals.push(fields.restEnd || null);
+    sets.push(`rest_end = $${vals.length}`);
+  }
+  if (fields.restStartAt !== undefined) {
+    vals.push(fields.restStartAt || null);
+    sets.push(`rest_start_at = $${vals.length}`);
+  }
+  if (fields.restEndAt !== undefined) {
+    vals.push(fields.restEndAt || null);
+    sets.push(`rest_end_at = $${vals.length}`);
   }
   if (sets.length === 0) return;
   await pool.query(`update vehicles set ${sets.join(", ")} where id = $1`, vals);
