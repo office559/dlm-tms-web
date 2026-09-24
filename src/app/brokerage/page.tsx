@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { listBrokerage } from "@/lib/brokerage";
 import { DeleteButton } from "@/components/DeleteButton";
 import { matchesQuery } from "@/lib/search";
+import { AppShell } from "@/components/AppShell";
 
 const STATUS_STYLES: Record<string, string> = {
   "În curs": "bg-amber-50 text-amber-700",
@@ -34,7 +35,8 @@ export default async function BrokeragePage({
   }, 0);
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
+    <AppShell active="brokerage" crumb="Brokeraj">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand-dark">Brokeraj</h1>
@@ -129,6 +131,7 @@ export default async function BrokeragePage({
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
