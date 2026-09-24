@@ -8,6 +8,7 @@ import { listVehicles } from "@/lib/vehicles";
 import { listTrailers } from "@/lib/trailers";
 import { listDispatchers } from "@/lib/db";
 import { JobForm } from "@/components/JobForm";
+import { AppShell } from "@/components/AppShell";
 
 function toLocalInput(d: Date | null) {
   if (!d) return "";
@@ -36,38 +37,40 @@ export default async function EditJobPage({
   if (!job) notFound();
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
-      <h1 className="text-2xl font-semibold text-brand-dark">Editează cursă</h1>
-      <div className="bg-white rounded-2xl border border-slate-200 p-6">
-        <JobForm
-          initial={{
-            id: job.id,
-            clientId: job.client_id ?? "",
-            ref: job.ref ?? "",
-            loadPlace: job.load_place ?? "",
-            unloadPlace: job.unload_place ?? "",
-            startAt: toLocalInput(job.start_at),
-            endAt: toLocalInput(job.end_at),
-            miles: job.miles != null ? String(job.miles) : "",
-            currency: job.currency ?? "€",
-            rate: job.rate != null ? String(job.rate) : "",
-            extra: job.extra != null ? String(job.extra) : "",
-            driverId: job.driver_id ?? "",
-            vehicleId: job.vehicle_id ?? "",
-            trailerId: job.trailer_id ?? "",
-            dispatcherId: job.dispatcher_id ?? "",
-            status: job.status,
-            invoice: job.invoice,
-            paidAt: job.paid_at ? String(job.paid_at).slice(0, 10) : "",
-            notes: job.notes ?? "",
-          }}
-          customers={customers.map((c) => ({ id: c.id, name: c.name }))}
-          drivers={drivers.map((d) => ({ id: d.id, name: d.name }))}
-          vehicles={vehicles.map((v) => ({ id: v.id, plate: v.plate }))}
-          trailers={trailers.map((t) => ({ id: t.id, plate: t.plate }))}
-          dispatchers={dispatchers.map((d) => ({ id: d.id, name: d.name }))}
-        />
+    <AppShell active="jobs" crumb="Editează cursă">
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold text-brand-dark">Editează cursă</h1>
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <JobForm
+            initial={{
+              id: job.id,
+              clientId: job.client_id ?? "",
+              ref: job.ref ?? "",
+              loadPlace: job.load_place ?? "",
+              unloadPlace: job.unload_place ?? "",
+              startAt: toLocalInput(job.start_at),
+              endAt: toLocalInput(job.end_at),
+              miles: job.miles != null ? String(job.miles) : "",
+              currency: job.currency ?? "€",
+              rate: job.rate != null ? String(job.rate) : "",
+              extra: job.extra != null ? String(job.extra) : "",
+              driverId: job.driver_id ?? "",
+              vehicleId: job.vehicle_id ?? "",
+              trailerId: job.trailer_id ?? "",
+              dispatcherId: job.dispatcher_id ?? "",
+              status: job.status,
+              invoice: job.invoice,
+              paidAt: job.paid_at ? String(job.paid_at).slice(0, 10) : "",
+              notes: job.notes ?? "",
+            }}
+            customers={customers.map((c) => ({ id: c.id, name: c.name }))}
+            drivers={drivers.map((d) => ({ id: d.id, name: d.name }))}
+            vehicles={vehicles.map((v) => ({ id: v.id, plate: v.plate }))}
+            trailers={trailers.map((t) => ({ id: t.id, plate: t.plate }))}
+            dispatchers={dispatchers.map((d) => ({ id: d.id, name: d.name }))}
+          />
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }
