@@ -38,9 +38,7 @@ export function fleetState(v: Vehicle, currentJob: Job | null): FleetState {
   if (!v.active) return "stationare";
   if (v.state_override === "stationare") return "stationare";
   if (currentJob && currentJob.status === "activ") return "tranzit";
-  if (v.state_override === "disponibil" || v.state_override === "indisponibil") {
-    return v.state_override;
-  }
+  if (v.state_override === "indisponibil") return "indisponibil";
   if (v.pause) return "pauza";
   if (currentJob && currentJob.status === "planificare") return "alocat";
   if (!v.driver_id) return "indisponibil";
