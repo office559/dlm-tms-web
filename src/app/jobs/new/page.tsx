@@ -29,7 +29,12 @@ export default async function NewJobPage() {
           <JobForm
             customers={customers.map((c) => ({ id: c.id, name: c.name }))}
             drivers={drivers.map((d) => ({ id: d.id, name: d.name }))}
-            vehicles={vehicles.map((v) => ({ id: v.id, plate: v.plate }))}
+            vehicles={vehicles.map((v) => ({
+              id: v.id,
+              plate: v.plate,
+              driverId: v.driver_id,
+              trailerId: v.trailer_id,
+            }))}
             trailers={trailers.map((t) => ({ id: t.id, plate: t.plate }))}
             dispatchers={dispatchers.map((d) => ({ id: d.id, name: d.name }))}
           />
