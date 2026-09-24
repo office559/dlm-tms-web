@@ -75,7 +75,7 @@ async function patchJobStatus(jobId: string, status: string) {
 
 /**
  * Butoane pentru schimbarea manuală a stării cursei direct din Planificare:
- * Alocat (planificare) → Tranzit (activ) sau Anulează; Tranzit (activ) →
+ * Viitor (planificare) → Tranzit (activ) sau Anulează; Tranzit (activ) →
  * Finalizează. Nu apare pentru curse deja finalizate/anulate.
  */
 export function JobStatusControl({ jobId, status }: { jobId: string; status: string }) {
@@ -207,12 +207,13 @@ export function ProgramEditor({
   );
 }
 
-const PAUSE_DURATIONS = [9, 11, 21, 45];
+const PAUSE_DURATIONS = [9, 11, 24];
 
 /**
- * Control pentru pauza vehiculului: bifă activare + durata (9/11/21/45h).
- * La activare calculează automat ora de start/final a pauzei (de la
- * momentul curent) și le salvează pe vehicul; la dezactivare le șterge.
+ * Control pentru pauza vehiculului: bifă activare + durata (opțiuni rapide
+ * 9/11/24h, sau o durată personalizată). La activare calculează automat ora
+ * de start/final a pauzei (de la momentul curent) și le salvează pe
+ * vehicul; la dezactivare le șterge.
  */
 export function PauseControl({
   vehicleId,
@@ -226,7 +227,10 @@ export function PauseControl({
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [on, setOn] = useState(value);
-  const [dur, setDur] = useState<number | "">(restDurH ?? "");
+  const isPreset = restDurH != null && PAUSE_DURATIONS.includes(restDurH);
+  const [dur, setDur] = useState<number | "">(isPreset ? (restDurH as number) : "");
+  const [custom, setCustom] = useState<string>(!isPreset && restDurH != null ? String(restDurH) : "");
+  const [useCustom, setUseCustom] = useState(!isPreset && restDurH != null);
 
   async function applyPause(nextOn: boolean, nextDur: number | "") {
     setSaving(true);
@@ -266,29 +270,49 @@ export function PauseControl({
           onChange={(e) => {
             const checked = e.target.checked;
             setOn(checked);
-            applyPause(checked, dur);
+            applyPause(checked, useCustom ? (custom ? Number(custom) : "") : dur);
           }}
         />
         Pauză
       </label>
       {on && (
-        <select
-          className="rounded-lg border border-slate-200 px-2 py-1 text-xs w-20 disabled:opacity-50"
-          value={dur}
-          disabled={saving}
-          onChange={(e) => {
-            const d = e.target.value ? Number(e.target.value) : "";
-            setDur(d);
-            applyPause(true, d);
-          }}
-        >
-          <option value="">— ore</option>
-          {PAUSE_DURATIONS.map((d) => (
-            <option key={d} value={d}>
-              {d}h
-            </option>
-          ))}
-        </select>
+        <>
+          <select
+            className="rounded-lg border border-slate-200 px-2 py-1 text-xs w-24 disabled:opacity-50"
+            value={useCustom ? "custom" : dur}
+            disabled={saving}
+            onChange={(e) => {
+              if (e.target.value === "custom") {
+                setUseCustom(true);
+                return;
+              }
+              const d = e.target.value ? Number(e.target.value) : "";
+              setUseCustom(false);
+              setDur(d);
+              applyPause(true, d);
+            }}
+          >
+            <option value="">— ore</option>
+            {PAUSE_DURATIONS.map((d) => (
+              <option key={d} value={d}>
+                {d}h
+              </option>
+            ))}
+            <option value="custom">Personalizat</option>
+          </select>
+          {useCustom && (
+            <input
+              type="number"
+              min={1}
+              placeholder="ore"
+              className="rounded-lg border border-slate-200 px-2 py-1 text-xs w-24 disabled:opacity-50"
+              value={custom}
+              disabled={saving}
+              onChange={(e) => setCustom(e.target.value)}
+              onBlur={() => custom && applyPause(true, Number(custom))}
+            />
+          )}
+        </>
       )}
     </div>
   );
