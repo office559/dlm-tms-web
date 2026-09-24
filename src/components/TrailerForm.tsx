@@ -14,7 +14,7 @@ type TrailerFormValues = {
 
 const EMPTY: TrailerFormValues = {
   plate: "",
-  type: "Curtainsider",
+  type: "Box",
   itpExp: "",
   rcaExp: "",
   cascoExp: "",
@@ -83,11 +83,9 @@ export function TrailerForm({
             onChange={(e) => set("type", e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
           >
-            <option value="Curtainsider">Curtainsider</option>
             <option value="Box">Box</option>
-            <option value="Reefer">Reefer</option>
-            <option value="Flatbed">Flatbed</option>
-            <option value="Altul">Altul</option>
+            <option value="Prelată">Prelată</option>
+            <option value="Frigo">Frigo</option>
           </select>
         </div>
 
