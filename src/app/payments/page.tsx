@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { listJobsForPayments, listBrokerageForPayments, getPaymentsSummary } from "@/lib/payments";
 import { JobPaymentRow } from "@/components/JobPaymentRow";
 import { BrokeragePaymentRow } from "@/components/BrokeragePaymentRow";
+import { AppShell } from "@/components/AppShell";
 
 export default async function PaymentsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -16,7 +17,8 @@ export default async function PaymentsPage() {
   ]);
 
   return (
-    <div className="min-h-screen p-8 space-y-8">
+    <AppShell active="payments" crumb="Plăți">
+      <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-brand-dark">Plăți</h1>
         <p className="text-slate-600 mt-1">Facturare curse și plăți brokeraj.</p>
@@ -106,6 +108,7 @@ export default async function PaymentsPage() {
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
