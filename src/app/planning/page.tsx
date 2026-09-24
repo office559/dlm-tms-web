@@ -106,19 +106,17 @@ export default async function PlanningPage({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {STATE_TABS.map((t) => (
-            
-              key={t.key}
-              href={t.key === "toate" ? "/planning" : `/planning?stare=${t.key}`}
-              className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
-                activeFilter === t.key
-                  ? "bg-brand text-white"
-                  : "bg-white border border-slate-200 text-slate-600 hover:border-brand"
-              }`}
-            >
-              {t.label} <span className="opacity-70">({counts[t.key] ?? 0})</span>
-            </a>
-          ))}
+          {STATE_TABS.map((t) => {
+            const tabClass = activeFilter === t.key
+              ? "rounded-full px-3 py-1.5 text-sm font-medium transition bg-brand text-white"
+              : "rounded-full px-3 py-1.5 text-sm font-medium transition bg-white border border-slate-200 text-slate-600 hover:border-brand";
+            const tabHref = t.key === "toate" ? "/planning" : `/planning?stare=${t.key}`;
+            return (
+              <a key={t.key} href={tabHref} className={tabClass}>
+                {t.label} ({counts[t.key] ?? 0})
+              </a>
+            );
+          })}
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
