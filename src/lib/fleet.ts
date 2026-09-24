@@ -2,13 +2,13 @@ import { pool } from "@/lib/db";
 import type { Vehicle } from "@/lib/vehicles";
 import type { Job } from "@/lib/jobs";
 import type { FleetState } from "@/lib/fleet-labels";
-import { FLEET_STATE_LABELS, FLEET_STATE_STYLES } from "@/lib/fleet-labels";
+import { FLEET_STATE_LABELS, FLEET_STATE_STYLES, FLEET_ROW_STYLES } from "@/lib/fleet-labels";
 
 // Reexportate pentru compatibilitate — fișierele client (ex. PlanningCells.tsx)
 // importă tipul și etichetele din "@/lib/fleet-labels" direct, ca să nu tragă
 // "pg" (server-only) în bundle-ul de client.
 export type { FleetState };
-export { FLEET_STATE_LABELS, FLEET_STATE_STYLES };
+export { FLEET_STATE_LABELS, FLEET_STATE_STYLES, FLEET_ROW_STYLES };
 
 /**
  * Starea unui vehicul în Planificare, derivată din datele reale (nu mai e
@@ -49,6 +49,29 @@ export async function currentJobsByVehicle(vehicleIds: string[]): Promise<Map<st
   return map;
 }
 
+/**
+ * Pentru vehiculele fără locație setată manual, ultima locație de
+ * descărcare (din ultima cursă finalizată) — folosită ca valoare automată
+ * în Planificare, până când dispecerul o schimbă manual.
+ */
+export async function lastUnloadPlaceByVehicle(vehicleIds: string[]): Promise<Map<string, string>> {
+  if (vehicleIds.length === 0) return new Map();
+  const { rows } = await pool.query<{ vehicle_id: string; unload_place: string | null }>(
+    `select distinct on (vehicle_id) vehicle_id, unload_place
+       from jobs
+      where vehicle_id = any($1)
+        and status = 'finalizat'
+        and unload_place is not null
+      order by vehicle_id, coalesce(end_at, start_at, created_at) desc`,
+    [vehicleIds]
+  );
+  const map = new Map<string, string>();
+  rows.forEach((r) => {
+    if (r.unload_place) map.set(r.vehicle_id, r.unload_place);
+  });
+  return map;
+}
+
 /** Actualizare rapidă a unui vehicul din tabelul de Planificare (fără să ceară tot formularul). */
 export async function patchVehicleQuick(
   id: string,
@@ -58,6 +81,8 @@ export async function patchVehicleQuick(
     pause?: boolean;
     programStart?: string | null;
     programEnd?: string | null;
+    programStartAt?: string | null;
+    programEndAt?: string | null;
     restDurH?: number | null;
     restStart?: string | null;
     restEnd?: string | null;
@@ -87,6 +112,14 @@ export async function patchVehicleQuick(
   if (fields.programEnd !== undefined) {
     vals.push(fields.programEnd || null);
     sets.push(`program_end = $${vals.length}`);
+  }
+  if (fields.programStartAt !== undefined) {
+    vals.push(fields.programStartAt || null);
+    sets.push(`program_start_at = $${vals.length}`);
+  }
+  if (fields.programEndAt !== undefined) {
+    vals.push(fields.programEndAt || null);
+    sets.push(`program_end_at = $${vals.length}`);
   }
   if (fields.restDurH !== undefined) {
     vals.push(fields.restDurH ?? null);
