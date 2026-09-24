@@ -57,7 +57,7 @@ const STATE_ORDER: Record<string, number> = {
 const STATE_TABS: { key: string; label: string }[] = [
   { key: "toate", label: "Toate" },
   { key: "disponibil", label: "Disponibil" },
-  { key: "alocat", label: "Alocat" },
+  { key: "alocat", label: "Viitor" },
   { key: "tranzit", label: "Tranzit" },
   { key: "pauza", label: "Pauză" },
   { key: "indisponibil", label: "Indisponibil" },
