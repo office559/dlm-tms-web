@@ -11,7 +11,13 @@ import {
   FLEET_STATE_STYLES,
   currentJobsByVehicle,
 } from "@/lib/fleet";
-import { DriverSelect, LocationInput, PauseToggle } from "@/components/PlanningCells";
+import {
+  DriverSelect,
+  LocationInput,
+  PauseControl,
+  ProgramEditor,
+  JobStatusControl,
+} from "@/components/PlanningCells";
 import type { Job } from "@/lib/jobs";
 
 function fmtDate(s: string | Date | null) {
@@ -48,9 +54,27 @@ const STATE_ORDER: Record<string, number> = {
   stationare: 5,
 };
 
-export default async function PlanningPage() {
+const STATE_TABS: { key: string; label: string }[] = [
+  { key: "toate", label: "Toate" },
+  { key: "disponibil", label: "Disponibil" },
+  { key: "alocat", label: "Alocat" },
+  { key: "tranzit", label: "Tranzit" },
+  { key: "pauza", label: "Pauză" },
+  { key: "indisponibil", label: "Indisponibil" },
+  { key: "stationare", label: "Staționare" },
+];
+
+export default async function PlanningPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ stare?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
+
+  const params = await searchParams;
+  const activeFilter =
+    params.stare && STATE_TABS.some((t) => t.key === params.stare) ? params.stare : "toate";
 
   const [vehicles, drivers, trailers] = await Promise.all([
     listVehicles(),
@@ -61,10 +85,15 @@ export default async function PlanningPage() {
   const trailerById = new Map(trailers.map((t) => [t.id, t]));
   const jobsByVehicle = await currentJobsByVehicle(vehicles.map((v) => v.id));
 
-  const rows = vehicles
+  const allRows = vehicles
     .map((v) => ({ v, job: jobsByVehicle.get(v.id) ?? null }))
     .map((x) => ({ ...x, state: fleetState(x.v, x.job) }))
     .sort((a, b) => (STATE_ORDER[a.state] ?? 9) - (STATE_ORDER[b.state] ?? 9));
+
+  const counts: Record<string, number> = { toate: allRows.length };
+  for (const r of allRows) counts[r.state] = (counts[r.state] ?? 0) + 1;
+
+  const rows = activeFilter === "toate" ? allRows : allRows.filter((r) => r.state === activeFilter);
 
   return (
     <AppShell active="planning" crumb="Planificare">
@@ -74,6 +103,22 @@ export default async function PlanningPage() {
           <p className="text-slate-600 mt-1">
             Stare live a flotei — vehicul, șofer, program, pauză, locație și cursa curentă.
           </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {STATE_TABS.map((t) => (
+            
+              key={t.key}
+              href={t.key === "toate" ? "/planning" : `/planning?stare=${t.key}`}
+              className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${
+                activeFilter === t.key
+                  ? "bg-brand text-white"
+                  : "bg-white border border-slate-200 text-slate-600 hover:border-brand"
+              }`}
+            >
+              {t.label} <span className="opacity-70">({counts[t.key] ?? 0})</span>
+            </a>
+          ))}
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
@@ -130,6 +175,9 @@ export default async function PlanningPage() {
                       <span className={`rounded-full px-2 py-0.5 text-xs ${FLEET_STATE_STYLES[state]}`}>
                         {FLEET_STATE_LABELS[state]}
                       </span>
+                      {job && (job.status === "planificare" || job.status === "activ") && (
+                        <JobStatusControl jobId={job.id} status={job.status} />
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <DriverSelect
@@ -139,16 +187,14 @@ export default async function PlanningPage() {
                       />
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {v.program_start && v.program_end ? (
-                        <span className="text-xs font-mono text-slate-600">
-                          {v.program_start} – {v.program_end}
-                        </span>
-                      ) : (
-                        <span className="text-slate-300 text-xs">—</span>
-                      )}
+                      <ProgramEditor
+                        vehicleId={v.id}
+                        programStart={v.program_start}
+                        programEnd={v.program_end}
+                      />
                     </td>
                     <td className="px-4 py-3">
-                      <PauseToggle vehicleId={v.id} value={v.pause} />
+                      <PauseControl vehicleId={v.id} value={v.pause} restDurH={v.rest_dur_h} />
                       {v.rest_start && v.rest_end && (
                         <div className="text-[11px] text-slate-400 mt-0.5">
                           {v.rest_start} – {v.rest_end}
@@ -197,7 +243,9 @@ export default async function PlanningPage() {
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={12} className="px-4 py-6 text-center text-slate-400">
-                    Niciun vehicul găsit. Adaugă vehicule în secțiunea Vehicule.
+                    {activeFilter === "toate"
+                      ? "Niciun vehicul găsit. Adaugă vehicule în secțiunea Vehicule."
+                      : "Niciun vehicul în această categorie."}
                   </td>
                 </tr>
               )}
@@ -205,8 +253,7 @@ export default async function PlanningPage() {
           </table>
         </div>
         <p className="text-xs text-slate-400">
-          Programul detaliat (cu editare pe intervale orare) și notele de tip „Cazuri" vor fi
-          adăugate într-un pas următor.
+          Notele de tip „Cazuri" vor fi adăugate într-un pas următor.
         </p>
       </div>
     </AppShell>
