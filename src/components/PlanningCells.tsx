@@ -2,12 +2,22 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import type { FleetState } from "@/lib/fleet-labels";
+import { FLEET_STATE_LABELS, FLEET_STATE_STYLES } from "@/lib/fleet-labels";
 
 async function patchVehicle(id: string, body: Record<string, unknown>) {
   await fetch(`/api/vehicles/${id}/quick`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+async function patchJobStatus(jobId: string, status: string) {
+  await fetch(`/api/jobs/${jobId}/quick`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
   });
 }
 
@@ -65,69 +75,170 @@ export function LocationInput({ vehicleId, value }: { vehicleId: string; value: 
   );
 }
 
-async function patchJobStatus(jobId: string, status: string) {
-  await fetch(`/api/jobs/${jobId}/quick`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
-  });
+function startPauseBody(hours: number): Record<string, unknown> {
+  const now = new Date();
+  const end = new Date(now.getTime() + hours * 60 * 60 * 1000);
+  const fmt = (d: Date) => d.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+  return {
+    pause: true,
+    restDurH: hours,
+    restStart: fmt(now),
+    restEnd: fmt(end),
+    restStartAt: now.toISOString(),
+    restEndAt: end.toISOString(),
+    stateOverride: null,
+  };
 }
 
+function endPauseBody(): Record<string, unknown> {
+  return {
+    pause: false,
+    restDurH: null,
+    restStart: null,
+    restEnd: null,
+    restStartAt: null,
+    restEndAt: null,
+  };
+}
+
+type StareOption = {
+  label: string;
+  style: string;
+  run: () => Promise<void>;
+};
+
 /**
- * Butoane pentru schimbarea manuală a stării cursei direct din Planificare:
- * Viitor (planificare) → Tranzit (activ) sau Anulează; Tranzit (activ) →
- * Finalizează. Nu apare pentru curse deja finalizate/anulate.
+ * Control unic pentru Stare: apasă pe badge-ul curent și se deschide un
+ * popup „Schimbă status" cu stările posibile următoare, exact ca în
+ * aplicația de referință (TruckTMS) — pentru fiecare stare (Disponibil,
+ * Indisponibil, Pauză, Viitor, Tranzit).
  */
-export function JobStatusControl({ jobId, status }: { jobId: string; status: string }) {
+export function StareControl({
+  vehicleId,
+  jobId,
+  state,
+}: {
+  vehicleId: string;
+  jobId: string | null;
+  state: FleetState;
+}) {
   const router = useRouter();
+  const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  async function setStatus(next: string) {
+  const options: StareOption[] = [];
+
+  if (state === "alocat" && jobId) {
+    options.push({
+      label: "Tranzit",
+      style: "text-orange-700 bg-orange-50 hover:bg-orange-100",
+      run: () => patchJobStatus(jobId, "activ"),
+    });
+    options.push({
+      label: "Anulează cursa",
+      style: "text-red-700 bg-red-50 hover:bg-red-100",
+      run: () => patchJobStatus(jobId, "anulat"),
+    });
+  } else if (state === "tranzit" && jobId) {
+    options.push({
+      label: "Finalizează cursa",
+      style: "text-emerald-700 bg-emerald-50 hover:bg-emerald-100",
+      run: () => patchJobStatus(jobId, "finalizat"),
+    });
+  } else if (state === "pauza") {
+    options.push({
+      label: "Disponibil",
+      style: "text-green-700 bg-green-50 hover:bg-green-100",
+      run: () => patchVehicle(vehicleId, { ...endPauseBody(), stateOverride: null }),
+    });
+    options.push({
+      label: "Indisponibil",
+      style: "text-red-700 bg-red-50 hover:bg-red-100",
+      run: () => patchVehicle(vehicleId, { ...endPauseBody(), stateOverride: "indisponibil" }),
+    });
+  } else if (state === "disponibil") {
+    options.push({
+      label: "Indisponibil",
+      style: "text-red-700 bg-red-50 hover:bg-red-100",
+      run: () => patchVehicle(vehicleId, { stateOverride: "indisponibil" }),
+    });
+    options.push({
+      label: "Pauză",
+      style: "text-sky-700 bg-sky-50 hover:bg-sky-100",
+      run: () => patchVehicle(vehicleId, startPauseBody(9)),
+    });
+  } else if (state === "indisponibil") {
+    options.push({
+      label: "Disponibil",
+      style: "text-green-700 bg-green-50 hover:bg-green-100",
+      run: () => patchVehicle(vehicleId, { stateOverride: null }),
+    });
+    options.push({
+      label: "Pauză",
+      style: "text-sky-700 bg-sky-50 hover:bg-sky-100",
+      run: () => patchVehicle(vehicleId, startPauseBody(9)),
+    });
+  }
+
+  const clickable = options.length > 0;
+
+  async function choose(opt: StareOption) {
     setSaving(true);
-    await patchJobStatus(jobId, next);
+    setOpen(false);
+    await opt.run();
     setSaving(false);
     router.refresh();
   }
 
-  if (status === "planificare") {
-    return (
-      <div className="flex flex-col gap-1 mt-1">
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => setStatus("activ")}
-          className="rounded-full px-2 py-0.5 text-[11px] font-medium text-orange-700 bg-orange-50 hover:bg-orange-100 disabled:opacity-50 transition"
-        >
-          → Tranzit
-        </button>
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => setStatus("anulat")}
-          className="rounded-full px-2 py-0.5 text-[11px] font-medium text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50 transition"
-        >
-          Anulează
-        </button>
-      </div>
-    );
-  }
+  return (
+    <>
+      <button
+        type="button"
+        disabled={saving || !clickable}
+        onClick={() => setOpen(true)}
+        className={`rounded-full px-2 py-0.5 text-xs font-medium transition ${FLEET_STATE_STYLES[state]} ${
+          clickable ? "cursor-pointer hover:opacity-75" : "cursor-default"
+        } disabled:opacity-50`}
+      >
+        {FLEET_STATE_LABELS[state]}
+      </button>
 
-  if (status === "activ") {
-    return (
-      <div className="mt-1">
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => setStatus("finalizat")}
-          className="rounded-full px-2 py-0.5 text-[11px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 transition"
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4"
+          onClick={() => setOpen(false)}
         >
-          Finalizează
-        </button>
-      </div>
-    );
-  }
-
-  return null;
+          <div
+            className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-brand-dark">Schimbă status</h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-lg leading-none text-slate-400 hover:text-slate-600"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {options.map((o) => (
+                <button
+                  key={o.label}
+                  type="button"
+                  onClick={() => choose(o)}
+                  className={`rounded-lg px-3 py-2 text-left text-sm font-medium transition ${o.style}`}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
 
 const PROGRAM_DURATIONS = [13, 15, 21];
@@ -235,26 +346,9 @@ export function PauseControl({
   async function applyPause(nextOn: boolean, nextDur: number | "") {
     setSaving(true);
     if (nextOn && nextDur) {
-      const now = new Date();
-      const end = new Date(now.getTime() + Number(nextDur) * 60 * 60 * 1000);
-      const fmt = (d: Date) => d.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
-      await patchVehicle(vehicleId, {
-        pause: true,
-        restDurH: Number(nextDur),
-        restStart: fmt(now),
-        restEnd: fmt(end),
-        restStartAt: now.toISOString(),
-        restEndAt: end.toISOString(),
-      });
+      await patchVehicle(vehicleId, startPauseBody(Number(nextDur)));
     } else {
-      await patchVehicle(vehicleId, {
-        pause: false,
-        restDurH: null,
-        restStart: null,
-        restEnd: null,
-        restStartAt: null,
-        restEndAt: null,
-      });
+      await patchVehicle(vehicleId, endPauseBody());
     }
     setSaving(false);
     router.refresh();
