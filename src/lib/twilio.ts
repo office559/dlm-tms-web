@@ -54,12 +54,15 @@ export async function sendWhatsAppMessage(toE164: string, body: string) {
  * @param toE164 Recipient's phone number in E.164 format, e.g. "+40722123456".
  * @param contentSid The approved template's SID (starts with "HX...").
  * @param variables Values for the template's numbered placeholders, e.g. {"1": "Ion", "2": "..."}.
+ * @param statusCallbackUrl Optional URL where Twilio will POST delivery/read status updates.
+ * @returns The Twilio message SID on success, or null if Twilio isn't configured.
  */
 export async function sendWhatsAppTemplate(
   toE164: string,
   contentSid: string,
-  variables: Record<string, string>
-) {
+  variables: Record<string, string>,
+  statusCallbackUrl?: string
+): Promise<string | null> {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
   const from = process.env.TWILIO_WHATSAPP_FROM;
@@ -68,7 +71,7 @@ export async function sendWhatsAppTemplate(
     console.warn(
       "Twilio nu este configurat (lipsesc variabilele de mediu TWILIO_*) — mesajul WhatsApp automat a fost omis."
     );
-    return;
+    return null;
   }
 
   const authHeader = Buffer.from(`${sid}:${token}`).toString("base64");
@@ -78,6 +81,9 @@ export async function sendWhatsAppTemplate(
     ContentSid: contentSid,
     ContentVariables: JSON.stringify(variables),
   });
+  if (statusCallbackUrl) {
+    params.set("StatusCallback", statusCallbackUrl);
+  }
 
   const res = await fetch(
     `https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`,
@@ -95,4 +101,7 @@ export async function sendWhatsAppTemplate(
     const text = await res.text();
     throw new Error(`Twilio a răspuns cu eroare (${res.status}): ${text}`);
   }
+
+  const data = (await res.json()) as { sid?: string };
+  return data.sid ?? null;
 }
