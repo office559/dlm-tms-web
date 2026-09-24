@@ -1,7 +1,7 @@
 import type { Job } from "@/lib/jobs";
-import { getDriver, setJobWhatsAppSent } from "@/lib/jobs";
+import { setJobWhatsAppSent } from "@/lib/jobs";
+import { getDriver } from "@/lib/drivers";
 import { getCustomer } from "@/lib/customers";
-import { getSettings } from "@/lib/settings";
 import { toE164 } from "@/lib/whatsapp";
 import { sendWhatsAppTemplate } from "@/lib/twilio";
 
