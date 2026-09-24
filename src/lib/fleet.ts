@@ -1,32 +1,14 @@
 import { pool } from "@/lib/db";
 import type { Vehicle } from "@/lib/vehicles";
 import type { Job } from "@/lib/jobs";
+import type { FleetState } from "@/lib/fleet-labels";
+import { FLEET_STATE_LABELS, FLEET_STATE_STYLES } from "@/lib/fleet-labels";
 
-export type FleetState =
-  | "disponibil"
-  | "indisponibil"
-  | "pauza"
-  | "alocat"
-  | "tranzit"
-  | "stationare";
-
-export const FLEET_STATE_LABELS: Record<FleetState, string> = {
-  disponibil: "Disponibil",
-  indisponibil: "Indisponibil",
-  pauza: "Pauză",
-  alocat: "Viitor",
-  tranzit: "Tranzit",
-  stationare: "Staționare",
-};
-
-export const FLEET_STATE_STYLES: Record<FleetState, string> = {
-  disponibil: "text-green-700 bg-green-50",
-  indisponibil: "text-red-700 bg-red-50",
-  pauza: "text-sky-700 bg-sky-50",
-  alocat: "text-amber-700 bg-amber-50",
-  tranzit: "text-orange-700 bg-orange-50",
-  stationare: "text-red-700 bg-red-50",
-};
+// Reexportate pentru compatibilitate — fișierele client (ex. PlanningCells.tsx)
+// importă tipul și etichetele din "@/lib/fleet-labels" direct, ca să nu tragă
+// "pg" (server-only) în bundle-ul de client.
+export type { FleetState };
+export { FLEET_STATE_LABELS, FLEET_STATE_STYLES };
 
 /**
  * Starea unui vehicul în Planificare, derivată din datele reale (nu mai e
@@ -81,6 +63,7 @@ export async function patchVehicleQuick(
     restEnd?: string | null;
     restStartAt?: string | null;
     restEndAt?: string | null;
+    stateOverride?: string | null;
   }
 ) {
   const sets: string[] = [];
@@ -124,6 +107,10 @@ export async function patchVehicleQuick(
   if (fields.restEndAt !== undefined) {
     vals.push(fields.restEndAt || null);
     sets.push(`rest_end_at = $${vals.length}`);
+  }
+  if (fields.stateOverride !== undefined) {
+    vals.push(fields.stateOverride || null);
+    sets.push(`state_override = $${vals.length}`);
   }
   if (sets.length === 0) return;
   await pool.query(`update vehicles set ${sets.join(", ")} where id = $1`, vals);
