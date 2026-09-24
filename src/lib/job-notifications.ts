@@ -2,6 +2,7 @@ import type { Job } from "@/lib/jobs";
 import { setJobWhatsAppSent } from "@/lib/jobs";
 import { getDriver } from "@/lib/drivers";
 import { getCustomer } from "@/lib/customers";
+import { getSettings } from "@/lib/settings";
 import { toE164 } from "@/lib/whatsapp";
 import { sendWhatsAppTemplate } from "@/lib/twilio";
 
@@ -66,44 +67,4 @@ async function notifyJobAssigned(job: Job) {
     "TWILIO_CONTENT_SID_JOB_ASSIGNED",
     (driverName) => ({
       "1": driverName,
-      "2": job.start_at ? new Date(job.start_at).toLocaleString("ro-RO") : "—",
-      "3": job.load_place || "—",
-      "4": job.end_at ? new Date(job.end_at).toLocaleString("ro-RO") : "—",
-      "5": job.unload_place || "—",
-      "6": customer?.name ?? "—",
-      "7": job.ref ?? "—",
-    }),
-    { trackConfirmation: true }
-  );
-}
-
-async function notifyJobCancelled(job: Job) {
-  await sendJobTemplate(job, "TWILIO_CONTENT_SID_JOB_CANCELLED", () => ({
-    "1": `${job.load_place || "—"} → ${job.unload_place || "—"}`,
-    "2": job.ref ?? "—",
-  }));
-}
-
-/**
- * Compares the job before/after a create or update and fires the relevant
- * automatic WhatsApp notifications:
- *  - driver newly assigned (or changed) → "cursă alocată" template
- *  - status just became "anulat" → "cursă anulată" template
- *
- * `before` is null on creation. Never throws — failures (missing Twilio
- * config, template not yet approved, recipient outside the sandbox
- * allow-list, etc.) are logged and swallowed so they never break the job
- * create/update request itself.
- */
-export async function notifyJobChanges(before: Job | null, after: Job) {
-  try {
-    if (after.driver_id && after.driver_id !== before?.driver_id) {
-      await notifyJobAssigned(after);
-    }
-    if (after.status === "anulat" && before?.status !== "anulat") {
-      await notifyJobCancelled(after);
-    }
-  } catch (err) {
-    console.error("Trimitere WhatsApp automată eșuată:", err);
-  }
-}
+      "2": job.start_at ? new Date(job.start_at).toLocaleString("ro-RO")
