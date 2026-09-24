@@ -1,182 +1,214 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { listJobsBetween, listUnscheduledJobs } from "@/lib/planning";
-import { listCustomers } from "@/lib/customers";
-import { listDrivers } from "@/lib/drivers";
 import { listVehicles } from "@/lib/vehicles";
+import { listDrivers } from "@/lib/drivers";
+import { listTrailers } from "@/lib/trailers";
+import { AppShell } from "@/components/AppShell";
+import {
+  fleetState,
+  FLEET_STATE_LABELS,
+  FLEET_STATE_STYLES,
+  currentJobsByVehicle,
+} from "@/lib/fleet";
+import { DriverSelect, LocationInput, PauseToggle } from "@/components/PlanningCells";
+import type { Job } from "@/lib/jobs";
 
-const STATUS_STYLES: Record<string, string> = {
-  planificare: "text-slate-600 bg-slate-100",
-  activ: "text-blue-700 bg-blue-50",
-  finalizat: "text-green-700 bg-green-50",
-  anulat: "text-red-700 bg-red-50",
+function fmtDate(s: string | Date | null) {
+  if (!s) return "—";
+  return new Date(s).toLocaleDateString("ro-RO");
+}
+
+function fmtTime(s: string | Date | null) {
+  if (!s) return "";
+  return new Date(s).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+}
+
+function waBadge(job: Job | null) {
+  if (!job || !job.wa_message_sid) return <span className="text-slate-300 text-xs">—</span>;
+  if (job.wa_confirmed_at) {
+    return (
+      <span className="rounded-full px-2 py-0.5 text-xs text-green-700 bg-green-50">Confirmat</span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="rounded-full px-2 py-0.5 text-xs text-amber-700 bg-amber-50">Pending</span>
+      {job.wa_read_at && <span className="text-slate-400 text-xs">(citit)</span>}
+    </span>
+  );
+}
+
+const STATE_ORDER: Record<string, number> = {
+  pauza: 0,
+  disponibil: 1,
+  indisponibil: 2,
+  alocat: 3,
+  tranzit: 4,
+  stationare: 5,
 };
 
-const DAY_NAMES = ["Luni", "Marți", "Miercuri", "Joi", "Vineri", "Sâmbătă", "Duminică"];
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function toISODate(d: Date) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-function mondayOf(dateStr: string) {
-  const d = new Date(dateStr + "T00:00:00");
-  const day = d.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  d.setDate(d.getDate() + diff);
-  return d;
-}
-
-function addDays(d: Date, n: number) {
-  const copy = new Date(d);
-  copy.setDate(copy.getDate() + n);
-  return copy;
-}
-
-export default async function PlanningPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ week?: string }>;
-}) {
+export default async function PlanningPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
-  const params = await searchParams;
-  const anchor = params.week && /^\d{4}-\d{2}-\d{2}$/.test(params.week) ? params.week : toISODate(new Date());
-  const monday = mondayOf(anchor);
-  const sunday = addDays(monday, 6);
-  const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i));
-
-  const prevWeek = toISODate(addDays(monday, -7));
-  const nextWeek = toISODate(addDays(monday, 7));
-
-  const [jobs, unscheduled, customers, drivers, vehicles] = await Promise.all([
-    listJobsBetween(toISODate(monday), toISODate(sunday)),
-    listUnscheduledJobs(),
-    listCustomers(),
-    listDrivers(),
+  const [vehicles, drivers, trailers] = await Promise.all([
     listVehicles(),
+    listDrivers(),
+    listTrailers(),
   ]);
 
-  const customerName = new Map(customers.map((c) => [c.id, c.name]));
-  const driverName = new Map(drivers.map((d) => [d.id, d.name]));
-  const vehiclePlate = new Map(vehicles.map((v) => [v.id, v.plate]));
+  const trailerById = new Map(trailers.map((t) => [t.id, t]));
+  const jobsByVehicle = await currentJobsByVehicle(vehicles.map((v) => v.id));
 
-  const jobsByDay = new Map<string, typeof jobs>();
-  for (const day of days) jobsByDay.set(toISODate(day), []);
-  for (const j of jobs) {
-    if (!j.start_at) continue;
-    const key = toISODate(new Date(j.start_at));
-    if (jobsByDay.has(key)) jobsByDay.get(key)!.push(j);
-  }
-
-  const todayKey = toISODate(new Date());
+  const rows = vehicles
+    .map((v) => ({ v, job: jobsByVehicle.get(v.id) ?? null }))
+    .map((x) => ({ ...x, state: fleetState(x.v, x.job) }))
+    .sort((a, b) => (STATE_ORDER[a.state] ?? 9) - (STATE_ORDER[b.state] ?? 9));
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <AppShell active="planning" crumb="Planificare">
+      <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-semibold text-brand-dark">Planificare</h1>
           <p className="text-slate-600 mt-1">
-            Săptămâna {toISODate(monday)} — {toISODate(sunday)}
+            Stare live a flotei — vehicul, șofer, program, pauză, locație și cursa curentă.
           </p>
         </div>
-        <div className="flex gap-2">
-          <a href={`/planning?week=${prevWeek}`} className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
-            ← Săptămâna trecută
-          </a>
-          <a href={`/planning?week=${todayKey}`} className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
-            Azi
-          </a>
-          <a href={`/planning?week=${nextWeek}`} className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
-            Săptămâna viitoare →
-          </a>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
-        {days.map((day, i) => {
-          const key = toISODate(day);
-          const dayJobs = jobsByDay.get(key) ?? [];
-          const isToday = key === todayKey;
-          return (
-            <div key={key} className={`bg-white rounded-2xl border p-3 space-y-2 min-h-[160px] ${isToday ? "border-brand" : "border-slate-200"}`}>
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-slate-700">{DAY_NAMES[i]}</p>
-                <p className="text-xs text-slate-400">{day.getDate()}/{day.getMonth() + 1}</p>
-              </div>
-              <div className="space-y-2">
-                {dayJobs.map((j) => (
-                  <a key={j.id} href={`/jobs/${j.id}`} className="block rounded-lg border border-slate-100 bg-slate-50 p-2 hover:bg-slate-100 transition">
-                    <p className="text-xs font-medium text-brand-dark truncate">
-                      {j.load_place || "—"} → {j.unload_place || "—"}
-                    </p>
-                    <p className="text-xs text-slate-500 truncate">
-                      {j.client_id ? customerName.get(j.client_id) ?? "—" : "—"}
-                    </p>
-                    <p className="text-xs text-slate-500 truncate">
-                      {j.driver_id ? driverName.get(j.driver_id) ?? "—" : "—"}
-                      {j.vehicle_id ? ` · ${vehiclePlate.get(j.vehicle_id) ?? "—"}` : ""}
-                    </p>
-                    <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[10px] ${STATUS_STYLES[j.status] ?? "text-slate-600 bg-slate-100"}`}>
-                      {j.status}
-                    </span>
-                  </a>
-                ))}
-                {dayJobs.length === 0 && <p className="text-xs text-slate-300">—</p>}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="font-medium text-brand-dark">Curse neprogramate</h2>
-          <p className="text-xs text-slate-400">Curse fără dată de start (max. 20 cele mai recente)</p>
-        </div>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
-            <tr>
-              <th className="px-4 py-2">Traseu</th>
-              <th className="px-4 py-2">Client</th>
-              <th className="px-4 py-2">Șofer</th>
-              <th className="px-4 py-2">Status</th>
-              <th className="px-4 py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {unscheduled.map((j) => (
-              <tr key={j.id} className="border-t border-slate-100">
-                <td className="px-4 py-2 font-medium">{j.load_place || "—"} → {j.unload_place || "—"}</td>
-                <td className="px-4 py-2">{j.client_id ? customerName.get(j.client_id) ?? "—" : "—"}</td>
-                <td className="px-4 py-2">{j.driver_id ? driverName.get(j.driver_id) ?? "—" : "—"}</td>
-                <td className="px-4 py-2">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[j.status] ?? "text-slate-600 bg-slate-100"}`}>
-                    {j.status}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-right">
-                  <a href={`/jobs/${j.id}`} className="text-brand hover:text-brand-dark text-sm">
-                    Editează
-                  </a>
-                </td>
-              </tr>
-            ))}
-            {unscheduled.length === 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500 text-left">
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
-                  Nicio cursă neprogramată.
-                </td>
+                <th className="px-4 py-3 whitespace-nowrap">Vehicul</th>
+                <th className="px-4 py-3 whitespace-nowrap">VRID</th>
+                <th className="px-4 py-3 whitespace-nowrap">Dată</th>
+                <th className="px-4 py-3 whitespace-nowrap">Stare</th>
+                <th className="px-4 py-3 whitespace-nowrap">Șofer</th>
+                <th className="px-4 py-3 whitespace-nowrap">Program</th>
+                <th className="px-4 py-3 whitespace-nowrap">Pauză</th>
+                <th className="px-4 py-3 whitespace-nowrap">Locație</th>
+                <th className="px-4 py-3 whitespace-nowrap">ÎNC - DSC</th>
+                <th className="px-4 py-3 whitespace-nowrap">Loading</th>
+                <th className="px-4 py-3 whitespace-nowrap">Cazuri</th>
+                <th className="px-4 py-3 whitespace-nowrap">WhatsApp</th>
               </tr>
-            )}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rows.map(({ v, job, state }) => {
+                const trailer = v.trailer_id ? trailerById.get(v.trailer_id) ?? null : null;
+                let loadingPct: number | null = null;
+                if (job && job.status === "activ" && job.start_at && job.end_at) {
+                  const st = new Date(job.start_at).getTime();
+                  const en = new Date(job.end_at).getTime();
+                  const now = Date.now();
+                  loadingPct =
+                    en > st ? Math.min(100, Math.max(0, Math.round(((now - st) / (en - st)) * 100))) : 0;
+                }
+                return (
+                  <tr key={v.id} className="border-t border-slate-100 align-top">
+                    <td className="px-4 py-3">
+                      <div className="font-medium">
+                        {v.plate}
+                        {trailer ? ` / ${trailer.plate}` : ""}
+                      </div>
+                      {v.type && <div className="text-xs text-slate-400">{v.type}</div>}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {job ? (
+                        <a href={`/jobs/${job.id}`} className="text-brand hover:text-brand-dark">
+                          {job.ref || job.id}
+                        </a>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {job?.start_at ? fmtDate(job.start_at) : "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs ${FLEET_STATE_STYLES[state]}`}>
+                        {FLEET_STATE_LABELS[state]}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <DriverSelect
+                        vehicleId={v.id}
+                        drivers={drivers.map((d) => ({ id: d.id, name: d.name }))}
+                        value={v.driver_id}
+                      />
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {v.program_start && v.program_end ? (
+                        <span className="text-xs font-mono text-slate-600">
+                          {v.program_start} – {v.program_end}
+                        </span>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <PauseToggle vehicleId={v.id} value={v.pause} />
+                      {v.rest_start && v.rest_end && (
+                        <div className="text-[11px] text-slate-400 mt-0.5">
+                          {v.rest_start} – {v.rest_end}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <LocationInput vehicleId={v.id} value={v.location} />
+                    </td>
+                    <td className="px-4 py-3 min-w-[160px]">
+                      {job ? (
+                        <>
+                          <div className="text-xs">
+                            {job.load_place || "—"} → {job.unload_place || "—"}
+                          </div>
+                          <div className="text-[11px] text-slate-400">
+                            ÎNC {fmtDate(job.start_at)} {fmtTime(job.start_at)} · DESC {fmtDate(job.end_at)}{" "}
+                            {fmtTime(job.end_at)}
+                          </div>
+                        </>
+                      ) : (
+                        <span className="text-slate-300 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {loadingPct === null ? (
+                        <span className="text-slate-300 text-xs">—</span>
+                      ) : (
+                        <div className="w-16">
+                          <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div className="h-full bg-brand" style={{ width: `${loadingPct}%` }} />
+                          </div>
+                          <div className="text-[11px] text-slate-400 mt-0.5">{loadingPct}%</div>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-slate-300 text-xs" title="În curând">
+                        —
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">{waBadge(job)}</td>
+                  </tr>
+                );
+              })}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={12} className="px-4 py-6 text-center text-slate-400">
+                    Niciun vehicul găsit. Adaugă vehicule în secțiunea Vehicule.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <p className="text-xs text-slate-400">
+          Programul detaliat (cu editare pe intervale orare) și notele de tip „Cazuri" vor fi
+          adăugate într-un pas următor.
+        </p>
       </div>
-    </div>
+    </AppShell>
   );
 }
