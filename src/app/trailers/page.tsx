@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { listTrailers } from "@/lib/trailers";
 import { DeleteButton } from "@/components/DeleteButton";
 import { matchesQuery } from "@/lib/search";
+import { AppShell } from "@/components/AppShell";
 
 export default async function TrailersPage({
   searchParams,
@@ -20,7 +21,8 @@ export default async function TrailersPage({
   const filteredTrailers = trailers.filter((t) => matchesQuery([t.plate, t.type], q));
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
+    <AppShell active="trailers" crumb="Remorci">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand-dark">Remorci</h1>
@@ -93,6 +95,7 @@ export default async function TrailersPage({
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
