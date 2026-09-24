@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { listCustomers } from "@/lib/customers";
 import { DeleteButton } from "@/components/DeleteButton";
 import { matchesQuery } from "@/lib/search";
+import { AppShell } from "@/components/AppShell";
 
 export default async function CustomersPage({
   searchParams,
@@ -22,7 +23,8 @@ export default async function CustomersPage({
   );
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
+    <AppShell active="customers" crumb="Clienți">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand-dark">Clienți</h1>
@@ -89,6 +91,7 @@ export default async function CustomersPage({
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
