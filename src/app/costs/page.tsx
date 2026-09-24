@@ -5,6 +5,7 @@ import { listCosts } from "@/lib/costs";
 import { listVehicles } from "@/lib/vehicles";
 import { DeleteButton } from "@/components/DeleteButton";
 import { matchesQuery } from "@/lib/search";
+import { AppShell } from "@/components/AppShell";
 
 export default async function CostsPage({
   searchParams,
@@ -29,7 +30,8 @@ export default async function CostsPage({
   const total = filteredCosts.reduce((sum, c) => sum + Number(c.amount), 0);
 
   return (
-    <div className="min-h-screen p-8 space-y-6">
+    <AppShell active="costs" crumb="Cheltuieli flotă">
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-brand-dark">Cheltuieli flotă</h1>
@@ -98,6 +100,7 @@ export default async function CostsPage({
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
