@@ -5,12 +5,17 @@ import { listVehicles } from "@/lib/vehicles";
 import { listDrivers } from "@/lib/drivers";
 import { listTrailers } from "@/lib/trailers";
 import { AppShell } from "@/components/AppShell";
-import { fleetState, currentJobsByVehicle } from "@/lib/fleet";
+import {
+  fleetState,
+  currentJobsByVehicle,
+  lastUnloadPlaceByVehicle,
+  FLEET_ROW_STYLES,
+} from "@/lib/fleet";
 import {
   DriverSelect,
   LocationInput,
-  PauseControl,
-  ProgramEditor,
+  PauseBadgeControl,
+  ProgramControl,
   StareControl,
 } from "@/components/PlanningCells";
 import type { Job } from "@/lib/jobs";
@@ -37,6 +42,61 @@ function waBadge(job: Job | null) {
       <span className="rounded-full px-2 py-0.5 text-xs text-amber-700 bg-amber-50">Pending</span>
       {job.wa_read_at && <span className="text-slate-400 text-xs">(citit)</span>}
     </span>
+  );
+}
+
+/** Iconiță simplă de camion, pentru coloana Vehicul. */
+function TruckIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4 shrink-0 text-amber-500"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M14 17h1a1 1 0 0 0 1-1v-2.5a1 1 0 0 0-.29-.7l-2.5-2.5a1 1 0 0 0-.71-.3H10" />
+      <path d="M3 6h9v10H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" />
+      <circle cx="7" cy="17" r="2" />
+      <circle cx="17" cy="17" r="2" />
+    </svg>
+  );
+}
+
+/** Săgeată mică (chevron) decorativă, lângă numărul de înmatriculare. */
+function ChevronIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-3 w-3 shrink-0 text-slate-400"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+/** Iconiță „ochi", pentru pastilele de traseu (loc încărcare → loc descărcare). */
+function EyeIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4 shrink-0 text-slate-400"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
   );
 }
 
@@ -78,7 +138,11 @@ export default async function PlanningPage({
   ]);
 
   const trailerById = new Map(trailers.map((t) => [t.id, t]));
-  const jobsByVehicle = await currentJobsByVehicle(vehicles.map((v) => v.id));
+  const vehicleIds = vehicles.map((v) => v.id);
+  const [jobsByVehicle, lastUnloadByVehicle] = await Promise.all([
+    currentJobsByVehicle(vehicleIds),
+    lastUnloadPlaceByVehicle(vehicleIds),
+  ]);
 
   const allRows = vehicles
     .map((v) => ({ v, job: jobsByVehicle.get(v.id) ?? null }))
@@ -143,16 +207,23 @@ export default async function PlanningPage({
                   loadingPct =
                     en > st ? Math.min(100, Math.max(0, Math.round(((now - st) / (en - st)) * 100))) : 0;
                 }
+                const rowClass = `border-t border-slate-100 align-top ${FLEET_ROW_STYLES[state]}`;
                 return (
-                  <tr key={v.id} className="border-t border-slate-100 align-top">
+                  <tr key={v.id} className={rowClass}>
                     <td className="px-4 py-3">
-                      <div className="font-medium">
-                        {v.plate}
-                        {trailer ? ` / ${trailer.plate}` : ""}
+                      <div className="flex items-center gap-1.5">
+                        <TruckIcon />
+                        <span className="font-medium">
+                          {v.plate}
+                          {trailer ? ` / ${trailer.plate}` : ""}
+                        </span>
+                        <ChevronIcon />
                       </div>
-                      {v.type && <div className="text-xs text-slate-400">{v.type}</div>}
+                      {trailer?.type && (
+                        <div className="pl-[22px] text-xs text-slate-400">({trailer.type})</div>
+                      )}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs">
+                    <td className="px-4 py-3 font-mono text-sm font-semibold">
                       {job ? (
                         <a href={`/jobs/${job.id}`} className="text-brand hover:text-brand-dark">
                           {job.ref || job.id}
@@ -175,30 +246,44 @@ export default async function PlanningPage({
                       />
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <ProgramEditor
+                      <ProgramControl
                         vehicleId={v.id}
                         programStart={v.program_start}
                         programEnd={v.program_end}
+                        programStartAt={v.program_start_at ? v.program_start_at.toString() : null}
+                        programEndAt={v.program_end_at ? v.program_end_at.toString() : null}
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <PauseControl vehicleId={v.id} value={v.pause} restDurH={v.rest_dur_h} />
-                      {v.rest_start && v.rest_end && (
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          {v.rest_start} – {v.rest_end}
-                        </div>
-                      )}
+                      <PauseBadgeControl
+                        vehicleId={v.id}
+                        pause={v.pause}
+                        restStart={v.rest_start}
+                        restEnd={v.rest_end}
+                        restEndAt={v.rest_end_at ? v.rest_end_at.toString() : null}
+                      />
                     </td>
                     <td className="px-4 py-3">
-                      <LocationInput vehicleId={v.id} value={v.location} />
+                      <LocationInput
+                        vehicleId={v.id}
+                        value={v.location}
+                        fallback={lastUnloadByVehicle.get(v.id) ?? null}
+                      />
                     </td>
-                    <td className="px-4 py-3 min-w-[160px]">
+                    <td className="px-4 py-3 min-w-[180px]">
                       {job ? (
                         <>
-                          <div className="text-xs">
-                            {job.load_place || "—"} → {job.unload_place || "—"}
+                          <div className="flex items-center gap-1.5 text-sm font-medium">
+                            <EyeIcon />
+                            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-emerald-700">
+                              {job.load_place || "—"}
+                            </span>
+                            <span className="text-slate-400">→</span>
+                            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-slate-600">
+                              {job.unload_place || "—"}
+                            </span>
                           </div>
-                          <div className="text-[11px] text-slate-400">
+                          <div className="mt-1 text-xs text-slate-400">
                             ÎNC {fmtDate(job.start_at)} {fmtTime(job.start_at)} · DESC {fmtDate(job.end_at)}{" "}
                             {fmtTime(job.end_at)}
                           </div>
