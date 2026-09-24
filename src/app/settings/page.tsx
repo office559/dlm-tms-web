@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { SettingsForm } from "@/components/SettingsForm";
+import { AppShell } from "@/components/AppShell";
 
 export default async function SettingsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -12,7 +13,8 @@ export default async function SettingsPage() {
   const settings = await getSettings();
 
   return (
-    <div className="min-h-screen p-8 space-y-8">
+    <AppShell active="settings" crumb="Setări">
+      <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-brand-dark">Setări</h1>
         <p className="text-slate-600 mt-1">Date generale despre companie și configurări operaționale.</p>
@@ -42,6 +44,7 @@ export default async function SettingsPage() {
           Gestionează dispecerii
         </a>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }
