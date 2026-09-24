@@ -14,7 +14,7 @@ export const FLEET_STATE_LABELS: Record<FleetState, string> = {
   disponibil: "Disponibil",
   indisponibil: "Indisponibil",
   pauza: "Pauză",
-  alocat: "Alocat",
+  alocat: "Viitor",
   tranzit: "Tranzit",
   stationare: "Staționare",
 };
