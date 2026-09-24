@@ -21,6 +21,8 @@ export type Vehicle = {
   pause: boolean;
   program_start: string | null;
   program_end: string | null;
+  program_start_at: Date | null;
+  program_end_at: Date | null;
   state_override: string | null;
   rest_type: string | null;
   rest_start: string | null;
