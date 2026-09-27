@@ -407,6 +407,20 @@ export function ProgramControl({
     router.refresh();
   }
 
+  /** Anulează programul (de ex. cursa s-a anulat, șoferul nu mai pornește). */
+  async function cancel() {
+    setSaving(true);
+    await patchVehicle(vehicleId, {
+      programStart: null,
+      programEnd: null,
+      programStartAt: null,
+      programEndAt: null,
+    });
+    setSaving(false);
+    setOpen(false);
+    router.refresh();
+  }
+
   const startAtDate = programStartAt ? new Date(programStartAt) : null;
   const endAtDate = programEndAt ? new Date(programEndAt) : null;
   const now = Date.now();
@@ -499,6 +513,16 @@ export function ProgramControl({
               >
                 Salvează
               </button>
+              {programStart && programEnd && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={cancel}
+                  className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 transition"
+                >
+                  Anulează programul
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -680,10 +704,9 @@ function MoonIcon({ className }: { className?: string }) {
 const WEEKLY_REST_HOURS: Record<"45" | "24", number> = { "45": 45, "24": 24 };
 
 /**
- * Pauză Săptămânală vehicul: dacă nu e activă, arată „— [+]", plus o
- * sugestie automată (45h/24h) calculată din istoricul vehiculului; dacă
- * pauza e activă, arată o pastilă cu ora de start-final și, dedesubt,
- * „Mai are Xh Ym", calculate din ora exactă de final salvată.
+ * Pauză Săptămânală vehicul: dacă nu e activă, arată „— [+]"; dispecerul
+ * alege repaus normal (45h) sau redus (24h), iar ora de final se calculează
+ * automat (ora de start + 45/24h), la fel ca la Pauză (zilnică).
  */
 export function WeeklyRestControl({
   vehicleId,
