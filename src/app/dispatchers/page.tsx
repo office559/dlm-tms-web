@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { listDispatchers } from "@/lib/db";
 import { InviteDispatcherForm } from "@/components/InviteDispatcherForm";
+import { DeleteDispatcherButton } from "@/components/DeleteDispatcherButton";
 import { AppShell } from "@/components/AppShell";
 
 export default async function DispatchersPage() {
@@ -34,6 +35,7 @@ export default async function DispatchersPage() {
               <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Adăugat</th>
+              <th className="px-4 py-3"></th>
             </tr>
           </thead>
           <tbody>
@@ -55,11 +57,14 @@ export default async function DispatchersPage() {
                 <td className="px-4 py-3 text-slate-500">
                   {new Date(d.created_at).toLocaleDateString("ro-RO")}
                 </td>
+                <td className="px-4 py-3 text-right">
+                  <DeleteDispatcherButton id={d.id} name={d.name} />
+                </td>
               </tr>
             ))}
             {dispatchers.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-slate-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-slate-400">
                   Niciun dispecer încă. Trimite prima invitație mai sus.
                 </td>
               </tr>
