@@ -47,6 +47,7 @@ const EMPTY: JobFormValues = {
 
 export function JobForm({
   initial,
+  presetVehicleId,
   customers,
   drivers,
   vehicles,
@@ -54,6 +55,8 @@ export function JobForm({
   dispatchers,
 }: {
   initial?: Partial<JobFormValues> & { id: string };
+  /** Vehicul preselectat (ex. venind din butonul „+” de pe Planificare) — se completează automat șoferul/remorca lui, dacă are. */
+  presetVehicleId?: string;
   customers: { id: string; name: string }[];
   drivers: { id: string; name: string }[];
   vehicles: { id: string; plate: string; driverId: string | null; trailerId: string | null }[];
@@ -61,7 +64,19 @@ export function JobForm({
   dispatchers: { id: string; name: string }[];
 }) {
   const router = useRouter();
-  const [values, setValues] = useState<JobFormValues>({ ...EMPTY, ...initial });
+  const [values, setValues] = useState<JobFormValues>(() => {
+    if (initial) return { ...EMPTY, ...initial };
+    if (presetVehicleId) {
+      const match = vehicles.find((v) => v.id === presetVehicleId);
+      return {
+        ...EMPTY,
+        vehicleId: presetVehicleId,
+        driverId: match?.driverId ?? "",
+        trailerId: match?.trailerId ?? "",
+      };
+    }
+    return EMPTY;
+  });
   const [status, setStatus] = useState<"idle" | "loading">("idle");
   const [error, setError] = useState<string | null>(null);
   const isEdit = Boolean(initial?.id);
