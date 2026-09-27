@@ -76,3 +76,11 @@ export async function listDispatchers() {
   );
   return rows;
 }
+
+export async function getDispatcherById(id: string) {
+  const { rows } = await pool.query<Dispatcher>(
+    `select * from dispatchers where id = $1 limit 1`,
+    [id]
+  );
+  return rows[0] ?? null;
+}
