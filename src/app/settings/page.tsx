@@ -29,8 +29,9 @@ export default async function SettingsPage() {
             cpm: settings?.cpm != null ? String(settings.cpm) : "",
             alertDays: settings?.alert_days != null ? String(settings.alert_days) : "",
             waCountry: settings?.wa_country ?? "",
-            themeColor: settings?.theme_color ?? "#2f6fed",
-            bgColor: settings?.bg_color ?? "#e8f0fb",
+            themeColor: settings?.theme_color ?? "#1e4d8b",
+            bgColor: settings?.bg_color ?? "#f4f6fb",
+            sidebarColor: settings?.sidebar_color ?? "#ffffff",
           }}
         />
       </div>
