@@ -27,8 +27,17 @@ export async function PATCH(
     return NextResponse.json({ error: "Status invalid" }, { status: 400 });
   }
 
+  let cancelFee: number | null = null;
+  if (status === "anulat" && body.cancelFee !== undefined && body.cancelFee !== null && body.cancelFee !== "") {
+    const n = Number(body.cancelFee);
+    if (!Number.isFinite(n) || n < 0) {
+      return NextResponse.json({ error: "Sumă taxă de anulare invalidă" }, { status: 400 });
+    }
+    cancelFee = n;
+  }
+
   const before = await getJob(id);
-  const job = await patchJobStatus(id, status);
+  const job = await patchJobStatus(id, status, cancelFee);
   if (!job) {
     return NextResponse.json({ error: "Cursa nu a fost găsită" }, { status: 404 });
   }
