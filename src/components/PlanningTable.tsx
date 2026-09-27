@@ -7,7 +7,7 @@ import { FLEET_ROW_STYLES } from "@/lib/fleet-labels";
 import {
   CazuriControl,
   DriverSelect,
-  LocationInput,
+  LocationControl,
   PauseBadgeControl,
   ProgramControl,
   StareControl,
@@ -290,7 +290,7 @@ const COLUMNS: ColumnDef[] = [
     key: "locatie",
     label: "Locație",
     render: (r) => (
-      <LocationInput vehicleId={r.vehicleId} value={r.location} fallback={r.fallbackLocation} />
+      <LocationControl vehicleId={r.vehicleId} value={r.location} fallback={r.fallbackLocation} />
     ),
   },
   {
@@ -312,8 +312,7 @@ const COLUMNS: ColumnDef[] = [
           <div className="mt-1 text-xs text-slate-400">{r.traseuDateLabel}</div>
         </>
       ) : (
-        
-                 <a href={"/jobs/new?vehicleId=" + r.vehicleId} title="Creează cursă pentru acest vehicul" className="inline-grid h-6 w-6 place-items-center rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-brand hover:text-brand transition">+</a>
+        <a href={"/jobs/new?vehicleId=" + r.vehicleId} title="Creează cursă pentru acest vehicul" className="inline-grid h-6 w-6 place-items-center rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-brand hover:text-brand transition">+</a>
       ),
   },
   {
