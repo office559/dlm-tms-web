@@ -25,17 +25,19 @@ export function DriverSelect({
   vehicleId,
   drivers,
   value,
+  state,
 }: {
   vehicleId: string;
   drivers: { id: string; name: string }[];
   value: string | null;
+  state: FleetState;
 }) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
 
   return (
     <select
-      className="w-full min-w-[140px] rounded-lg border border-slate-200 px-2 py-1 text-sm bg-white disabled:opacity-50"
+      className={`w-full min-w-[140px] rounded-lg border border-slate-200 px-2 py-1 text-base font-semibold disabled:opacity-50 ${FLEET_STATE_STYLES[state]}`}
       defaultValue={value ?? ""}
       disabled={saving}
       onChange={async (e) => {
@@ -87,7 +89,7 @@ export function LocationControl({
     <div className="flex flex-col gap-0.5">
       {initial ? (
         <div className="flex items-center gap-1.5">
-          <span className="whitespace-nowrap rounded-lg bg-blue-500 px-2.5 py-1 text-base font-bold text-white">
+          <span className="whitespace-nowrap rounded-lg bg-blue-500 px-2.5 py-1 text-sm font-bold text-white">
             {initial}
           </span>
           <button
