@@ -1,11 +1,27 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { getDashboardTotals, getMonthlyTrend, getTopDriversThisMonth } from "@/lib/dashboard";
+import {
+  getDashboardTotals,
+  getMonthlyTrend,
+  getTopDriversThisMonth,
+  getDailyProgram,
+} from "@/lib/dashboard";
 import { AppShell } from "@/components/AppShell";
+import { DailyProgramCard } from "@/components/DailyProgramCard";
 
 function fmtNum(n: number, digits = 0) {
   return n.toLocaleString("ro-RO", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+const DAY_NAMES = ["Dum", "Lun", "Mar", "Mie", "Joi", "Vin", "Sâm"];
+const MONTH_NAMES = [
+  "Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Sep", "Oct", "Noi", "Dec",
+];
+
+function todayLabel() {
+  const d = new Date();
+  return `${DAY_NAMES[d.getDay()]} ${d.getDate()} ${MONTH_NAMES[d.getMonth()]} · Azi`;
 }
 
 /**
@@ -78,16 +94,24 @@ export default async function DashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
-  const [totals, trend, topDrivers] = await Promise.all([
+  const [totals, trend, topDrivers, dailyProgram] = await Promise.all([
     getDashboardTotals(),
     getMonthlyTrend(6),
     getTopDriversThisMonth(5),
+    getDailyProgram(),
   ]);
 
   return (
     <AppShell active="dashboard" crumb="Dashboard">
       <div className="space-y-6">
         <h1 className="text-2xl font-semibold text-brand-dark">DLM DISPATCHER DASHBOARD</h1>
+
+        <DailyProgramCard
+          ieri={dailyProgram.ieri}
+          azi={dailyProgram.azi}
+          maine={dailyProgram.maine}
+          todayLabel={todayLabel()}
+        />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Venit Total" value={fmtNum(totals.venitTotal, 2)} accent="text-emerald-700" />
