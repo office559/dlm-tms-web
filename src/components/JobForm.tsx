@@ -1,7 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+
+const MAX_AI_IMAGE_BYTES = 5 * 1024 * 1024; // 5MB
+
+/** Citește un fișier imagine ca base64 (fără prefixul "data:...;base64,") + tipul MIME. */
+function readImageAsBase64(file: File): Promise<{ mediaType: string; data: string }> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Nu am putut citi imaginea."));
+    reader.onload = () => {
+      const result = String(reader.result ?? "");
+      const match = result.match(/^data:([^;]+);base64,(.*)$/s);
+      if (!match) {
+        reject(new Error("Format de imagine necunoscut."));
+        return;
+      }
+      resolve({ mediaType: match[1], data: match[2] });
+    };
+    reader.readAsDataURL(file);
+  });
+}
 
 type JobFormValues = {
   clientId: string;
@@ -82,9 +102,40 @@ export function JobForm({
   const isEdit = Boolean(initial?.id);
 
   const [aiText, setAiText] = useState("");
+  const [aiImage, setAiImage] = useState<{ mediaType: string; data: string; previewUrl: string } | null>(
+    null
+  );
   const [aiStatus, setAiStatus] = useState<"idle" | "loading">("idle");
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiMatchNotice, setAiMatchNotice] = useState<string | null>(null);
+  const aiFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  async function handleAiImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setAiError(null);
+    if (!file.type.startsWith("image/")) {
+      setAiError("Fișierul ales nu este o imagine.");
+      return;
+    }
+    if (file.size > MAX_AI_IMAGE_BYTES) {
+      setAiError("Poza e prea mare (max 5MB).");
+      return;
+    }
+    try {
+      const { mediaType, data } = await readImageAsBase64(file);
+      setAiImage({ mediaType, data, previewUrl: URL.createObjectURL(file) });
+    } catch (err) {
+      console.error(err);
+      setAiError("Nu am putut citi imaginea.");
+    }
+  }
+
+  function removeAiImage() {
+    if (aiImage) URL.revokeObjectURL(aiImage.previewUrl);
+    setAiImage(null);
+  }
 
   function set<K extends keyof JobFormValues>(key: K, value: JobFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -113,7 +164,7 @@ export function JobForm({
 
   /** Trimite textul comenzii (email/WhatsApp) la asistentul AI și pre-completează formularul cu ce a extras — dispecerul revede și corectează înainte de a salva. */
   async function handleAiExtract() {
-    if (!aiText.trim()) return;
+    if (!aiText.trim() && !aiImage) return;
     setAiStatus("loading");
     setAiError(null);
     setAiMatchNotice(null);
@@ -121,7 +172,11 @@ export function JobForm({
       const res = await fetch("/api/jobs/ai-extract", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: aiText, customers }),
+        body: JSON.stringify({
+          text: aiText,
+          customers,
+          image: aiImage ? { mediaType: aiImage.mediaType, data: aiImage.data } : undefined,
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -200,7 +255,7 @@ export function JobForm({
       {!isEdit && (
         <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 space-y-2">
           <label className="text-sm font-medium text-brand-dark">
-            Creează cu AI — lipește textul comenzii (email / WhatsApp)
+            Creează cu AI — lipește textul comenzii (email / WhatsApp) și/sau atașează o poză
           </label>
           <textarea
             value={aiText}
@@ -209,11 +264,46 @@ export function JobForm({
             placeholder="Ex: Bună ziua, avem o cursă de la Ploiești la Berlin, încărcare 28.09 dimineața, descărcare 30.09, tarif 1500 EUR, ref. comandă 4521..."
             className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand bg-white"
           />
+
+          <input
+            ref={aiFileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleAiImageSelect}
+            className="hidden"
+          />
+
+          {aiImage ? (
+            <div className="flex items-center gap-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={aiImage.previewUrl}
+                alt="Poză comandă"
+                className="h-16 w-16 rounded-lg border border-slate-300 object-cover"
+              />
+              <button
+                type="button"
+                onClick={removeAiImage}
+                className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-600 hover:border-red-300 hover:text-red-600 transition"
+              >
+                Șterge poza
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => aiFileInputRef.current?.click()}
+              className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-500 hover:border-brand hover:text-brand transition"
+            >
+              📎 Atașează o poză (comandă pe hârtie, captură de ecran)
+            </button>
+          )}
+
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={handleAiExtract}
-              disabled={aiStatus === "loading" || !aiText.trim()}
+              disabled={aiStatus === "loading" || (!aiText.trim() && !aiImage)}
               className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition disabled:opacity-60"
             >
               {aiStatus === "loading" ? "Se completează..." : "Completează formularul cu AI"}
