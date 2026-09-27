@@ -110,10 +110,8 @@ export function JobForm({
   const [aiMatchNotice, setAiMatchNotice] = useState<string | null>(null);
   const aiFileInputRef = useRef<HTMLInputElement | null>(null);
 
-  async function handleAiImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  /** Validează și încarcă un fișier imagine în starea AI — folosit atât la alegerea din disc, cât și la lipire (Ctrl+V). */
+  async function processAiImageFile(file: File) {
     setAiError(null);
     if (!file.type.startsWith("image/")) {
       setAiError("Fișierul ales nu este o imagine.");
@@ -125,10 +123,36 @@ export function JobForm({
     }
     try {
       const { mediaType, data } = await readImageAsBase64(file);
-      setAiImage({ mediaType, data, previewUrl: URL.createObjectURL(file) });
+      setAiImage((prev) => {
+        if (prev) URL.revokeObjectURL(prev.previewUrl);
+        return { mediaType, data, previewUrl: URL.createObjectURL(file) };
+      });
     } catch (err) {
       console.error(err);
       setAiError("Nu am putut citi imaginea.");
+    }
+  }
+
+  function handleAiImageSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    void processAiImageFile(file);
+  }
+
+  /** Ctrl+V direct în zona "Creează cu AI" — dacă în clipboard e o captură de ecran, o atașează automat. */
+  function handleAiPaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void processAiImageFile(file);
+        }
+        return;
+      }
     }
   }
 
@@ -253,15 +277,19 @@ export function JobForm({
   return (
     <form onSubmit={onSubmit} className="space-y-4 max-w-3xl">
       {!isEdit && (
-        <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 space-y-2">
+        <div
+          onPaste={handleAiPaste}
+          className="rounded-2xl border border-brand/30 bg-brand/5 p-4 space-y-2"
+        >
           <label className="text-sm font-medium text-brand-dark">
-            Creează cu AI — lipește textul comenzii (email / WhatsApp) și/sau atașează o poză
+            Creează cu AI — lipește textul comenzii (email / WhatsApp), atașează o poză sau lipește o captură de ecran (Ctrl+V)
           </label>
           <textarea
             value={aiText}
             onChange={(e) => setAiText(e.target.value)}
+            onPaste={handleAiPaste}
             rows={4}
-            placeholder="Ex: Bună ziua, avem o cursă de la Ploiești la Berlin, încărcare 28.09 dimineața, descărcare 30.09, tarif 1500 EUR, ref. comandă 4521..."
+            placeholder="Ex: Bună ziua, avem o cursă de la Ploiești la Berlin, încărcare 28.09 dimineața, descărcare 30.09, tarif 1500 EUR, ref. comandă 4521... (sau apasă Ctrl+V ca să lipești o captură de ecran)"
             className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand bg-white"
           />
 
