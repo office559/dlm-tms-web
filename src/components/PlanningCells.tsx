@@ -89,8 +89,8 @@ export function LocationInput({
   );
 }
 
-function startPauseBody(hours: number): Record<string, unknown> {
-  const now = new Date();
+function startPauseBody(hours: number, startTime?: string): Record<string, unknown> {
+  const now = startTime ? combineDateTime(startTime) : new Date();
   const end = new Date(now.getTime() + hours * 60 * 60 * 1000);
   const fmt = (d: Date) => d.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
   return {
@@ -357,9 +357,10 @@ export function ProgramControl({
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="w-fit rounded-lg bg-orange-100 px-2 py-1 text-sm font-semibold text-orange-800 hover:bg-orange-200 transition"
+          className="inline-flex w-fit overflow-hidden rounded-lg text-sm font-semibold transition hover:opacity-90"
         >
-          {programStart} - {programEnd}
+          <span className="whitespace-nowrap bg-green-700 px-2 py-1 text-white">{programStart}</span>
+          <span className="whitespace-nowrap bg-red-500 px-2 py-1 text-white">{programEnd}</span>
         </button>
       ) : (
         <button
@@ -453,10 +454,15 @@ export function PauseBadgeControl({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [custom, setCustom] = useState("");
+  const [startTime, setStartTime] = useState(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  });
 
   async function start(hours: number) {
     setSaving(true);
-    await patchVehicle(vehicleId, startPauseBody(hours));
+    await patchVehicle(vehicleId, startPauseBody(hours, startTime));
     setSaving(false);
     setOpen(false);
     router.refresh();
@@ -483,8 +489,8 @@ export function PauseBadgeControl({
       {pause && restStart && restEnd ? (
         <div className="flex items-center gap-1.5">
           <span className="inline-flex overflow-hidden rounded-lg text-sm font-semibold">
-            <span className="bg-red-500 px-2 py-1 text-white">{restStart}</span>
-            <span className="bg-emerald-500 px-2 py-1 text-white">{restEnd}</span>
+            <span className="whitespace-nowrap bg-red-500 px-2 py-1 text-white">{restStart}</span>
+            <span className="whitespace-nowrap bg-emerald-500 px-2 py-1 text-white">{restEnd}</span>
           </span>
           <button
             type="button"
@@ -527,6 +533,16 @@ export function PauseBadgeControl({
               </button>
             </div>
             <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500">Ora de început a pauzei</label>
+                <input
+                  type="time"
+                  className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                  value={startTime}
+                  disabled={saving}
+                  onChange={(e) => setStartTime(e.target.value)}
+                />
+              </div>
               {PAUSE_DURATIONS.map((d) => (
                 <button
                   key={d}
