@@ -8,6 +8,8 @@ body {
 }
 
 body {
-  background: #f4f6fb;
+  /* Valoarea de după virgulă e folosită doar dacă --page-bg nu e setată
+     (vezi src/app/layout.tsx, care o injectează din Setări). */
+  background: var(--page-bg, #f4f6fb);
   color: #0e1a2b;
 }
