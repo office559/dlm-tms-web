@@ -36,11 +36,13 @@ const EXTRACT_TOOL = {
       },
       loadPlace: {
         type: "string",
-        description: "Locul de încărcare (oraș + țară dacă apare), sau string gol.",
+        description:
+          "Locul de încărcare. Dacă înaintea numelui orașului apare un cod scurt de depozit/terminal (ex. \"SCN2 KAISERSLAUTERN, Rhineland-Palatinate\" → \"SCN2\"), întoarce DOAR codul, fără oraș sau regiune. Dacă nu există un asemenea cod, întoarce orașul (+ țara, dacă apare). Sau string gol.",
       },
       unloadPlace: {
         type: "string",
-        description: "Locul de descărcare (oraș + țară dacă apare), sau string gol.",
+        description:
+          "Locul de descărcare — aceeași regulă ca la loadPlace: dacă apare un cod scurt de depozit/terminal înaintea orașului, întoarce DOAR codul (ex. \"DNW3 DÜSSELDORF, North Rhine-Westphalia\" → \"DNW3\"). Altfel, orașul (+ țara). Sau string gol.",
       },
       startAt: {
         type: "string",
@@ -177,6 +179,7 @@ export async function POST(req: NextRequest) {
           `Ești un asistent care ajută un dispecer de transport rutier din România să introducă o cursă nouă în sistem. ` +
           `Data de azi este ${today}. Primești fie un text (comandă copiată din email sau WhatsApp), fie o poză (comandă pe hârtie, document, CMR, captură de ecran), fie ambele — posibil în română, engleză sau amestecate. ` +
           `Dacă primești o poză, citește cu atenție tot ce e relevant din ea: locul de încărcare, locul de descărcare, data și ora încărcării/descărcării, tariful, distanța (km/mile), referința comenzii. ` +
+          `Pentru locul de încărcare/descărcare: dacă înaintea orașului apare un cod scurt de depozit/terminal (ex. dintr-un load board: "SCN2 KAISERSLAUTERN, Rhineland-Palatinate" sau "DNW3 DÜSSELDORF, North Rhine-Westphalia"), pune DOAR codul (SCN2, respectiv DNW3) în loadPlace/unloadPlace, nu orașul întreg. ` +
           `Extrage câmpurile cerute apelând tool-ul extract_job_details. Nu inventa informații care nu apar în text sau în poză.`,
         messages: [{ role: "user", content }],
         tools: [EXTRACT_TOOL],
