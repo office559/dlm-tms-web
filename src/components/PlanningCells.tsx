@@ -13,13 +13,15 @@ async function patchVehicle(id: string, body: Record<string, unknown>) {
   });
 }
 
-async function patchJobStatus(jobId: string, status: string) {
+async function patchJobStatus(jobId: string, status: string, cancelFee?: number | null) {
   await fetch(`/api/jobs/${jobId}/quick`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, cancelFee: cancelFee ?? null }),
   });
 }
+
+const CANCEL_FEE_PRESETS = [220, 320];
 
 export function DriverSelect({
   vehicleId,
@@ -37,7 +39,7 @@ export function DriverSelect({
 
   return (
     <select
-      className={`w-full min-w-[140px] rounded-lg border border-slate-200 px-2 py-1 text-base font-semibold disabled:opacity-50 ${FLEET_STATE_STYLES[state]}`}
+      className={`w-full min-w-[140px] rounded-lg border border-slate-200 px-2 py-1 text-sm font-semibold disabled:opacity-50 ${FLEET_STATE_STYLES[state]}`}
       defaultValue={value ?? ""}
       disabled={saving}
       onChange={async (e) => {
@@ -89,7 +91,7 @@ export function LocationControl({
     <div className="flex flex-col gap-0.5">
       {initial ? (
         <div className="flex items-center gap-1.5">
-          <span className="whitespace-nowrap rounded-lg bg-blue-500 px-2.5 py-1 text-sm font-bold text-white">
+          <span className="whitespace-nowrap rounded-lg bg-blue-500 px-2.5 py-1 text-sm font-semibold text-white">
             {initial}
           </span>
           <button
@@ -225,9 +227,12 @@ export function StareControl({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<"status" | "cancelFee">("status");
+  const [customFee, setCustomFee] = useState("");
   const [saving, setSaving] = useState(false);
 
   const options: StareOption[] = [];
+  const CANCEL_LABEL = "Anulează cursa";
 
   if (state === "alocat" && jobId) {
     options.push({
@@ -236,9 +241,9 @@ export function StareControl({
       run: () => patchJobStatus(jobId, "activ"),
     });
     options.push({
-      label: "Anulează cursa",
+      label: CANCEL_LABEL,
       style: "text-red-700 bg-red-50 hover:bg-red-100",
-      run: () => patchJobStatus(jobId, "anulat"),
+      run: async () => {},
     });
   } else if (state === "tranzit" && jobId) {
     options.push({
@@ -283,11 +288,32 @@ export function StareControl({
 
   const clickable = options.length > 0;
 
+  function closeAll() {
+    setOpen(false);
+    setStep("status");
+    setCustomFee("");
+  }
+
   async function choose(opt: StareOption) {
+    if (opt.label === CANCEL_LABEL) {
+      setStep("cancelFee");
+      return;
+    }
     setSaving(true);
     setOpen(false);
     await opt.run();
     setSaving(false);
+    router.refresh();
+  }
+
+  async function confirmCancel(fee: number | null) {
+    if (!jobId) return;
+    setSaving(true);
+    setOpen(false);
+    await patchJobStatus(jobId, "anulat", fee);
+    setSaving(false);
+    setStep("status");
+    setCustomFee("");
     router.refresh();
   }
 
@@ -297,7 +323,7 @@ export function StareControl({
         type="button"
         disabled={saving || !clickable}
         onClick={() => setOpen(true)}
-        className={`rounded-full px-2.5 py-1 text-sm font-medium transition ${FLEET_STATE_STYLES[state]} ${
+        className={`rounded-full px-2.5 py-1 text-sm font-semibold transition ${FLEET_STATE_STYLES[state]} ${
           clickable ? "cursor-pointer hover:opacity-75" : "cursor-default"
         } disabled:opacity-50`}
       >
@@ -307,34 +333,107 @@ export function StareControl({
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4"
-          onClick={() => setOpen(false)}
+          onClick={closeAll}
         >
           <div
             className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-brand-dark">Schimbă status</h3>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="text-lg leading-none text-slate-400 hover:text-slate-600"
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex flex-col gap-2">
-              {options.map((o) => (
-                <button
-                  key={o.label}
-                  type="button"
-                  onClick={() => choose(o)}
-                  className={`rounded-lg px-3 py-2 text-left text-sm font-medium transition ${o.style}`}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
+            {step === "status" ? (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-brand-dark">Schimbă status</h3>
+                  <button
+                    type="button"
+                    onClick={closeAll}
+                    className="text-lg leading-none text-slate-400 hover:text-slate-600"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2">
+                  {options.map((o) => (
+                    <button
+                      key={o.label}
+                      type="button"
+                      onClick={() => choose(o)}
+                      className={`rounded-lg px-3 py-2 text-left text-sm font-medium transition ${o.style}`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-brand-dark">Taxă de anulare</h3>
+                  <button
+                    type="button"
+                    onClick={closeAll}
+                    className="text-lg leading-none text-slate-400 hover:text-slate-600"
+                  >
+                    ×
+                  </button>
+                </div>
+                <p className="mb-3 text-xs text-slate-500">
+                  Unele curse anulate se plătesc totuși. Alege o sumă sau anulează fără taxă.
+                </p>
+                <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {CANCEL_FEE_PRESETS.map((amount) => (
+                      <button
+                        key={amount}
+                        type="button"
+                        disabled={saving}
+                        onClick={() => confirmCancel(amount)}
+                        className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 transition"
+                      >
+                        {amount} €
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      placeholder="Sumă personalizată"
+                      className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                      value={customFee}
+                      disabled={saving}
+                      onChange={(e) => setCustomFee(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && customFee) confirmCancel(Number(customFee));
+                      }}
+                    />
+                    <button
+                      type="button"
+                      disabled={saving || !customFee}
+                      onClick={() => confirmCancel(Number(customFee))}
+                      className="shrink-0 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
+                    >
+                      OK
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => confirmCancel(null)}
+                    className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 underline hover:text-slate-700 disabled:opacity-50 transition"
+                  >
+                    Anulează fără taxă
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => setStep("status")}
+                    className="rounded-lg px-3 py-2 text-left text-sm text-slate-400 hover:text-slate-600 disabled:opacity-50"
+                  >
+                    ← Înapoi
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -463,7 +562,7 @@ export function ProgramControl({
           <span aria-hidden="true">✎</span>
         </button>
       )}
-      {subText && <div className="text-[11px] text-slate-400">{subText}</div>}
+      {subText && <div className="text-xs text-slate-400">{subText}</div>}
 
       {open && (
         <div
@@ -612,7 +711,7 @@ export function PauseBadgeControl({
           <span aria-hidden="true">✎</span>
         </button>
       )}
-      {subText && <div className="text-[11px] text-slate-400">{subText}</div>}
+      {subText && <div className="text-xs text-slate-400">{subText}</div>}
 
       {open && (
         <div
@@ -808,9 +907,9 @@ export function WeeklyRestControl({
           <span aria-hidden="true">✎</span>
         </button>
       )}
-      {subText && <div className="text-[11px] text-slate-400">{subText}</div>}
+      {subText && <div className="text-xs text-slate-400">{subText}</div>}
       {!weeklyRest && (
-        <div className="text-[11px] font-medium text-purple-500">
+        <div className="text-xs font-medium text-purple-500">
           Recomandat: {suggestedType}h
         </div>
       )}
