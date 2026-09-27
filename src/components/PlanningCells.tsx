@@ -35,7 +35,7 @@ export function DriverSelect({
 
   return (
     <select
-      className="rounded-lg border border-slate-200 px-2 py-1 text-sm bg-white max-w-[150px] disabled:opacity-50"
+      className="w-full min-w-[140px] rounded-lg border border-slate-200 px-2 py-1 text-sm bg-white disabled:opacity-50"
       defaultValue={value ?? ""}
       disabled={saving}
       onChange={async (e) => {
@@ -226,7 +226,7 @@ export function StareControl({
         type="button"
         disabled={saving || !clickable}
         onClick={() => setOpen(true)}
-        className={`rounded-full px-2 py-0.5 text-xs font-medium transition ${FLEET_STATE_STYLES[state]} ${
+        className={`rounded-full px-2.5 py-1 text-sm font-medium transition ${FLEET_STATE_STYLES[state]} ${
           clickable ? "cursor-pointer hover:opacity-75" : "cursor-default"
         } disabled:opacity-50`}
       >
@@ -354,14 +354,20 @@ export function ProgramControl({
   return (
     <div className="flex flex-col gap-0.5">
       {programStart && programEnd ? (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex w-fit overflow-hidden rounded-lg text-sm font-semibold transition hover:opacity-90"
-        >
-          <span className="whitespace-nowrap bg-green-700 px-2 py-1 text-white">{programStart}</span>
-          <span className="whitespace-nowrap bg-red-500 px-2 py-1 text-white">{programEnd}</span>
-        </button>
+        <div className="flex items-center gap-1.5">
+          <span className="inline-flex overflow-hidden rounded-lg text-sm font-semibold">
+            <span className="whitespace-nowrap bg-green-700 px-2 py-1 text-white">{programStart}</span>
+            <span className="whitespace-nowrap bg-red-500 px-2 py-1 text-white">{programEnd}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Editează programul"
+            className="text-slate-400 hover:text-slate-600"
+          >
+            ✎
+          </button>
+        </div>
       ) : (
         <button
           type="button"
@@ -583,6 +589,121 @@ export function PauseBadgeControl({
                   Finalizează pauza
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Cazuri: fiecare vehicul poate avea mai multe numere de caz atașate —
+ * afișate ca etichete mici, cu buton [+] pentru adăugare rapidă (popup cu
+ * un singur câmp text) și „×" pe fiecare etichetă pentru ștergere.
+ */
+export function CazuriControl({
+  vehicleId,
+  cases,
+}: {
+  vehicleId: string;
+  cases: string[];
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [value, setValue] = useState("");
+
+  async function add() {
+    const v = value.trim();
+    if (!v) return;
+    setSaving(true);
+    await patchVehicle(vehicleId, { casesAdd: v });
+    setSaving(false);
+    setValue("");
+    setOpen(false);
+    router.refresh();
+  }
+
+  async function remove(c: string) {
+    setSaving(true);
+    await patchVehicle(vehicleId, { casesRemove: c });
+    setSaving(false);
+    router.refresh();
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-1">
+        {cases.map((c) => (
+          <span
+            key={c}
+            className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+          >
+            {c}
+            <button
+              type="button"
+              onClick={() => remove(c)}
+              disabled={saving}
+              aria-label={`Șterge cazul ${c}`}
+              className="text-slate-400 hover:text-red-500 disabled:opacity-50"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          disabled={saving}
+          aria-label="Adaugă caz"
+          title="Adaugă număr de caz"
+          className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-brand hover:text-brand disabled:opacity-50"
+        >
+          +
+        </button>
+      </div>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-brand-dark">Adaugă caz</h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-lg leading-none text-slate-400 hover:text-slate-600"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <input
+                type="text"
+                autoFocus
+                placeholder="Număr de CAZ"
+                className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                value={value}
+                disabled={saving}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") add();
+                }}
+              />
+              <button
+                type="button"
+                disabled={saving || !value.trim()}
+                onClick={add}
+                className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
+              >
+                Adaugă
+              </button>
             </div>
           </div>
         </div>
