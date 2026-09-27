@@ -11,6 +11,7 @@ import {
   PauseBadgeControl,
   ProgramControl,
   StareControl,
+  WeeklyRestControl,
 } from "@/components/PlanningCells";
 
 export type PlanningRow = {
@@ -31,6 +32,11 @@ export type PlanningRow = {
   restStart: string | null;
   restEnd: string | null;
   restEndAt: string | null;
+  weeklyRest: boolean;
+  weeklyRestType: string | null;
+  weeklyRestStart: string | null;
+  weeklyRestEnd: string | null;
+  weeklyRestEndAt: string | null;
   location: string | null;
   fallbackLocation: string | null;
   loadPlace: string | null;
@@ -50,6 +56,7 @@ type ColumnKey =
   | "sofer"
   | "program"
   | "pauza"
+  | "pauzaSapt"
   | "locatie"
   | "traseu"
   | "loading"
@@ -64,6 +71,7 @@ const DEFAULT_ORDER: ColumnKey[] = [
   "sofer",
   "program",
   "pauza",
+  "pauzaSapt",
   "locatie",
   "traseu",
   "loading",
@@ -79,6 +87,7 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   sofer: 230,
   program: 210,
   pauza: 200,
+  pauzaSapt: 200,
   locatie: 130,
   traseu: 260,
   loading: 110,
@@ -301,6 +310,20 @@ const COLUMNS: ColumnDef[] = [
         restStart={r.restStart}
         restEnd={r.restEnd}
         restEndAt={r.restEndAt}
+      />
+    ),
+  },
+  {
+    key: "pauzaSapt",
+    label: "Pauză Săpt.",
+    render: (r) => (
+      <WeeklyRestControl
+        vehicleId={r.vehicleId}
+        weeklyRest={r.weeklyRest}
+        weeklyRestType={r.weeklyRestType}
+        weeklyRestStart={r.weeklyRestStart}
+        weeklyRestEnd={r.weeklyRestEnd}
+        weeklyRestEndAt={r.weeklyRestEndAt}
       />
     ),
   },
