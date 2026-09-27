@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import type { FleetState } from "@/lib/fleet-labels";
 import { FLEET_ROW_STYLES } from "@/lib/fleet-labels";
 import {
+  CazuriControl,
   DriverSelect,
   LocationInput,
   PauseBadgeControl,
@@ -38,6 +39,7 @@ export type PlanningRow = {
   loadingPct: number | null;
   waState: "none" | "pending" | "confirmed";
   waRead: boolean;
+  cases: string[];
 };
 
 type ColumnKey =
@@ -73,14 +75,14 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   vehicul: 260,
   vrid: 110,
   data: 110,
-  stare: 130,
-  sofer: 170,
-  program: 190,
+  stare: 150,
+  sofer: 230,
+  program: 210,
   pauza: 200,
   locatie: 130,
   traseu: 260,
   loading: 110,
-  cazuri: 90,
+  cazuri: 170,
   whatsapp: 130,
 };
 
@@ -216,7 +218,7 @@ const COLUMNS: ColumnDef[] = [
       <>
         <div className="flex items-center gap-1.5">
           <TruckIcon />
-          <span className="whitespace-nowrap font-medium">
+          <span className="whitespace-nowrap text-base font-semibold">
             {r.plate}
             {r.trailerPlate ? ` / ${r.trailerPlate}` : ""}
           </span>
@@ -331,11 +333,7 @@ const COLUMNS: ColumnDef[] = [
   {
     key: "cazuri",
     label: "Cazuri",
-    render: () => (
-      <span className="text-slate-300 text-xs" title="În curând">
-        —
-      </span>
-    ),
+    render: (r) => <CazuriControl vehicleId={r.vehicleId} cases={r.cases} />,
   },
   {
     key: "whatsapp",
