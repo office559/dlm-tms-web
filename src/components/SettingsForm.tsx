@@ -12,6 +12,7 @@ type SettingsFormValues = {
   waCountry: string;
   themeColor: string;
   bgColor: string;
+  sidebarColor: string;
 };
 
 export function SettingsForm({ initial }: { initial: SettingsFormValues }) {
@@ -37,6 +38,7 @@ export function SettingsForm({ initial }: { initial: SettingsFormValues }) {
       waCountry: values.waCountry || null,
       themeColor: values.themeColor || null,
       bgColor: values.bgColor || null,
+      sidebarColor: values.sidebarColor || null,
     };
     const res = await fetch("/api/settings", {
       method: "PATCH",
@@ -127,22 +129,37 @@ export function SettingsForm({ initial }: { initial: SettingsFormValues }) {
           <label className="text-sm text-slate-600">Culoare temă</label>
           <input
             type="color"
-            value={values.themeColor || "#2f6fed"}
+            value={values.themeColor || "#1e4d8b"}
             onChange={(e) => set("themeColor", e.target.value)}
             className="w-full h-10 rounded-lg border border-slate-300 px-1 outline-none focus:border-brand"
           />
         </div>
 
         <div className="space-y-1">
-          <label className="text-sm text-slate-600">Culoare fundal</label>
+          <label className="text-sm text-slate-600">Culoare fundal pagină</label>
           <input
             type="color"
-            value={values.bgColor || "#e8f0fb"}
+            value={values.bgColor || "#f4f6fb"}
             onChange={(e) => set("bgColor", e.target.value)}
             className="w-full h-10 rounded-lg border border-slate-300 px-1 outline-none focus:border-brand"
           />
         </div>
+
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">Culoare fundal meniu lateral</label>
+          <input
+            type="color"
+            value={values.sidebarColor || "#ffffff"}
+            onChange={(e) => set("sidebarColor", e.target.value)}
+            className="w-full h-10 rounded-lg border border-slate-300 px-1 outline-none focus:border-brand"
+          />
+        </div>
       </div>
+
+      <p className="text-xs text-slate-400">
+        Culorile se aplică pe tot site-ul imediat după ce salvezi (poate fi nevoie de un refresh de
+        pagină).
+      </p>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {status === "saved" && <p className="text-sm text-emerald-700">Salvat cu succes.</p>}
