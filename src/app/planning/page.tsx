@@ -9,6 +9,7 @@ import {
   fleetState,
   currentJobsByVehicle,
   lastUnloadPlaceByVehicle,
+  weeklyRestSuggestionByVehicle,
 } from "@/lib/fleet";
 import { PlanningTable } from "@/components/PlanningTable";
 import type { PlanningRow } from "@/components/PlanningTable";
@@ -62,9 +63,10 @@ export default async function PlanningPage({
 
   const trailerById = new Map(trailers.map((t) => [t.id, t]));
   const vehicleIds = vehicles.map((v) => v.id);
-  const [jobsByVehicle, lastUnloadByVehicle] = await Promise.all([
+  const [jobsByVehicle, lastUnloadByVehicle, weeklyRestSuggestion] = await Promise.all([
     currentJobsByVehicle(vehicleIds),
     lastUnloadPlaceByVehicle(vehicleIds),
+    weeklyRestSuggestionByVehicle(vehicleIds),
   ]);
 
   const allRows = vehicles
@@ -120,6 +122,7 @@ export default async function PlanningPage({
       weeklyRestStart: v.weekly_rest_start,
       weeklyRestEnd: v.weekly_rest_end,
       weeklyRestEndAt: v.weekly_rest_end_at ? v.weekly_rest_end_at.toString() : null,
+      weeklyRestSuggested: weeklyRestSuggestion.get(v.id) ?? "45",
       location: v.location,
       fallbackLocation: lastUnloadByVehicle.get(v.id) ?? null,
       loadPlace: job?.load_place ?? null,
