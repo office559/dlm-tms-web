@@ -125,6 +125,7 @@ export default async function PlanningPage({
       loadingPct,
       waState,
       waRead,
+      cases: v.cases ?? [],
     };
   });
 
@@ -162,10 +163,6 @@ export default async function PlanningPage({
           drivers={drivers.map((d) => ({ id: d.id, name: d.name }))}
           emptyMessage={emptyMessage}
         />
-
-        <p className="text-xs text-slate-400">
-          Notele de tip „Cazuri" vor fi adăugate într-un pas următor.
-        </p>
       </div>
     </AppShell>
   );
