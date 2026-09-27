@@ -47,13 +47,27 @@ export function JobPaymentRow({ job }: { job: Job }) {
     router.refresh();
   }
 
+  const isCancelled = job.status === "anulat";
+  const amountLabel = isCancelled
+    ? job.cancel_fee != null
+      ? `${job.cancel_fee} ${job.currency ?? "€"}`
+      : "—"
+    : job.rate != null
+    ? `${job.rate} ${job.currency ?? ""}`
+    : "—";
+
   return (
     <tr className="border-t border-slate-100">
       <td className="px-4 py-2 font-medium">
         {job.load_place || "—"} → {job.unload_place || "—"}
+        {isCancelled && (
+          <span className="ml-2 rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
+            Anulată — taxă
+          </span>
+        )}
       </td>
       <td className="px-4 py-2">{job.ref || "—"}</td>
-      <td className="px-4 py-2">{job.rate != null ? `${job.rate} ${job.currency ?? ""}` : "—"}</td>
+      <td className="px-4 py-2">{amountLabel}</td>
       <td className="px-4 py-2">
         <select
           value={invoice}
