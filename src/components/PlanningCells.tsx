@@ -680,9 +680,10 @@ function MoonIcon({ className }: { className?: string }) {
 const WEEKLY_REST_HOURS: Record<"45" | "24", number> = { "45": 45, "24": 24 };
 
 /**
- * Pauză Săptămânală vehicul: dacă nu e activă, arată „— [+]"; dispecerul
- * alege repaus normal (45h) sau redus (24h), iar ora de final se calculează
- * automat (ora de start + 45/24h), la fel ca la Pauză (zilnică).
+ * Pauză Săptămânală vehicul: dacă nu e activă, arată „— [+]", plus o
+ * sugestie automată (45h/24h) calculată din istoricul vehiculului; dacă
+ * pauza e activă, arată o pastilă cu ora de start-final și, dedesubt,
+ * „Mai are Xh Ym", calculate din ora exactă de final salvată.
  */
 export function WeeklyRestControl({
   vehicleId,
@@ -691,6 +692,7 @@ export function WeeklyRestControl({
   weeklyRestStart,
   weeklyRestEnd,
   weeklyRestEndAt,
+  suggestedType,
 }: {
   vehicleId: string;
   weeklyRest: boolean;
@@ -698,6 +700,7 @@ export function WeeklyRestControl({
   weeklyRestStart: string | null;
   weeklyRestEnd: string | null;
   weeklyRestEndAt: string | null;
+  suggestedType: "45" | "24";
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -783,6 +786,11 @@ export function WeeklyRestControl({
         </button>
       )}
       {subText && <div className="text-[11px] text-slate-400">{subText}</div>}
+      {!weeklyRest && (
+        <div className="text-[11px] font-medium text-purple-500">
+          Recomandat: {suggestedType}h
+        </div>
+      )}
 
       {open && (
         <div
@@ -819,8 +827,17 @@ export function WeeklyRestControl({
                   type="button"
                   disabled={saving}
                   onClick={() => start("45")}
-                  className="flex flex-col items-center gap-1 rounded-2xl border-2 border-purple-200 bg-white px-2 py-3 hover:border-purple-400 hover:bg-purple-50 transition disabled:opacity-50"
+                  className={`relative flex flex-col items-center gap-1 rounded-2xl border-2 bg-white px-2 py-3 transition disabled:opacity-50 ${
+                    suggestedType === "45"
+                      ? "border-purple-400 bg-purple-50/50"
+                      : "border-purple-200 hover:border-purple-400 hover:bg-purple-50"
+                  }`}
                 >
+                  {suggestedType === "45" && (
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-purple-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                      Recomandat
+                    </span>
+                  )}
                   <MoonIcon className="h-6 w-6 text-purple-500" />
                   <span className="text-sm font-bold text-slate-700">45h</span>
                   <span className="text-[11px] text-center font-medium text-purple-600">
@@ -831,8 +848,17 @@ export function WeeklyRestControl({
                   type="button"
                   disabled={saving}
                   onClick={() => start("24")}
-                  className="flex flex-col items-center gap-1 rounded-2xl border-2 border-sky-200 bg-white px-2 py-3 hover:border-sky-400 hover:bg-sky-50 transition disabled:opacity-50"
+                  className={`relative flex flex-col items-center gap-1 rounded-2xl border-2 bg-white px-2 py-3 transition disabled:opacity-50 ${
+                    suggestedType === "24"
+                      ? "border-sky-400 bg-sky-50/50"
+                      : "border-sky-200 hover:border-sky-400 hover:bg-sky-50"
+                  }`}
                 >
+                  {suggestedType === "24" && (
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                      Recomandat
+                    </span>
+                  )}
                   <MoonIcon className="h-6 w-6 text-sky-500" />
                   <span className="text-sm font-bold text-slate-700">24h</span>
                   <span className="text-[11px] text-center font-medium text-sky-600">
