@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactElement } from "react";
 
 export type NavItem = { key: string; href: string; label: string };
 export type NavGroup = { title: string; items: NavItem[] };
@@ -168,7 +168,7 @@ function SettingsIcon() {
 }
 
 /** Fiecare iconiță de mai sus, după cheia (key) itemului de meniu din AppShell.tsx. */
-const NAV_ICONS: Record<string, () => JSX.Element> = {
+const NAV_ICONS: Record<string, () => ReactElement> = {
   dashboard: DashboardIcon,
   jobs: CurseIcon,
   planning: PlanningIcon,
