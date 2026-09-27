@@ -83,15 +83,6 @@ export default async function PlanningPage({
   const rows: PlanningRow[] = filteredRows.map(({ v, job, state }) => {
     const trailer = v.trailer_id ? trailerById.get(v.trailer_id) ?? null : null;
 
-    let loadingPct: number | null = null;
-    if (job && job.status === "activ" && job.start_at && job.end_at) {
-      const st = new Date(job.start_at).getTime();
-      const en = new Date(job.end_at).getTime();
-      const now = Date.now();
-      loadingPct =
-        en > st ? Math.min(100, Math.max(0, Math.round(((now - st) / (en - st)) * 100))) : 0;
-    }
-
     let waState: "none" | "pending" | "confirmed" = "none";
     let waRead = false;
     if (job?.wa_message_sid) {
@@ -127,10 +118,8 @@ export default async function PlanningPage({
       fallbackLocation: lastUnloadByVehicle.get(v.id) ?? null,
       loadPlace: job?.load_place ?? null,
       unloadPlace: job?.unload_place ?? null,
-      traseuDateLabel: job
-        ? `ÎNC ${fmtDate(job.start_at)} ${fmtTime(job.start_at)} · DESC ${fmtDate(job.end_at)} ${fmtTime(job.end_at)}`
-        : "",
-      loadingPct,
+      loadDateLabel: job?.start_at ? `${fmtDate(job.start_at)} ${fmtTime(job.start_at)}` : "",
+      unloadDateLabel: job?.end_at ? `${fmtDate(job.end_at)} ${fmtTime(job.end_at)}` : "",
       waState,
       waRead,
       cases: v.cases ?? [],
