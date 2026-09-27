@@ -35,6 +35,7 @@ export type Vehicle = {
   rest_reason: string | null;
   active: boolean;
   created_at: Date;
+  cases: string[] | null;
 };
 
 export type VehicleInput = {
