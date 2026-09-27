@@ -38,6 +38,7 @@ export function ShellFrame({
   userInitials,
   userName,
   alertCount,
+  wide,
   children,
 }: {
   navGroups: NavGroup[];
@@ -46,6 +47,7 @@ export function ShellFrame({
   userInitials: string;
   userName: string;
   alertCount: number;
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -147,7 +149,9 @@ export function ShellFrame({
           </div>
         </header>
         <div className="flex-1 overflow-auto">
-          <div className="max-w-[1500px] mx-auto p-5 md:p-6">{children}</div>
+          <div className={wide ? "px-3 py-5 md:px-4 md:py-6" : "max-w-[1500px] mx-auto p-5 md:p-6"}>
+            {children}
+          </div>
         </div>
       </div>
     </div>
