@@ -313,12 +313,7 @@ const COLUMNS: ColumnDef[] = [
         </>
       ) : (
         
-          href={"/jobs/new?vehicleId=" + r.vehicleId}
-          title="Creează cursă pentru acest vehicul"
-          className="inline-grid h-6 w-6 place-items-center rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-brand hover:text-brand transition"
-        >
-          +
-        </a>
+                 <a href={"/jobs/new?vehicleId=" + r.vehicleId} title="Creează cursă pentru acest vehicul" className="inline-grid h-6 w-6 place-items-center rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-brand hover:text-brand transition">+</a>
       ),
   },
   {
