@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactElement } from "react";
+import { signOut } from "@/lib/auth-client";
 
 export type NavItem = { key: string; href: string; label: string };
 export type NavGroup = { title: string; items: NavItem[] };
@@ -157,6 +159,17 @@ function DispatchersIcon() {
   );
 }
 
+/** Ușă cu săgeată — Deconectare. */
+function LogoutIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
+    </svg>
+  );
+}
+
 /** Rotiță — Setări. */
 function SettingsIcon() {
   return (
@@ -230,6 +243,15 @@ export function ShellFrame({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
+  const router = useRouter();
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    await signOut();
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <div className="h-screen flex overflow-hidden bg-slate-100">
@@ -275,7 +297,18 @@ export function ShellFrame({
             </div>
           ))}
         </nav>
-        <div className="px-3.5 py-2.5 border-t border-slate-200 text-[11px] text-slate-400">
+        <div className="border-t border-slate-200 px-2.5 py-2">
+          <button
+            type="button"
+            onClick={handleLogout}
+            disabled={loggingOut}
+            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+          >
+            <LogoutIcon />
+            <span>{loggingOut ? "Se deconectează..." : "Deconectare"}</span>
+          </button>
+        </div>
+        <div className="px-3.5 py-2 border-t border-slate-200 text-[11px] text-slate-400">
           DLM Trans
         </div>
       </aside>
