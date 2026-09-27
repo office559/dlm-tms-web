@@ -56,11 +56,11 @@ export function DriverSelect({
 }
 
 /**
- * Câmp de locație: dacă dispecerul n-a pus nimic manual, se completează
- * automat cu locul ultimei descărcări a vehiculului (fallback), dar
- * rămâne editabil — la prima modificare se salvează valoarea nouă.
+ * Locație vehicul: dacă dispecerul n-a pus nimic manual, se completează
+ * automat cu locul ultimei descărcări a vehiculului (fallback). Se afișează
+ * ca o pastilă albastră (ca la Pauză) cu creion de editare alături.
  */
-export function LocationInput({
+export function LocationControl({
   vehicleId,
   value,
   fallback,
@@ -71,21 +71,90 @@ export function LocationInput({
 }) {
   const router = useRouter();
   const initial = value ?? fallback ?? "";
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [val, setVal] = useState(initial);
 
+  async function save() {
+    setSaving(true);
+    await patchVehicle(vehicleId, { location: val || null });
+    setSaving(false);
+    setOpen(false);
+    router.refresh();
+  }
+
   return (
-    <input
-      type="text"
-      className="w-24 rounded-lg border border-slate-200 px-2 py-1 text-sm"
-      value={val}
-      placeholder="—"
-      onChange={(e) => setVal(e.target.value)}
-      onBlur={async () => {
-        if (val === initial) return;
-        await patchVehicle(vehicleId, { location: val || null });
-        router.refresh();
-      }}
-    />
+    <div className="flex flex-col gap-0.5">
+      {initial ? (
+        <div className="flex items-center gap-1.5">
+          <span className="whitespace-nowrap rounded-lg bg-blue-500 px-2.5 py-1 text-base font-bold text-white">
+            {initial}
+          </span>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-label="Editează locația"
+            className="text-slate-400 hover:text-slate-600"
+          >
+            ✎
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600"
+        >
+          <span>—</span>
+          <span aria-hidden="true">✎</span>
+        </button>
+      )}
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-brand-dark">Locație vehicul</h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-lg leading-none text-slate-400 hover:text-slate-600"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              <input
+                type="text"
+                autoFocus
+                className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                placeholder="Ex: DTM1"
+                value={val}
+                disabled={saving}
+                onChange={(e) => setVal(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") save();
+                }}
+              />
+              <button
+                type="button"
+                disabled={saving}
+                onClick={save}
+                className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
+              >
+                Salvează
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
