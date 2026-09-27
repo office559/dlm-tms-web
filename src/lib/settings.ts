@@ -10,6 +10,7 @@ export type Settings = {
   wa_country: string | null;
   theme_color: string | null;
   bg_color: string | null;
+  sidebar_color: string | null;
   updated_at: Date;
 };
 
@@ -22,6 +23,7 @@ export type SettingsInput = {
   waCountry?: string | null;
   themeColor?: string | null;
   bgColor?: string | null;
+  sidebarColor?: string | null;
 };
 
 function nullify<T>(v: T | "" | undefined): T | null {
@@ -35,8 +37,8 @@ export async function getSettings() {
 
 export async function updateSettings(input: SettingsInput) {
   const { rows } = await pool.query<Settings>(
-    `insert into settings (id, company, depot, currency, cpm, alert_days, wa_country, theme_color, bg_color, updated_at)
-     values (true, $1, $2, $3, $4, $5, $6, $7, $8, now())
+    `insert into settings (id, company, depot, currency, cpm, alert_days, wa_country, theme_color, bg_color, sidebar_color, updated_at)
+     values (true, $1, $2, $3, $4, $5, $6, $7, $8, $9, now())
      on conflict (id) do update set
        company = excluded.company,
        depot = excluded.depot,
@@ -46,6 +48,7 @@ export async function updateSettings(input: SettingsInput) {
        wa_country = excluded.wa_country,
        theme_color = excluded.theme_color,
        bg_color = excluded.bg_color,
+       sidebar_color = excluded.sidebar_color,
        updated_at = now()
      returning *`,
     [
@@ -57,6 +60,7 @@ export async function updateSettings(input: SettingsInput) {
       nullify(input.waCountry),
       nullify(input.themeColor),
       nullify(input.bgColor),
+      nullify(input.sidebarColor),
     ]
   );
   return rows[0];
