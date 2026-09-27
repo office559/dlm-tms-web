@@ -112,3 +112,69 @@ export async function getTopDriversThisMonth(limit = 5): Promise<TopDriver[]> {
     curse: Number(r.curse) || 0,
   }));
 }
+
+export type DayJob = {
+  id: string;
+  timeLabel: string;
+  clientName: string;
+  loadPlace: string | null;
+  unloadPlace: string | null;
+  driverName: string | null;
+  vehiclePlate: string | null;
+  status: string;
+};
+
+export type DailyProgram = {
+  ieri: DayJob[];
+  azi: DayJob[];
+  maine: DayJob[];
+};
+
+/**
+ * Programul zilei — cursele planificate pentru ieri / azi / mâine (după
+ * data de start), pentru rubrica „Program" de pe Dashboard. Exclude
+ * cursele anulate.
+ */
+export async function getDailyProgram(): Promise<DailyProgram> {
+  const { rows } = await pool.query<{
+    id: string;
+    start_at: Date;
+    client_name: string | null;
+    load_place: string | null;
+    unload_place: string | null;
+    driver_name: string | null;
+    vehicle_plate: string | null;
+    status: string;
+    day_offset: number;
+  }>(
+    `select
+       j.id, j.start_at, c.name as client_name, j.load_place, j.unload_place,
+       d.name as driver_name, v.plate as vehicle_plate, j.status,
+       (j.start_at::date - current_date)::int as day_offset
+     from jobs j
+     left join customers c on c.id = j.client_id
+     left join drivers d on d.id = j.driver_id
+     left join vehicles v on v.id = j.vehicle_id
+     where j.start_at is not null
+       and j.start_at::date between current_date - 1 and current_date + 1
+       and j.status <> 'anulat'
+     order by j.start_at asc`
+  );
+
+  const toDayJob = (r: (typeof rows)[number]): DayJob => ({
+    id: r.id,
+    timeLabel: new Date(r.start_at).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" }),
+    clientName: r.client_name || "Fără client",
+    loadPlace: r.load_place,
+    unloadPlace: r.unload_place,
+    driverName: r.driver_name,
+    vehiclePlate: r.vehicle_plate,
+    status: r.status,
+  });
+
+  return {
+    ieri: rows.filter((r) => r.day_offset === -1).map(toDayJob),
+    azi: rows.filter((r) => r.day_offset === 0).map(toDayJob),
+    maine: rows.filter((r) => r.day_offset === 1).map(toDayJob),
+  };
+}
