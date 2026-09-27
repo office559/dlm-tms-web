@@ -26,12 +26,22 @@ export async function PATCH(
     pause: "pause" in body ? Boolean(body.pause) : undefined,
     programStart: "programStart" in body ? body.programStart : undefined,
     programEnd: "programEnd" in body ? body.programEnd : undefined,
+    programStartAt: "programStartAt" in body ? body.programStartAt : undefined,
+    programEndAt: "programEndAt" in body ? body.programEndAt : undefined,
     restDurH: "restDurH" in body ? body.restDurH : undefined,
     restStart: "restStart" in body ? body.restStart : undefined,
     restEnd: "restEnd" in body ? body.restEnd : undefined,
     restStartAt: "restStartAt" in body ? body.restStartAt : undefined,
     restEndAt: "restEndAt" in body ? body.restEndAt : undefined,
+    weeklyRest: "weeklyRest" in body ? Boolean(body.weeklyRest) : undefined,
+    weeklyRestType: "weeklyRestType" in body ? body.weeklyRestType : undefined,
+    weeklyRestStart: "weeklyRestStart" in body ? body.weeklyRestStart : undefined,
+    weeklyRestEnd: "weeklyRestEnd" in body ? body.weeklyRestEnd : undefined,
+    weeklyRestStartAt: "weeklyRestStartAt" in body ? body.weeklyRestStartAt : undefined,
+    weeklyRestEndAt: "weeklyRestEndAt" in body ? body.weeklyRestEndAt : undefined,
     stateOverride: "stateOverride" in body ? body.stateOverride : undefined,
+    casesAdd: "casesAdd" in body ? body.casesAdd : undefined,
+    casesRemove: "casesRemove" in body ? body.casesRemove : undefined,
   });
 
   return NextResponse.json({ ok: true });
