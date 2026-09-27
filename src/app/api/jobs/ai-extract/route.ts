@@ -3,8 +3,9 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 
 /**
- * Primește un text liber (comandă copiată din email/WhatsApp) și un client
- * Claude (Anthropic Messages API) extrage din el câmpurile relevante pentru
+ * Primește un text liber (comandă copiată din email/WhatsApp) și/sau o poză
+ * (ex. comandă pe hârtie, captură de ecran) și un client Claude (Anthropic
+ * Messages API, cu vedere) extrage din ele câmpurile relevante pentru
  * formularul "Adaugă cursă". Nu creează nimic în bază de date — doar
  * returnează valorile sugerate, pe care dispecerul le revede și le poate
  * corecta înainte de a salva efectiv cursa (submit-ul rămâne cel normal,
@@ -13,6 +14,9 @@ import { auth } from "@/lib/auth";
 
 const MODEL = "claude-sonnet-5";
 const MAX_INPUT_LENGTH = 6000;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+// ~5MB în base64 (imaginea originală e ceva mai mică decât atât).
+const MAX_IMAGE_BASE64_LENGTH = 7_000_000;
 
 const EXTRACT_TOOL = {
   name: "extract_job_details",
@@ -105,8 +109,33 @@ export async function POST(req: NextRequest) {
     ? body.customers
     : [];
 
-  if (!text) {
-    return NextResponse.json({ error: "Lipsește textul comenzii." }, { status: 400 });
+  const rawImage = body?.image as { mediaType?: unknown; data?: unknown } | null | undefined;
+  let image: { mediaType: string; data: string } | null = null;
+  if (rawImage && typeof rawImage === "object") {
+    const mediaType = typeof rawImage.mediaType === "string" ? rawImage.mediaType : "";
+    const data = typeof rawImage.data === "string" ? rawImage.data : "";
+    if (mediaType || data) {
+      if (!ALLOWED_IMAGE_TYPES.includes(mediaType)) {
+        return NextResponse.json(
+          { error: "Format de imagine neacceptat (folosește JPG, PNG, WEBP sau GIF)." },
+          { status: 400 }
+        );
+      }
+      if (!data) {
+        return NextResponse.json({ error: "Imaginea trimisă e goală." }, { status: 400 });
+      }
+      if (data.length > MAX_IMAGE_BASE64_LENGTH) {
+        return NextResponse.json({ error: "Poza e prea mare." }, { status: 400 });
+      }
+      image = { mediaType, data };
+    }
+  }
+
+  if (!text && !image) {
+    return NextResponse.json(
+      { error: "Lipsește textul sau poza comenzii." },
+      { status: 400 }
+    );
   }
   if (text.length > MAX_INPUT_LENGTH) {
     return NextResponse.json(
@@ -116,6 +145,22 @@ export async function POST(req: NextRequest) {
   }
 
   const today = new Date().toISOString().slice(0, 10);
+
+  type ContentBlock =
+    | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
+    | { type: "text"; text: string };
+
+  const content: ContentBlock[] = [];
+  if (image) {
+    content.push({
+      type: "image",
+      source: { type: "base64", media_type: image.mediaType, data: image.data },
+    });
+  }
+  content.push({
+    type: "text",
+    text: text || "Extrage detaliile cursei din poza atașată.",
+  });
 
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
@@ -130,9 +175,10 @@ export async function POST(req: NextRequest) {
         max_tokens: 1024,
         system:
           `Ești un asistent care ajută un dispecer de transport rutier din România să introducă o cursă nouă în sistem. ` +
-          `Data de azi este ${today}. Textul dat este o comandă de transport primită pe email sau WhatsApp, posibil în română, engleză sau amestecate. ` +
-          `Extrage câmpurile cerute apelând tool-ul extract_job_details. Nu inventa informații care nu apar în text.`,
-        messages: [{ role: "user", content: text }],
+          `Data de azi este ${today}. Primești fie un text (comandă copiată din email sau WhatsApp), fie o poză (comandă pe hârtie, document, CMR, captură de ecran), fie ambele — posibil în română, engleză sau amestecate. ` +
+          `Dacă primești o poză, citește cu atenție tot ce e relevant din ea: locul de încărcare, locul de descărcare, data și ora încărcării/descărcării, tariful, distanța (km/mile), referința comenzii. ` +
+          `Extrage câmpurile cerute apelând tool-ul extract_job_details. Nu inventa informații care nu apar în text sau în poză.`,
+        messages: [{ role: "user", content }],
         tools: [EXTRACT_TOOL],
         tool_choice: { type: "tool", name: "extract_job_details" },
       }),
