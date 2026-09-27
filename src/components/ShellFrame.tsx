@@ -238,7 +238,7 @@ export function ShellFrame({
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-30 h-full w-60 bg-white border-r border-slate-200 flex flex-col transition-transform duration-200 ${
+        className={`fixed md:static inset-y-0 left-0 z-30 h-full w-60 bg-[var(--sidebar-bg,#ffffff)] border-r border-slate-200 flex flex-col transition-transform duration-200 ${
           open ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
