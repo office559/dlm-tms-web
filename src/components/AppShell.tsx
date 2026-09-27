@@ -27,9 +27,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { key: "reports", href: "/reports", label: "Rapoarte & Profituri" },
       { key: "brokerage", href: "/brokerage", label: "Brokeraj" },
-      { key: "costs", href: "/costs", label: "Cheltuieli flotă" },
-      { key: "payments", href: "/payments", label: "Plăți" },
-      { key: "alerts", href: "/alerts", label: "Alerte documente" },
     ],
   },
 ];
