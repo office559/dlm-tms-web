@@ -34,6 +34,8 @@ export async function PATCH(
     restStartAt: "restStartAt" in body ? body.restStartAt : undefined,
     restEndAt: "restEndAt" in body ? body.restEndAt : undefined,
     stateOverride: "stateOverride" in body ? body.stateOverride : undefined,
+    casesAdd: "casesAdd" in body ? body.casesAdd : undefined,
+    casesRemove: "casesRemove" in body ? body.casesRemove : undefined,
   });
 
   return NextResponse.json({ ok: true });
