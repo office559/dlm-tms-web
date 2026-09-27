@@ -43,10 +43,12 @@ function initialsOf(name: string) {
 export async function AppShell({
   active,
   crumb,
+  wide,
   children,
 }: {
   active: string;
   crumb: string;
+  wide?: boolean;
   children: React.ReactNode;
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -83,6 +85,7 @@ export async function AppShell({
       userInitials={initialsOf(userName)}
       userName={userName}
       alertCount={alertCount}
+      wide={wide}
     >
       {children}
     </ShellFrame>
