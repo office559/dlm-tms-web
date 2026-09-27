@@ -312,7 +312,13 @@ const COLUMNS: ColumnDef[] = [
           <div className="mt-1 text-xs text-slate-400">{r.traseuDateLabel}</div>
         </>
       ) : (
-        <span className="text-slate-300 text-xs">—</span>
+        
+          href={`/jobs/new?vehicleId=${r.vehicleId}`}
+          title="Creează cursă pentru acest vehicul"
+          className="inline-grid h-6 w-6 place-items-center rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-brand hover:text-brand transition"
+        >
+          +
+        </a>
       ),
   },
   {
