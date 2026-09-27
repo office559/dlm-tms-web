@@ -160,7 +160,10 @@ export default async function PlanningPage({
 
         <PlanningTable
           rows={rows}
-          drivers={drivers.map((d) => ({ id: d.id, name: d.name }))}
+          drivers={drivers.map((d) => ({
+            id: d.id,
+            name: d.fictive_name ? `${d.name} / ${d.fictive_name}` : d.name,
+          }))}
           emptyMessage={emptyMessage}
         />
       </div>
