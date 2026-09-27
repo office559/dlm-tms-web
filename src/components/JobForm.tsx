@@ -81,6 +81,11 @@ export function JobForm({
   const [error, setError] = useState<string | null>(null);
   const isEdit = Boolean(initial?.id);
 
+  const [aiText, setAiText] = useState("");
+  const [aiStatus, setAiStatus] = useState<"idle" | "loading">("idle");
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiMatchNotice, setAiMatchNotice] = useState<string | null>(null);
+
   function set<K extends keyof JobFormValues>(key: K, value: JobFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
   }
@@ -104,6 +109,51 @@ export function JobForm({
       vehicleId,
       trailerId: match && match.trailerId ? match.trailerId : v.trailerId,
     }));
+  }
+
+  /** Trimite textul comenzii (email/WhatsApp) la asistentul AI și pre-completează formularul cu ce a extras — dispecerul revede și corectează înainte de a salva. */
+  async function handleAiExtract() {
+    if (!aiText.trim()) return;
+    setAiStatus("loading");
+    setAiError(null);
+    setAiMatchNotice(null);
+    try {
+      const res = await fetch("/api/jobs/ai-extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: aiText, customers }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAiError(data.error ?? "A apărut o eroare la extragerea AI.");
+        setAiStatus("idle");
+        return;
+      }
+      setValues((v) => ({
+        ...v,
+        clientId: data.clientId || v.clientId,
+        ref: data.ref || v.ref,
+        loadPlace: data.loadPlace || v.loadPlace,
+        unloadPlace: data.unloadPlace || v.unloadPlace,
+        startAt: data.startAt || v.startAt,
+        endAt: data.endAt || v.endAt,
+        miles: data.miles || v.miles,
+        currency: data.currency || v.currency,
+        rate: data.rate || v.rate,
+        extra: data.extra || v.extra,
+        notes: data.notes || v.notes,
+      }));
+      if (data.clientName && !data.clientId) {
+        setAiMatchNotice(
+          `Clientul „${data.clientName}” a fost identificat în text, dar nu am găsit un client existent cu acest nume — selectează-l manual sau adaugă-l la Clienți.`
+        );
+      }
+      setAiStatus("idle");
+    } catch (err) {
+      console.error(err);
+      setAiError("Extragerea AI a eșuat neașteptat.");
+      setAiStatus("idle");
+    }
   }
 
   async function onSubmit(e: React.FormEvent) {
@@ -147,6 +197,36 @@ export function JobForm({
 
   return (
     <form onSubmit={onSubmit} className="space-y-4 max-w-3xl">
+      {!isEdit && (
+        <div className="rounded-2xl border border-brand/30 bg-brand/5 p-4 space-y-2">
+          <label className="text-sm font-medium text-brand-dark">
+            Creează cu AI — lipește textul comenzii (email / WhatsApp)
+          </label>
+          <textarea
+            value={aiText}
+            onChange={(e) => setAiText(e.target.value)}
+            rows={4}
+            placeholder="Ex: Bună ziua, avem o cursă de la Ploiești la Berlin, încărcare 28.09 dimineața, descărcare 30.09, tarif 1500 EUR, ref. comandă 4521..."
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand bg-white"
+          />
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleAiExtract}
+              disabled={aiStatus === "loading" || !aiText.trim()}
+              className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition disabled:opacity-60"
+            >
+              {aiStatus === "loading" ? "Se completează..." : "Completează formularul cu AI"}
+            </button>
+            <p className="text-xs text-slate-500">
+              Câmpurile de mai jos se pre-completează — verifică și corectează înainte de a salva.
+            </p>
+          </div>
+          {aiError && <p className="text-sm text-red-600">{aiError}</p>}
+          {aiMatchNotice && <p className="text-sm text-amber-700">{aiMatchNotice}</p>}
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1">
           <label className="text-sm text-slate-600">Client</label>
