@@ -8,8 +8,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     title: "Operațiuni",
     items: [
-      { key: "dashboard", href: "/dashboard", label: "Command Center" },
-      { key: "jobs", href: "/jobs", label: "Job Center" },
+      { key: "dashboard", href: "/dashboard", label: "Dashboard" },
+      { key: "jobs", href: "/jobs", label: "Curse" },
       { key: "planning", href: "/planning", label: "Planificare" },
     ],
   },
