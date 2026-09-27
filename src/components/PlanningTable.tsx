@@ -70,13 +70,13 @@ const DEFAULT_ORDER: ColumnKey[] = [
 ];
 
 const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
-  vehicul: 220,
+  vehicul: 260,
   vrid: 110,
   data: 110,
   stare: 130,
   sofer: 170,
-  program: 170,
-  pauza: 190,
+  program: 190,
+  pauza: 200,
   locatie: 130,
   traseu: 260,
   loading: 110,
@@ -216,7 +216,7 @@ const COLUMNS: ColumnDef[] = [
       <>
         <div className="flex items-center gap-1.5">
           <TruckIcon />
-          <span className="font-medium">
+          <span className="whitespace-nowrap font-medium">
             {r.plate}
             {r.trailerPlate ? ` / ${r.trailerPlate}` : ""}
           </span>
@@ -463,9 +463,15 @@ export function PlanningTable({
       </div>
       <table className="w-full text-sm">
         <colgroup>
-          {orderedColumns.map((col) => (
-            <col key={col.key} style={{ width: `${widths[col.key] ?? DEFAULT_WIDTHS[col.key]}px` }} />
-          ))}
+          {orderedColumns.map((col, i) => {
+            const isLast = i === orderedColumns.length - 1;
+            return (
+              <col
+                key={col.key}
+                style={isLast ? undefined : { width: `${widths[col.key] ?? DEFAULT_WIDTHS[col.key]}px` }}
+              />
+            );
+          })}
         </colgroup>
         <thead className="bg-slate-50 text-slate-500 text-left">
           <tr>
