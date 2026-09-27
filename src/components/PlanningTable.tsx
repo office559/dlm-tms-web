@@ -257,7 +257,7 @@ const COLUMNS: ColumnDef[] = [
     key: "sofer",
     label: "Șofer",
     render: (r, drivers) => (
-      <DriverSelect vehicleId={r.vehicleId} drivers={drivers} value={r.driverId} />
+      <DriverSelect vehicleId={r.vehicleId} drivers={drivers} value={r.driverId} state={r.state} />
     ),
   },
   {
@@ -447,14 +447,14 @@ export function PlanningTable({
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-slate-100">
-        <p className="text-xs text-slate-400">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-orange-200 bg-orange-100">
+        <p className="text-xs text-orange-700">
           Trage antetul (⠿) ca să muți o coloană, sau marginea din dreapta a antetului ca s-o lărgești / îngustezi.
         </p>
         <button
           type="button"
           onClick={resetLayout}
-          className="text-xs text-slate-400 hover:text-brand shrink-0"
+          className="text-xs text-orange-700 hover:text-orange-900 shrink-0"
         >
           Resetează coloanele
         </button>
@@ -471,7 +471,7 @@ export function PlanningTable({
             );
           })}
         </colgroup>
-        <thead className="bg-slate-50 text-slate-500 text-left">
+        <thead className="bg-orange-50 text-orange-800 text-left">
           <tr>
             {orderedColumns.map((col) => {
               const thClass = `relative px-4 py-3 whitespace-nowrap select-none ${
