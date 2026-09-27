@@ -88,6 +88,12 @@ export async function patchVehicleQuick(
     restEnd?: string | null;
     restStartAt?: string | null;
     restEndAt?: string | null;
+    weeklyRest?: boolean;
+    weeklyRestType?: string | null;
+    weeklyRestStart?: string | null;
+    weeklyRestEnd?: string | null;
+    weeklyRestStartAt?: string | null;
+    weeklyRestEndAt?: string | null;
     stateOverride?: string | null;
     casesAdd?: string;
     casesRemove?: string;
@@ -142,6 +148,30 @@ export async function patchVehicleQuick(
   if (fields.restEndAt !== undefined) {
     vals.push(fields.restEndAt || null);
     sets.push(`rest_end_at = $${vals.length}`);
+  }
+  if (fields.weeklyRest !== undefined) {
+    vals.push(fields.weeklyRest);
+    sets.push(`weekly_rest = $${vals.length}`);
+  }
+  if (fields.weeklyRestType !== undefined) {
+    vals.push(fields.weeklyRestType || null);
+    sets.push(`weekly_rest_type = $${vals.length}`);
+  }
+  if (fields.weeklyRestStart !== undefined) {
+    vals.push(fields.weeklyRestStart || null);
+    sets.push(`weekly_rest_start = $${vals.length}`);
+  }
+  if (fields.weeklyRestEnd !== undefined) {
+    vals.push(fields.weeklyRestEnd || null);
+    sets.push(`weekly_rest_end = $${vals.length}`);
+  }
+  if (fields.weeklyRestStartAt !== undefined) {
+    vals.push(fields.weeklyRestStartAt || null);
+    sets.push(`weekly_rest_start_at = $${vals.length}`);
+  }
+  if (fields.weeklyRestEndAt !== undefined) {
+    vals.push(fields.weeklyRestEndAt || null);
+    sets.push(`weekly_rest_end_at = $${vals.length}`);
   }
   if (fields.stateOverride !== undefined) {
     vals.push(fields.stateOverride || null);
