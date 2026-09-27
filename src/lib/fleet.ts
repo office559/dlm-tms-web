@@ -72,6 +72,65 @@ export async function lastUnloadPlaceByVehicle(vehicleIds: string[]): Promise<Ma
   return map;
 }
 
+/**
+ * Ultimul tip de pauză săptămânală (45h / 24h) făcut de fiecare vehicul,
+ * din istoricul salvat la fiecare pornire de pauză săptămânală (vezi
+ * `logWeeklyRestStart` mai jos) — folosit ca să se calculeze automat
+ * sugestia pentru săptămâna următoare.
+ */
+async function lastWeeklyRestTypeByVehicle(vehicleIds: string[]): Promise<Map<string, string>> {
+  if (vehicleIds.length === 0) return new Map();
+  const { rows } = await pool.query<{ vehicle_id: string; type: string }>(
+    `select distinct on (vehicle_id) vehicle_id, type
+       from vehicle_weekly_rest_log
+      where vehicle_id = any($1)
+      order by vehicle_id, start_at desc`,
+    [vehicleIds]
+  );
+  const map = new Map<string, string>();
+  rows.forEach((r) => map.set(r.vehicle_id, r.type));
+  return map;
+}
+
+/**
+ * Sugestia de pauză săptămânală pentru fiecare vehicul (45h sau 24h),
+ * calculată din ultima pauză săptămânală înregistrată: dacă ultima a fost
+ * redusă (24h), următoarea TREBUIE să fie normală (45h, conform regulii —
+ * nu poți lua 24h de două ori la rând); dacă ultima a fost normală (45h),
+ * se sugerează alternarea la 24h; dacă nu există niciun istoric, se
+ * sugerează 45h ca punct de plecare sigur. Dispecerul poate oricând alege
+ * manual altă variantă din popup — e doar o sugestie, nu o blocare.
+ */
+export async function weeklyRestSuggestionByVehicle(
+  vehicleIds: string[]
+): Promise<Map<string, "45" | "24">> {
+  const last = await lastWeeklyRestTypeByVehicle(vehicleIds);
+  const map = new Map<string, "45" | "24">();
+  for (const id of vehicleIds) {
+    const lastType = last.get(id);
+    map.set(id, lastType === "24" ? "45" : lastType === "45" ? "24" : "45");
+  }
+  return map;
+}
+
+/**
+ * Salvează în istoric o pauză săptămânală pornită (tip + interval exact),
+ * ca să rămână disponibilă pentru calculul sugestiei chiar și după ce
+ * pauza curentă e finalizată și câmpurile din `vehicles` sunt resetate.
+ */
+async function logWeeklyRestStart(
+  vehicleId: string,
+  type: string,
+  startAt: string,
+  endAt: string
+) {
+  await pool.query(
+    `insert into vehicle_weekly_rest_log (vehicle_id, type, start_at, end_at)
+     values ($1, $2, $3, $4)`,
+    [vehicleId, type, startAt, endAt]
+  );
+}
+
 /** Actualizare rapidă a unui vehicul din tabelul de Planificare (fără să ceară tot formularul). */
 export async function patchVehicleQuick(
   id: string,
@@ -185,6 +244,21 @@ export async function patchVehicleQuick(
     vals.push(fields.casesRemove);
     sets.push(`cases = array_remove(cases, $${vals.length})`);
   }
+
+  if (
+    fields.weeklyRest === true &&
+    fields.weeklyRestType &&
+    fields.weeklyRestStartAt &&
+    fields.weeklyRestEndAt
+  ) {
+    await logWeeklyRestStart(
+      id,
+      fields.weeklyRestType,
+      fields.weeklyRestStartAt,
+      fields.weeklyRestEndAt
+    );
+  }
+
   if (sets.length === 0) return;
   await pool.query(`update vehicles set ${sets.join(", ")} where id = $1`, vals);
 }
