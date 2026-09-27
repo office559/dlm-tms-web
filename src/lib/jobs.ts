@@ -23,6 +23,7 @@ export type Job = {
   notes: string | null;
   invoice: string;
   paid_at: string | null;
+  cancel_fee: number | null;
   created_at: Date;
   wa_message_sid: string | null;
   wa_sent_at: Date | null;
@@ -151,11 +152,23 @@ export async function deleteJob(id: string) {
  * Schimbare rapidă doar a statusului unei curse (Alocat → Tranzit / Anulare,
  * apoi Tranzit → Finalizare) — folosită din Planificare, unde nu vrem să
  * suprascriem tot formularul cursei ca la PATCH /api/jobs/[id].
+ *
+ * `cancelFee` se salvează doar când statusul devine "anulat" (unele curse
+ * anulate se plătesc totuși o taxă) — pentru orice alt status, coloana
+ * cancel_fee rămâne neschimbată.
  */
-export async function patchJobStatus(id: string, status: string) {
+export async function patchJobStatus(
+  id: string,
+  status: string,
+  cancelFee?: number | null
+) {
   const { rows } = await pool.query<Job>(
-    `update jobs set status = $2 where id = $1 returning *`,
-    [id, status]
+    `update jobs set
+       status = $2,
+       cancel_fee = case when $2 = 'anulat' then $3 else cancel_fee end
+     where id = $1
+     returning *`,
+    [id, status, cancelFee ?? null]
   );
   return rows[0] ?? null;
 }
