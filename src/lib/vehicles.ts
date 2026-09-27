@@ -33,6 +33,12 @@ export type Vehicle = {
   rest_date: string | null;
   rest_location: string | null;
   rest_reason: string | null;
+  weekly_rest: boolean;
+  weekly_rest_type: string | null;
+  weekly_rest_start: string | null;
+  weekly_rest_start_at: Date | null;
+  weekly_rest_end: string | null;
+  weekly_rest_end_at: Date | null;
   active: boolean;
   created_at: Date;
   cases: string[] | null;
