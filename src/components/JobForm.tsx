@@ -12,7 +12,7 @@ function readImageAsBase64(file: File): Promise<{ mediaType: string; data: strin
     reader.onerror = () => reject(new Error("Nu am putut citi imaginea."));
     reader.onload = () => {
       const result = String(reader.result ?? "");
-      const match = result.match(/^data:([^;]+);base64,(.*)$/s);
+      const match = result.match(/^data:([^;]+);base64,([\s\S]*)$/);
       if (!match) {
         reject(new Error("Format de imagine necunoscut."));
         return;
