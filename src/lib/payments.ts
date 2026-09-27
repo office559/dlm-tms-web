@@ -5,7 +5,8 @@ import type { Brokerage } from "@/lib/brokerage";
 export async function listJobsForPayments() {
   const { rows } = await pool.query<Job>(
     `select * from jobs
-     where rate is not null and status <> 'anulat'
+     where (rate is not null and status <> 'anulat')
+        or (status = 'anulat' and cancel_fee is not null)
      order by (invoice = 'plătită') asc, coalesce(start_at, created_at) desc`
   );
   return rows;
@@ -29,9 +30,15 @@ export type PaymentsSummary = {
 export async function getPaymentsSummary(): Promise<PaymentsSummary> {
   const [jobsRes, brokerageRes] = await Promise.all([
     pool.query<{ currency: string; total: number }>(
-      `select coalesce(currency,'—') as currency, coalesce(sum(coalesce(rate,0)+coalesce(extra,0)),0)::float as total
+      `select coalesce(currency,'—') as currency,
+              coalesce(sum(
+                case when status = 'anulat' then coalesce(cancel_fee,0)
+                     else coalesce(rate,0)+coalesce(extra,0)
+                end
+              ),0)::float as total
        from jobs
-       where rate is not null and status <> 'anulat' and invoice <> 'plătită'
+       where ((rate is not null and status <> 'anulat') or (status = 'anulat' and cancel_fee is not null))
+         and invoice <> 'plătită'
        group by currency`
     ),
     pool.query<{ to_collect: number; to_pay: number }>(
