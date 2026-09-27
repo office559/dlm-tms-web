@@ -9,9 +9,15 @@ import { listDispatchers } from "@/lib/db";
 import { JobForm } from "@/components/JobForm";
 import { AppShell } from "@/components/AppShell";
 
-export default async function NewJobPage() {
+export default async function NewJobPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vehicleId?: string }>;
+}) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
+
+  const params = await searchParams;
 
   const [customers, drivers, vehicles, trailers, dispatchers] = await Promise.all([
     listCustomers(),
@@ -37,6 +43,7 @@ export default async function NewJobPage() {
             }))}
             trailers={trailers.map((t) => ({ id: t.id, plate: t.plate }))}
             dispatchers={dispatchers.map((d) => ({ id: d.id, name: d.name }))}
+            presetVehicleId={params.vehicleId}
           />
         </div>
       </div>
