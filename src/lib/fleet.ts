@@ -89,6 +89,8 @@ export async function patchVehicleQuick(
     restStartAt?: string | null;
     restEndAt?: string | null;
     stateOverride?: string | null;
+    casesAdd?: string;
+    casesRemove?: string;
   }
 ) {
   const sets: string[] = [];
@@ -144,6 +146,14 @@ export async function patchVehicleQuick(
   if (fields.stateOverride !== undefined) {
     vals.push(fields.stateOverride || null);
     sets.push(`state_override = $${vals.length}`);
+  }
+  if (fields.casesAdd) {
+    vals.push(fields.casesAdd);
+    sets.push(`cases = array_append(coalesce(cases, '{}'), $${vals.length})`);
+  }
+  if (fields.casesRemove) {
+    vals.push(fields.casesRemove);
+    sets.push(`cases = array_remove(cases, $${vals.length})`);
   }
   if (sets.length === 0) return;
   await pool.query(`update vehicles set ${sets.join(", ")} where id = $1`, vals);
