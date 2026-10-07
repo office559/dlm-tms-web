@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getJob, updateJob, deleteJob } from "@/lib/jobs";
@@ -21,9 +21,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Cursa nu a fost găsită" }, { status: 404 });
   }
 
-  notifyJobChanges(before, job).catch((err) =>
-    console.error("WhatsApp notify (update job) failed:", err)
-  );
+  after(() => notifyJobChanges(before, job)); // rulează după răspuns, dar Vercel așteaptă să se termine
 
   return NextResponse.json(job);
 }
