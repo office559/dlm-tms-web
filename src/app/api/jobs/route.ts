@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { createJob } from "@/lib/jobs";
@@ -13,9 +13,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const job = await createJob(body);
 
-  notifyJobChanges(null, job).catch((err) =>
-    console.error("WhatsApp notify (create job) failed:", err)
-  );
+  after(() => notifyJobChanges(null, job)); // rulează după răspuns, dar Vercel așteaptă să se termine
 
   return NextResponse.json(job, { status: 201 });
 }
