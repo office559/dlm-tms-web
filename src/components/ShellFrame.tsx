@@ -384,7 +384,7 @@ export function ShellFrame({
             {navGroups.map((g) => (
               <div key={g.title}>
                 <h4
-                  className={`mt-3.5 mb-1 px-2 text-[10.5px] tracking-wider uppercase text-slate-400 font-semibold ${hideWhenCollapsed}`}
+                  className={`mt-3.5 mb-1 px-2 text-[10.5px] tracking-wider uppercase text-slate-500 font-bold ${hideWhenCollapsed}`}
                 >
                   {g.title}
                 </h4>
@@ -401,8 +401,8 @@ export function ShellFrame({
                         collapsed ? "md:justify-center md:px-0 md:gap-0" : ""
                       } ${
                         on
-                          ? "bg-orange-50 text-brand-dark border-orange-500 font-semibold"
-                          : "text-slate-600 border-transparent font-medium hover:bg-slate-50 hover:text-slate-900"
+                          ? "bg-orange-50 text-brand-dark border-orange-500 font-bold"
+                          : "text-slate-800 border-transparent font-semibold hover:bg-white/60 hover:text-slate-900"
                       }`}
                     >
                       <NavIcon navKey={item.key} />
@@ -419,7 +419,7 @@ export function ShellFrame({
               onClick={handleLogout}
               disabled={loggingOut}
               title={collapsed ? "Deconectare" : undefined}
-              className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50 ${
+              className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-slate-800 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50 ${
                 collapsed ? "md:justify-center md:px-0 md:gap-0" : ""
               }`}
             >
@@ -427,7 +427,7 @@ export function ShellFrame({
               <span className={hideWhenCollapsed}>{loggingOut ? "Se deconectează..." : "Deconectare"}</span>
             </button>
           </div>
-          <div className={`px-3.5 py-2 border-t border-slate-200 text-[11px] text-slate-400 ${hideWhenCollapsed}`}>
+          <div className={`px-3.5 py-2 border-t border-slate-200 text-[11px] text-slate-500 ${hideWhenCollapsed}`}>
             DLM Trans
           </div>
         </aside>
