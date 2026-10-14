@@ -5,9 +5,9 @@ import { patchVehicleQuick } from "@/lib/fleet";
 
 /**
  * Actualizare rapidă a unui vehicul din tabelul de Planificare (șofer,
- * locație, program, pauză, pauză săptămânală, cazuri, stare manuală) —
- * separat de PATCH /api/vehicles/[id], care cere tot formularul complet
- * al vehiculului.
+ * locație, program, pauză, pauză săptămânală, cazuri, stare manuală,
+ * notiță, tip echipaj) — separat de PATCH /api/vehicles/[id], care cere
+ * tot formularul complet al vehiculului.
  */
 export async function PATCH(
   req: NextRequest,
@@ -43,6 +43,8 @@ export async function PATCH(
     stateOverride: "stateOverride" in body ? body.stateOverride : undefined,
     casesAdd: typeof body.casesAdd === "string" ? body.casesAdd : undefined,
     casesRemove: typeof body.casesRemove === "string" ? body.casesRemove : undefined,
+    note: "note" in body ? body.note : undefined,
+    crewType: "crewType" in body ? body.crewType : undefined,
   });
 
   return NextResponse.json({ ok: true });
