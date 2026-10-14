@@ -44,8 +44,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 
 /**
  * Salvarea formularului complet de vehicul (număr, tip, preț, expirări,
- * șofer, remorcă, locație, activ). Câmpurile care nu vin în cerere rămân
- * neschimbate. Tabelul de Planificare folosește altă rută: /quick.
+ * șofer, remorcă, firmă, locație, activ). Câmpurile care nu vin în cerere
+ * rămân neschimbate. Tabelul de Planificare folosește altă rută: /quick.
  */
 export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (!(await hasSession())) {
@@ -83,6 +83,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     tachoExp: pickText("tachoExp", "tacho_exp", existing.tacho_exp),
     driverId: pickText("driverId", "driver_id", existing.driver_id),
     trailerId: pickText("trailerId", "trailer_id", existing.trailer_id),
+    companyId: pickText("companyId", "company_id", existing.company_id),
     location: pickText("location", "location", existing.location),
     active: active.has ? Boolean(active.value) : existing.active,
   };
