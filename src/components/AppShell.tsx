@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { listExpiryAlerts } from "@/lib/alerts";
 import { ShellFrame, type NavGroup } from "@/components/ShellFrame";
+import { getUserTimezone } from "@/lib/user-prefs";
+import { DEFAULT_TIMEZONE } from "@/lib/tz";
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -75,6 +77,15 @@ export async function AppShell({
     alertCount = 0;
   }
 
+  let timezone = DEFAULT_TIMEZONE;
+  if (session) {
+    try {
+      timezone = await getUserTimezone(session.user.id);
+    } catch {
+      timezone = DEFAULT_TIMEZONE;
+    }
+  }
+
   return (
     <ShellFrame
       navGroups={groups}
@@ -83,6 +94,7 @@ export async function AppShell({
       userInitials={initialsOf(userName)}
       userName={userName}
       alertCount={alertCount}
+      timezone={timezone}
       wide={wide}
     >
       {children}
