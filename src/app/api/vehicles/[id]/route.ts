@@ -66,4 +66,40 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   };
 
   const type = read(body, "type", "type");
-  const price = read(body,
+  const price = read(body, "price", "price");
+  const active = read(body, "active", "active");
+
+  const plate =
+    typeof body.plate === "string" && body.plate.trim() ? body.plate.trim() : existing.plate;
+
+  const input: VehicleInput = {
+    plate,
+    type: type.has ? textOrNull(type.value) : existing.type,
+    price: price.has ? numOrNull(price.value) : existing.price,
+    itpExp: pickText("itpExp", "itp_exp", existing.itp_exp),
+    rcaExp: pickText("rcaExp", "rca_exp", existing.rca_exp),
+    cascoExp: pickText("cascoExp", "casco_exp", existing.casco_exp),
+    insuranceExp: pickText("insuranceExp", "insurance_exp", existing.insurance_exp),
+    tachoExp: pickText("tachoExp", "tacho_exp", existing.tacho_exp),
+    driverId: pickText("driverId", "driver_id", existing.driver_id),
+    trailerId: pickText("trailerId", "trailer_id", existing.trailer_id),
+    location: pickText("location", "location", existing.location),
+    active: active.has ? Boolean(active.value) : existing.active,
+  };
+
+  const updated = await updateVehicle(id, input);
+  if (!updated) {
+    return NextResponse.json({ error: "Vehiculul nu există" }, { status: 404 });
+  }
+  return NextResponse.json(updated);
+}
+
+/** Ștergerea unui vehicul (butonul „Șterge" din lista Vehicule). */
+export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  if (!(await hasSession())) {
+    return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
+  }
+  const { id } = await params;
+  await deleteVehicle(id);
+  return NextResponse.json({ ok: true });
+}
