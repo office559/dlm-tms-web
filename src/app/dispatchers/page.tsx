@@ -12,6 +12,9 @@ import {
   type DispatcherPricePerKm,
 } from "@/lib/dispatcher-stats";
 
+/** Numele cu care apare contul principal (adminul) în pontaj. */
+const ADMIN_LABEL = "Alex";
+
 const PRESETS = [
   { key: "sapt", label: "Săptămâna aceasta" },
   { key: "sapt-trecuta", label: "Săptămâna trecută" },
@@ -77,6 +80,35 @@ const EMPTY_COUNTS: DispatcherCounts = {
   anulate: 0,
 };
 
+function sumCounts(list: DispatcherCounts[]): DispatcherCounts {
+  return list.reduce(
+    (acc, c) => ({
+      dispatcherId: null,
+      total: acc.total + c.total,
+      finalizate: acc.finalizate + c.finalizate,
+      tranzit: acc.tranzit + c.tranzit,
+      planificate: acc.planificate + c.planificate,
+      anulate: acc.anulate + c.anulate,
+    }),
+    EMPTY_COUNTS
+  );
+}
+
+function mergePrices(list: DispatcherPricePerKm[]): DispatcherPricePerKm[] {
+  const merged: DispatcherPricePerKm[] = [];
+  for (const p of list) {
+    const existing = merged.find((x) => x.currency === p.currency);
+    if (existing) {
+      existing.revenue += p.revenue;
+      existing.km += p.km;
+      existing.jobs += p.jobs;
+    } else {
+      merged.push({ ...p, dispatcherId: null });
+    }
+  }
+  return merged;
+}
+
 function PricePerKmCell({ prices }: { prices: DispatcherPricePerKm[] }) {
   const usable = prices.filter((p) => p.km > 0);
   if (usable.length === 0) return <span className="text-slate-300">—</span>;
@@ -137,6 +169,18 @@ export default async function DispatchersPage({
   }
 
   const knownIds = new Set(dispatchers.map((d) => String(d.id)));
+  const adminId = String(session.user.id);
+  const adminInList = knownIds.has(adminId);
+
+  // Contul principal (Alex): cursele fără dispecer ales + cele trecute pe contul adminului.
+  const isMine = (id: string | null) => !id || (!adminInList && id === adminId);
+  const mineCounts = sumCounts(counts.filter((c) => isMine(c.dispatcherId)));
+  const minePrices = mergePrices(prices.filter((p) => isMine(p.dispatcherId)));
+
+  // Curse atribuite unui cont care nu mai e în lista de dispeceri (de ex. șters).
+  const isOther = (id: string | null) => !!id && !isMine(id) && !knownIds.has(id);
+  const otherCounts = sumCounts(counts.filter((c) => isOther(c.dispatcherId)));
+  const otherPrices = mergePrices(prices.filter((p) => isOther(p.dispatcherId)));
 
   const rows: Row[] = dispatchers
     .map((d) => {
@@ -149,45 +193,21 @@ export default async function DispatchersPage({
         prices: pricesById.get(id) ?? [],
       };
     })
-    .filter((r) => r.active || r.counts.total > 0)
-    .sort((a, b) => b.counts.total - a.counts.total || a.name.localeCompare(b.name));
+    .filter((r) => r.active || r.counts.total > 0);
 
-  // Curse fără dispecer sau cu un dispecer care nu mai există în listă.
-  const otherCounts = counts.filter((c) => !c.dispatcherId || !knownIds.has(c.dispatcherId));
-  const other: DispatcherCounts = otherCounts.reduce(
-    (acc, c) => ({
-      dispatcherId: null,
-      total: acc.total + c.total,
-      finalizate: acc.finalizate + c.finalizate,
-      tranzit: acc.tranzit + c.tranzit,
-      planificate: acc.planificate + c.planificate,
-      anulate: acc.anulate + c.anulate,
-    }),
-    EMPTY_COUNTS
-  );
-  const otherPrices = prices.filter((p) => !p.dispatcherId || !knownIds.has(p.dispatcherId));
-  const otherPricesMerged: DispatcherPricePerKm[] = [];
-  for (const p of otherPrices) {
-    const existing = otherPricesMerged.find((x) => x.currency === p.currency);
-    if (existing) {
-      existing.revenue += p.revenue;
-      existing.km += p.km;
-      existing.jobs += p.jobs;
-    } else {
-      otherPricesMerged.push({ ...p, dispatcherId: null });
-    }
+  if (mineCounts.total > 0) {
+    rows.push({
+      id: "__admin__",
+      name: ADMIN_LABEL,
+      active: true,
+      counts: mineCounts,
+      prices: minePrices,
+    });
   }
 
-  const total = counts.reduce(
-    (acc, c) => ({
-      total: acc.total + c.total,
-      finalizate: acc.finalizate + c.finalizate,
-      tranzit: acc.tranzit + c.tranzit,
-      planificate: acc.planificate + c.planificate,
-      anulate: acc.anulate + c.anulate,
-    }),
-    { total: 0, finalizate: 0, tranzit: 0, planificate: 0, anulate: 0 }
-  );
+  rows.sort((a, b) => b.counts.total - a.counts.total || a.name.localeCompare(b.name));
+
+  const total = sumCounts(counts);
 
   const pillOn = "rounded-full px-3 py-1.5 text-sm font-medium transition bg-brand text-white";
   const pillOff =
@@ -292,21 +312,21 @@ export default async function DispatchersPage({
                     <td className="px-4 py-3 text-right text-slate-500">{kmJobs(r.prices)}</td>
                   </tr>
                 ))}
-                {other.total > 0 && (
+                {otherCounts.total > 0 && (
                   <tr className="border-t border-slate-100 text-slate-500">
-                    <td className="px-4 py-3 italic">Fără dispecer / alt cont</td>
-                    <td className="px-4 py-3 text-right font-semibold">{other.total}</td>
-                    <td className="px-4 py-3 text-right">{other.finalizate}</td>
-                    <td className="px-4 py-3 text-right">{other.tranzit}</td>
-                    <td className="px-4 py-3 text-right">{other.planificate}</td>
-                    <td className="px-4 py-3 text-right">{other.anulate}</td>
+                    <td className="px-4 py-3 italic">Alt cont / șters</td>
+                    <td className="px-4 py-3 text-right font-semibold">{otherCounts.total}</td>
+                    <td className="px-4 py-3 text-right">{otherCounts.finalizate}</td>
+                    <td className="px-4 py-3 text-right">{otherCounts.tranzit}</td>
+                    <td className="px-4 py-3 text-right">{otherCounts.planificate}</td>
+                    <td className="px-4 py-3 text-right">{otherCounts.anulate}</td>
                     <td className="px-4 py-3">
-                      <PricePerKmCell prices={otherPricesMerged} />
+                      <PricePerKmCell prices={otherPrices} />
                     </td>
-                    <td className="px-4 py-3 text-right">{kmJobs(otherPricesMerged)}</td>
+                    <td className="px-4 py-3 text-right">{kmJobs(otherPrices)}</td>
                   </tr>
                 )}
-                {rows.length === 0 && other.total === 0 && (
+                {rows.length === 0 && otherCounts.total === 0 && (
                   <tr>
                     <td colSpan={8} className="px-4 py-6 text-center text-slate-400">
                       Nicio cursă în această perioadă.
