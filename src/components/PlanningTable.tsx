@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import type { FleetState } from "@/lib/fleet-labels";
 import { FLEET_ROW_STYLES } from "@/lib/fleet-labels";
 import {
@@ -97,6 +98,9 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
 };
 
 const MIN_WIDTH = 60;
+
+/** La câte secunde se reîmprospătează automat datele tabelului. */
+const AUTO_REFRESH_SECONDS = 10;
 
 const STORAGE_KEY = "dlm-planning-columns-v2";
 
@@ -399,6 +403,9 @@ const COLUMN_MAP: Record<ColumnKey, ColumnDef> = COLUMNS.reduce(
  * mânerului (⠿), și fiecare coloană se poate lărgi/îngusta trăgând de
  * marginea din dreapta a antetului (▐). Ordinea și lățimile alese se
  * salvează în browser (localStorage), per dispozitiv.
+ *
+ * Datele se reîmprospătează automat la câteva secunde (router.refresh),
+ * ca să apară singure confirmările WhatsApp și celelalte schimbări.
  */
 export function PlanningTable({
   rows,
@@ -409,6 +416,7 @@ export function PlanningTable({
   drivers: { id: string; name: string }[];
   emptyMessage: string;
 }) {
+  const router = useRouter();
   const [order, setOrder] = useState<ColumnKey[]>(DEFAULT_ORDER);
   const [widths, setWidths] = useState<Partial<Record<ColumnKey, number>>>({});
   const [dragKey, setDragKey] = useState<ColumnKey | null>(null);
@@ -421,6 +429,22 @@ export function PlanningTable({
     setWidths(stored.widths);
     widthsRef.current = stored.widths;
   }, []);
+
+  // Reîmprospătare automată: doar când fila e vizibilă și nu editezi un câmp.
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      router.refresh();
+    };
+    const id = setInterval(tick, AUTO_REFRESH_SECONDS * 1000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [router]);
 
   function persistOrder(next: ColumnKey[]) {
     setOrder(next);
