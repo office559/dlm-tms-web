@@ -10,6 +10,8 @@ export type NavGroup = { title: string; items: NavItem[] };
 
 const MONTHS = ["ian", "feb", "mar", "apr", "mai", "iun", "iul", "aug", "sep", "oct", "nov", "dec"];
 
+const COLLAPSE_KEY = "dlm-sidebar-collapsed";
+
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -192,6 +194,15 @@ function SettingsIcon() {
   );
 }
 
+/** Săgeată stânga/dreapta — butonul de strâns/extins meniul. */
+function CollapseChevron({ collapsed }: { collapsed: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      {collapsed ? <path d="M9 6l6 6-6 6" /> : <path d="M15 6l-6 6 6 6" />}
+    </svg>
+  );
+}
+
 /** Fiecare iconiță de mai sus, după cheia (key) itemului de meniu din AppShell.tsx. */
 const NAV_ICONS: Record<string, () => ReactElement> = {
   dashboard: DashboardIcon,
@@ -256,8 +267,30 @@ export function ShellFrame({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const router = useRouter();
+
+  // Meniul strâns/extins se păstrează în browser.
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(COLLAPSE_KEY) === "1") setCollapsed(true);
+    } catch {
+      // ignorăm
+    }
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        // ignorăm
+      }
+      return next;
+    });
+  }
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -266,6 +299,9 @@ export function ShellFrame({
     router.refresh();
   }
 
+  // Etichetele se ascund doar pe ecran mare (md+), când meniul e strâns.
+  const hideWhenCollapsed = collapsed ? "md:hidden" : "";
+
   return (
     <div className="h-screen flex overflow-hidden bg-slate-100">
       {open && (
@@ -273,22 +309,50 @@ export function ShellFrame({
       )}
 
       <aside
-        className={`fixed md:static inset-y-0 left-0 z-30 h-full w-60 bg-[var(--sidebar-bg,#ffffff)] border-r border-slate-200 flex flex-col transition-transform duration-200 ${
+        className={`fixed md:relative md:static inset-y-0 left-0 z-30 h-full w-60 ${
+          collapsed ? "md:w-[68px]" : "md:w-60"
+        } bg-[var(--sidebar-bg,#ffffff)] border-r border-slate-200 flex flex-col transition-[transform,width] duration-200 ${
           open ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
+        {/* Linia de pe marginea meniului: apasă ca să strângi / extinzi meniul. */}
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title={collapsed ? "Extinde meniul" : "Restrânge meniul"}
+          aria-label={collapsed ? "Extinde meniul" : "Restrânge meniul"}
+          className="hidden md:block absolute top-0 -right-[3px] z-40 h-full w-[6px] cursor-pointer bg-transparent transition hover:bg-sky-400/60"
+        />
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title={collapsed ? "Extinde meniul" : "Restrânge meniul"}
+          aria-label={collapsed ? "Extinde meniul" : "Restrânge meniul"}
+          className="hidden md:grid absolute top-1/2 -right-3 z-40 h-6 w-6 -translate-y-1/2 place-items-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-sm transition hover:border-sky-400 hover:text-sky-600"
+        >
+          <CollapseChevron collapsed={collapsed} />
+        </button>
+
         <div className="p-3.5 pb-2">
-          <div className="bg-white border border-slate-200 rounded-lg px-4 py-2.5">
+          <div className={`bg-white border border-slate-200 rounded-lg px-4 py-2.5 ${hideWhenCollapsed}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/logo.png" alt="DLM" className="w-full h-auto block" />
           </div>
+          {collapsed && (
+            <div className="hidden md:grid h-10 w-full place-items-center rounded-lg border border-slate-200 bg-white text-[12px] font-extrabold tracking-tight text-brand-dark">
+              DLM
+            </div>
+          )}
         </div>
-        <nav className="flex-1 overflow-y-auto px-2.5 pb-2.5">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2.5 pb-2.5">
           {navGroups.map((g) => (
             <div key={g.title}>
-              <h4 className="mt-3.5 mb-1 px-2 text-[10.5px] tracking-wider uppercase text-slate-400 font-semibold">
+              <h4
+                className={`mt-3.5 mb-1 px-2 text-[10.5px] tracking-wider uppercase text-slate-400 font-semibold ${hideWhenCollapsed}`}
+              >
                 {g.title}
               </h4>
+              {collapsed && <div className="hidden md:block mt-2.5 mb-1.5 mx-2 border-t border-slate-200" />}
               {g.items.map((item) => {
                 const on = activeKey === item.key;
                 return (
@@ -296,14 +360,17 @@ export function ShellFrame({
                     key={item.key}
                     href={item.href}
                     onClick={() => setOpen(false)}
+                    title={collapsed ? item.label : undefined}
                     className={`flex items-center gap-2.5 px-2.5 py-1.5 mb-0.5 rounded-lg text-sm border-l-[3px] transition ${
+                      collapsed ? "md:justify-center md:px-0 md:gap-0" : ""
+                    } ${
                       on
                         ? "bg-orange-50 text-brand-dark border-orange-500 font-semibold"
                         : "text-slate-600 border-transparent font-medium hover:bg-slate-50 hover:text-slate-900"
                     }`}
                   >
                     <NavIcon navKey={item.key} />
-                    <span>{item.label}</span>
+                    <span className={hideWhenCollapsed}>{item.label}</span>
                   </Link>
                 );
               })}
@@ -315,13 +382,16 @@ export function ShellFrame({
             type="button"
             onClick={handleLogout}
             disabled={loggingOut}
-            className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+            title={collapsed ? "Deconectare" : undefined}
+            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50 ${
+              collapsed ? "md:justify-center md:px-0 md:gap-0" : ""
+            }`}
           >
             <LogoutIcon />
-            <span>{loggingOut ? "Se deconectează..." : "Deconectare"}</span>
+            <span className={hideWhenCollapsed}>{loggingOut ? "Se deconectează..." : "Deconectare"}</span>
           </button>
         </div>
-        <div className="px-3.5 py-2 border-t border-slate-200 text-[11px] text-slate-400">
+        <div className={`px-3.5 py-2 border-t border-slate-200 text-[11px] text-slate-400 ${hideWhenCollapsed}`}>
           DLM Trans
         </div>
       </aside>
