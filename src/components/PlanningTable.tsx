@@ -35,11 +35,13 @@ export type PlanningRow = {
   pause: boolean;
   restStart: string | null;
   restEnd: string | null;
+  restStartAt: string | null;
   restEndAt: string | null;
   weeklyRest: boolean;
   weeklyRestType: string | null;
   weeklyRestStart: string | null;
   weeklyRestEnd: string | null;
+  weeklyRestStartAt: string | null;
   weeklyRestEndAt: string | null;
   weeklyRestSuggested: "45" | "24";
   location: string | null;
@@ -328,6 +330,7 @@ const COLUMNS: ColumnDef[] = [
         pause={r.pause}
         restStart={r.restStart}
         restEnd={r.restEnd}
+        restStartAt={r.restStartAt}
         restEndAt={r.restEndAt}
       />
     ),
@@ -342,6 +345,7 @@ const COLUMNS: ColumnDef[] = [
         weeklyRestType={r.weeklyRestType}
         weeklyRestStart={r.weeklyRestStart}
         weeklyRestEnd={r.weeklyRestEnd}
+        weeklyRestStartAt={r.weeklyRestStartAt}
         weeklyRestEndAt={r.weeklyRestEndAt}
         suggestedType={r.weeklyRestSuggested}
       />
