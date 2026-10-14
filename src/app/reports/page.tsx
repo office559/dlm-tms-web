@@ -9,23 +9,45 @@ import {
   getBrokerageSummary,
   getJobsSummary,
 } from "@/lib/reports";
+import { listCompanies } from "@/lib/companies";
 import { AppShell } from "@/components/AppShell";
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+function fmt(d: Date) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 function firstOfMonth() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
 }
 
 function today() {
+  return fmt(new Date());
+}
+
+/** Luni–Duminică pentru săptămâna aflată la `offsetWeeks` față de cea curentă. */
+function weekRange(offsetWeeks: number) {
   const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const dayFromMonday = (d.getDay() + 6) % 7;
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dayFromMonday + offsetWeeks * 7);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+  return { from: fmt(start), to: fmt(end) };
+}
+
+/** Prima–ultima zi a lunii aflate la `offsetMonths` față de cea curentă. */
+function monthRange(offsetMonths: number) {
+  const d = new Date();
+  const start = new Date(d.getFullYear(), d.getMonth() + offsetMonths, 1);
+  const end = new Date(d.getFullYear(), d.getMonth() + offsetMonths + 1, 0);
+  return { from: fmt(start), to: fmt(end) };
 }
 
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; firma?: string }>;
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
@@ -33,25 +55,86 @@ export default async function ReportsPage({
   const params = await searchParams;
   const from = params.from || firstOfMonth();
   const to = params.to || today();
+  const firma = params.firma || "";
+
+  const companies = await listCompanies();
+  const companyLabel =
+    firma === ""
+      ? "Toate firmele"
+      : firma === "none"
+        ? "Fără firmă"
+        : companies.find((c) => c.id === firma)?.name ?? "Firmă necunoscută";
 
   const [revenue, costsByCategory, costsByVehicle, costsTotal, brokerage, jobs] = await Promise.all([
-    getRevenueByCurrency(from, to),
-    getCostsByCategory(from, to),
-    getCostsByVehicle(from, to),
-    getCostsTotal(from, to),
+    getRevenueByCurrency(from, to, firma),
+    getCostsByCategory(from, to, firma),
+    getCostsByVehicle(from, to, firma),
+    getCostsTotal(from, to, firma),
     getBrokerageSummary(from, to),
-    getJobsSummary(from, to),
+    getJobsSummary(from, to, firma),
   ]);
+
+  const showBrokerage = firma === "";
+
+  const presets = [
+    { label: "Săptămâna aceasta", ...weekRange(0) },
+    { label: "Săptămâna trecută", ...weekRange(-1) },
+    { label: "Luna aceasta", ...monthRange(0) },
+    { label: "Luna trecută", ...monthRange(-1) },
+  ];
+
+  const presetHref = (p: { from: string; to: string }) => {
+    const qs = new URLSearchParams({ from: p.from, to: p.to });
+    if (firma) qs.set("firma", firma);
+    return `/reports?${qs.toString()}`;
+  };
 
   return (
     <AppShell active="reports" crumb="Rapoarte & Profituri">
       <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-brand-dark">Rapoarte &amp; Profituri</h1>
-        <p className="text-slate-600 mt-1">Situație agregată pentru perioada selectată.</p>
+        <p className="text-slate-600 mt-1">
+          Situație agregată pentru perioada selectată · <span className="font-medium">{companyLabel}</span>
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {presets.map((p) => {
+          const active = p.from === from && p.to === to;
+          return (
+            <a
+              key={p.label}
+              href={presetHref(p)}
+              className={
+                active
+                  ? "rounded-full bg-brand px-3 py-1.5 text-sm font-medium text-white"
+                  : "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-brand"
+              }
+            >
+              {p.label}
+            </a>
+          );
+        })}
       </div>
 
       <form className="flex flex-wrap items-end gap-4 bg-white rounded-2xl border border-slate-200 p-4">
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">Firmă</label>
+          <select
+            name="firma"
+            defaultValue={firma}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:border-brand"
+          >
+            <option value="">Toate firmele</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value="none">Fără firmă</option>
+          </select>
+        </div>
         <div className="space-y-1">
           <label className="text-sm text-slate-600">De la</label>
           <input
@@ -92,10 +175,21 @@ export default async function ReportsPage({
         </div>
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <p className="text-sm text-slate-500">Marjă brokeraj</p>
-          <p className={`text-2xl font-semibold mt-1 ${brokerage.margin < 0 ? "text-red-600" : "text-emerald-700"}`}>
-            {brokerage.margin.toFixed(2)}
-          </p>
-          <p className="text-xs text-slate-500 mt-2">{brokerage.count} înregistrări</p>
+          {showBrokerage ? (
+            <>
+              <p className={`text-2xl font-semibold mt-1 ${brokerage.margin < 0 ? "text-red-600" : "text-emerald-700"}`}>
+                {brokerage.margin.toFixed(2)}
+              </p>
+              <p className="text-xs text-slate-500 mt-2">{brokerage.count} înregistrări</p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-semibold mt-1 text-slate-300">—</p>
+              <p className="text-xs text-slate-500 mt-2">
+                Brokerajul nu aparține unei firme. Apare doar la „Toate firmele".
+              </p>
+            </>
+          )}
         </div>
       </div>
 
@@ -191,7 +285,7 @@ export default async function ReportsPage({
       </div>
 
       <p className="text-xs text-slate-400">
-        Notă: veniturile din curse sunt afișate pe monedă (pot fi în EUR, USD, GBP sau RON), iar cheltuielile și marja de brokeraj sunt în RON — profitul net trebuie calculat manual dacă monedele diferă.
+        Notă: veniturile din curse sunt afișate pe monedă (pot fi în EUR, USD, GBP sau RON), iar cheltuielile și marja de brokeraj sunt în RON — profitul net trebuie calculat manual dacă monedele diferă. Cursele și cheltuielile se leagă de o firmă prin vehiculul lor; cele fără vehicul apar la „Toate firmele" și la „Fără firmă".
       </p>
       </div>
     </AppShell>
