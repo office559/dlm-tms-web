@@ -78,15 +78,18 @@ function KpiCard({
   label,
   value,
   delta,
+  note,
 }: {
   label: string;
   value: string;
   delta: number | null;
+  note?: string;
 }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-200 p-6">
       <p className="text-sm text-slate-500">{label}</p>
       <p className="mt-1 text-3xl font-semibold text-brand-dark">{value}</p>
+      {note && <p className="mt-1 text-xs text-slate-500">{note}</p>}
       <Delta value={delta} />
     </div>
   );
@@ -270,8 +273,9 @@ export default async function DashboardPage() {
   const availableCount = stateCounts["disponibil"] ?? 0;
   const availability = totalFleet > 0 ? Math.round((availableCount / totalFleet) * 100) : 0;
 
-  const rate = stats.km > 0 ? stats.venit / stats.km : 0;
-  const ratePrev = stats.kmPrev > 0 ? stats.venitPrev / stats.kmPrev : 0;
+  // Rata medie pe km: fără taxele de anulare (o anulare nu are km parcurși).
+  const rate = stats.km > 0 ? (stats.venit - stats.anulari) / stats.km : 0;
+  const ratePrev = stats.kmPrev > 0 ? (stats.venitPrev - stats.anulariPrev) / stats.kmPrev : 0;
   const activeJobs = situation.tranzit + situation.planificate;
 
   return (
@@ -288,6 +292,7 @@ export default async function DashboardPage() {
             label="Venit total"
             value={`€${fmtNum(stats.venit)}`}
             delta={pctChange(stats.venit, stats.venitPrev)}
+            note={stats.anulari > 0 ? `din care anulări plătite: €${fmtNum(stats.anulari)}` : undefined}
           />
           <KpiCard
             label="Km parcurși"
