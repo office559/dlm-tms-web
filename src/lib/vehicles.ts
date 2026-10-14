@@ -6,6 +6,7 @@ export type Vehicle = {
   plate: string;
   type: string | null;
   owner_id: string | null;
+  company_id: string | null;
   price: number | null;
   itp_exp: string | null;
   rca_exp: string | null;
@@ -55,6 +56,7 @@ export type VehicleInput = {
   tachoExp?: string | null;
   driverId?: string | null;
   trailerId?: string | null;
+  companyId?: string | null;
   location?: string | null;
   active?: boolean;
 };
@@ -82,9 +84,9 @@ export async function createVehicle(input: VehicleInput) {
   const { rows } = await pool.query<Vehicle>(
     `insert into vehicles (
        id, plate, type, price, itp_exp, rca_exp, casco_exp, insurance_exp,
-       tacho_exp, driver_id, trailer_id, location, active
+       tacho_exp, driver_id, trailer_id, location, active, company_id
      )
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
      returning *`,
     [
       id,
@@ -100,6 +102,7 @@ export async function createVehicle(input: VehicleInput) {
       nullify(input.trailerId),
       nullify(input.location),
       input.active ?? true,
+      nullify(input.companyId),
     ]
   );
   return rows[0];
@@ -110,7 +113,7 @@ export async function updateVehicle(id: string, input: VehicleInput) {
     `update vehicles set
        plate = $2, type = $3, price = $4, itp_exp = $5, rca_exp = $6,
        casco_exp = $7, insurance_exp = $8, tacho_exp = $9, driver_id = $10,
-       trailer_id = $11, location = $12, active = $13
+       trailer_id = $11, location = $12, active = $13, company_id = $14
      where id = $1
      returning *`,
     [
@@ -127,6 +130,7 @@ export async function updateVehicle(id: string, input: VehicleInput) {
       nullify(input.trailerId),
       nullify(input.location),
       input.active ?? true,
+      nullify(input.companyId),
     ]
   );
   return rows[0] ?? null;
