@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { listDrivers } from "@/lib/drivers";
 import { listTrailers } from "@/lib/trailers";
+import { listCompanies } from "@/lib/companies";
 import { VehicleForm } from "@/components/VehicleForm";
 import { AppShell } from "@/components/AppShell";
 
@@ -10,7 +11,11 @@ export default async function NewVehiclePage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
-  const [drivers, trailers] = await Promise.all([listDrivers(), listTrailers()]);
+  const [drivers, trailers, companies] = await Promise.all([
+    listDrivers(),
+    listTrailers(),
+    listCompanies(),
+  ]);
 
   return (
     <AppShell active="vehicles" crumb="Adaugă vehicul">
@@ -20,6 +25,7 @@ export default async function NewVehiclePage() {
           <VehicleForm
             drivers={drivers.map((d) => ({ id: d.id, name: d.name }))}
             trailers={trailers.map((t) => ({ id: t.id, plate: t.plate }))}
+            companies={companies.map((c) => ({ id: c.id, name: c.name, active: c.active }))}
           />
         </div>
       </div>
