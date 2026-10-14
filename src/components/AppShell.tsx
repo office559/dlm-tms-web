@@ -19,6 +19,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: "drivers", href: "/drivers", label: "Șoferi" },
       { key: "vehicles", href: "/vehicles", label: "Vehicule" },
       { key: "trailers", href: "/trailers", label: "Remorci" },
+      { key: "companies", href: "/companies", label: "Firme" },
       { key: "customers", href: "/customers", label: "Clienți" },
     ],
   },
