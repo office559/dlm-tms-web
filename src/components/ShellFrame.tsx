@@ -82,6 +82,18 @@ function TrailersIcon() {
   );
 }
 
+/** Două clădiri — Firme. */
+function CompaniesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 21h18" />
+      <path d="M5 21V4a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v17" />
+      <path d="M14 9h4a1 1 0 0 1 1 1v11" />
+      <path d="M8 7h3M8 11h3M8 15h3" />
+    </svg>
+  );
+}
+
 /** Clădire — Clienți. */
 function CustomersIcon() {
   return (
@@ -188,6 +200,7 @@ const NAV_ICONS: Record<string, () => ReactElement> = {
   drivers: DriversIcon,
   vehicles: VehiclesIcon,
   trailers: TrailersIcon,
+  companies: CompaniesIcon,
   customers: CustomersIcon,
   reports: ReportsIcon,
   brokerage: BrokerageIcon,
