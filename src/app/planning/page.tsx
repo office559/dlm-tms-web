@@ -5,6 +5,8 @@ import { listVehicles } from "@/lib/vehicles";
 import { listDrivers } from "@/lib/drivers";
 import { listTrailers } from "@/lib/trailers";
 import { AppShell } from "@/components/AppShell";
+import { getUserTimezone } from "@/lib/user-prefs";
+import { DEFAULT_TIMEZONE, formatDateInTz, formatTimeInTz } from "@/lib/tz";
 import {
   fleetState,
   currentJobsByVehicle,
@@ -15,14 +17,11 @@ import {
 import { PlanningTable } from "@/components/PlanningTable";
 import type { PlanningRow } from "@/components/PlanningTable";
 
-function fmtDate(s: string | Date | null) {
-  if (!s) return "—";
-  return new Date(s).toLocaleDateString("ro-RO");
-}
-
-function fmtTime(s: string | Date | null) {
-  if (!s) return "";
-  return new Date(s).toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+/** Moment (Date sau text) → text ISO, ca să poată fi citit corect în browser. */
+function iso(s: string | Date | null | undefined): string | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 const STATE_ORDER: Record<string, number> = {
@@ -53,6 +52,15 @@ export default async function PlanningPage({
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
+
+  let tz = DEFAULT_TIMEZONE;
+  try {
+    tz = await getUserTimezone(session.user.id);
+  } catch {
+    tz = DEFAULT_TIMEZONE;
+  }
+  const fmtDate = (s: string | Date | null) => formatDateInTz(s, tz);
+  const fmtTime = (s: string | Date | null) => formatTimeInTz(s, tz);
 
   const params = await searchParams;
 
@@ -119,17 +127,19 @@ export default async function PlanningPage({
       note: extras?.note ?? null,
       programStart: v.program_start,
       programEnd: v.program_end,
-      programStartAt: v.program_start_at ? v.program_start_at.toString() : null,
-      programEndAt: v.program_end_at ? v.program_end_at.toString() : null,
+      programStartAt: iso(v.program_start_at),
+      programEndAt: iso(v.program_end_at),
       pause: v.pause,
       restStart: v.rest_start,
       restEnd: v.rest_end,
-      restEndAt: v.rest_end_at ? v.rest_end_at.toString() : null,
+      restStartAt: iso(v.rest_start_at),
+      restEndAt: iso(v.rest_end_at),
       weeklyRest: v.weekly_rest,
       weeklyRestType: v.weekly_rest_type,
       weeklyRestStart: v.weekly_rest_start,
       weeklyRestEnd: v.weekly_rest_end,
-      weeklyRestEndAt: v.weekly_rest_end_at ? v.weekly_rest_end_at.toString() : null,
+      weeklyRestStartAt: iso(v.weekly_rest_start_at),
+      weeklyRestEndAt: iso(v.weekly_rest_end_at),
       weeklyRestSuggested: weeklyRestSuggestion.get(v.id) ?? "45",
       location: v.location,
       fallbackLocation: lastUnloadByVehicle.get(v.id) ?? null,
