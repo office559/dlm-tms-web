@@ -1,40 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { patchVehicleQuick } from "@/lib/fleet";
+import { deleteVehicle, getVehicle, updateVehicle } from "@/lib/vehicles";
+import type { VehicleInput } from "@/lib/vehicles";
+
+type Ctx = { params: Promise<{ id: string }> };
+
+async function hasSession() {
+  const session = await auth.api.getSession({ headers: await headers() });
+  return Boolean(session);
+}
+
+function read(body: Record<string, unknown>, camel: string, snake: string) {
+  if (camel in body) return { has: true, value: body[camel] };
+  if (snake in body) return { has: true, value: body[snake] };
+  return { has: false, value: undefined as unknown };
+}
+
+function textOrNull(v: unknown): string | null {
+  if (v === undefined || v === null) return null;
+  const s = String(v).trim();
+  return s === "" ? null : s;
+}
+
+function numOrNull(v: unknown): number | null {
+  if (v === undefined || v === null || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Un vehicul (pentru formularul de editare). */
+export async function GET(_req: NextRequest, { params }: Ctx) {
+  if (!(await hasSession())) {
+    return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
+  }
+  const { id } = await params;
+  const vehicle = await getVehicle(id);
+  if (!vehicle) {
+    return NextResponse.json({ error: "Vehiculul nu există" }, { status: 404 });
+  }
+  return NextResponse.json(vehicle);
+}
 
 /**
- * Actualizare rapidă a unui vehicul din tabelul de Planificare (șofer,
- * locație, pauză, stare manuală) — separat de PATCH /api/vehicles/[id],
- * care cere tot formularul complet al vehiculului.
+ * Salvarea formularului complet de vehicul (număr, tip, preț, expirări,
+ * șofer, remorcă, locație, activ). Câmpurile care nu vin în cerere rămân
+ * neschimbate. Tabelul de Planificare folosește altă rută: /quick.
  */
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) {
+export async function PATCH(req: NextRequest, { params }: Ctx) {
+  if (!(await hasSession())) {
     return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
   }
 
   const { id } = await params;
-  const body = await req.json();
+  const existing = await getVehicle(id);
+  if (!existing) {
+    return NextResponse.json({ error: "Vehiculul nu există" }, { status: 404 });
+  }
 
-  await patchVehicleQuick(id, {
-    driverId: "driverId" in body ? body.driverId : undefined,
-    location: "location" in body ? body.location : undefined,
-    pause: "pause" in body ? Boolean(body.pause) : undefined,
-    programStart: "programStart" in body ? body.programStart : undefined,
-    programEnd: "programEnd" in body ? body.programEnd : undefined,
-    programStartAt: "programStartAt" in body ? body.programStartAt : undefined,
-    programEndAt: "programEndAt" in body ? body.programEndAt : undefined,
-    restDurH: "restDurH" in body ? body.restDurH : undefined,
-    restStart: "restStart" in body ? body.restStart : undefined,
-    restEnd: "restEnd" in body ? body.restEnd : undefined,
-    restStartAt: "restStartAt" in body ? body.restStartAt : undefined,
-    restEndAt: "restEndAt" in body ? body.restEndAt : undefined,
-    stateOverride: "stateOverride" in body ? body.stateOverride : undefined,
-  });
+  const body = (await req.json()) as Record<string, unknown>;
 
-  return NextResponse.json({ ok: true });
-}
+  const pickText = (camel: string, snake: string, current: string | null) => {
+    const r = read(body, camel, snake);
+    return r.has ? textOrNull(r.value) : current;
+  };
+
+  const type = read(body, "type", "type");
+  const price = read(body,
