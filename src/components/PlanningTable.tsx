@@ -430,19 +430,22 @@ export function PlanningTable({
     widthsRef.current = stored.widths;
   }, []);
 
-  // Reîmprospătare automată: doar când fila e vizibilă și nu editezi un câmp.
+  // Reîmprospătare automată: doar când fila e vizibilă și nu scrii într-un
+  // câmp (text / oră / număr) dintr-o fereastră de editare deschisă.
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState !== "visible") return;
       const tag = document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
       router.refresh();
     };
     const id = setInterval(tick, AUTO_REFRESH_SECONDS * 1000);
     document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
     return () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", tick);
+      window.removeEventListener("focus", tick);
     };
   }, [router]);
 
