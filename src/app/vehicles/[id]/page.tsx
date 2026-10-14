@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getVehicle } from "@/lib/vehicles";
 import { listDrivers } from "@/lib/drivers";
 import { listTrailers } from "@/lib/trailers";
+import { listCompanies } from "@/lib/companies";
 import { VehicleForm } from "@/components/VehicleForm";
 import { AppShell } from "@/components/AppShell";
 
@@ -16,10 +17,11 @@ export default async function EditVehiclePage({
   if (!session) redirect("/login");
 
   const { id } = await params;
-  const [vehicle, drivers, trailers] = await Promise.all([
+  const [vehicle, drivers, trailers, companies] = await Promise.all([
     getVehicle(id),
     listDrivers(),
     listTrailers(),
+    listCompanies(),
   ]);
   if (!vehicle) notFound();
 
@@ -42,10 +44,12 @@ export default async function EditVehiclePage({
               tachoExp: vehicle.tacho_exp ? String(vehicle.tacho_exp).slice(0, 10) : "",
               driverId: vehicle.driver_id ?? "",
               trailerId: vehicle.trailer_id ?? "",
+              companyId: vehicle.company_id ?? "",
               active: vehicle.active,
             }}
             drivers={drivers.map((d) => ({ id: d.id, name: d.name }))}
             trailers={trailers.map((t) => ({ id: t.id, plate: t.plate }))}
+            companies={companies.map((c) => ({ id: c.id, name: c.name, active: c.active }))}
           />
         </div>
       </div>
