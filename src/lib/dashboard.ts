@@ -1,10 +1,36 @@
 import { pool } from "@/lib/db";
 
+/**
+ * Venitul unei curse, pentru Dashboard:
+ *  - cursă finalizată  → tarif + extra
+ *  - cursă anulată     → taxa de anulare încasată (cancel_fee), dacă există
+ *  - orice altceva     → 0
+ * Anulările fără taxă nu intră deloc în calcule (cancel_fee gol sau 0).
+ */
+function venitExpr(a = "") {
+  const p = a ? `${a}.` : "";
+  return `(case
+    when ${p}status = 'finalizat' then coalesce(${p}rate, 0) + coalesce(${p}extra, 0)
+    when ${p}status = 'anulat' then coalesce(${p}cancel_fee, 0)
+    else 0
+  end)`;
+}
+
+/** Cursele care contează pentru venit: finalizate + anulate cu taxă plătită. */
+function venitFilter(a = "") {
+  const p = a ? `${a}.` : "";
+  return `(${p}status = 'finalizat' or (${p}status = 'anulat' and coalesce(${p}cancel_fee, 0) > 0))`;
+}
+
 export type DashboardTotals = {
   venitTotal: number;
   kmTotal: number;
   curseFinalizate: number;
   mediaPeKm: number;
+  /** din venitTotal: suma taxelor de anulare încasate */
+  anulariPlatite: number;
+  /** câte curse anulate au taxă încasată */
+  anulariPlatiteNr: number;
 };
 
 export type MonthlyPoint = {
@@ -23,24 +49,43 @@ export type TopDriver = {
 };
 
 /**
- * Totaluri agregate pe toate cursele finalizate (tot istoricul), pentru
- * căsuțele de informare de sus de pe Dashboard.
+ * Totaluri agregate pe tot istoricul, pentru căsuțele de informare de sus
+ * de pe Dashboard. Venitul include și anulările plătite; km, nr. curse și
+ * media pe km se calculează doar din cursele finalizate.
  */
 export async function getDashboardTotals(): Promise<DashboardTotals> {
-  const { rows } = await pool.query<{ venit: number; km: number; curse: number }>(
+  const { rows } = await pool.query<{
+    venit: number;
+    venit_fin: number;
+    km: number;
+    curse: number;
+    anulari: number;
+    anulari_nr: number;
+  }>(
     `select
-       coalesce(sum(coalesce(rate,0) + coalesce(extra,0)), 0)::float as venit,
-       coalesce(sum(coalesce(miles,0)), 0)::float as km,
-       count(*)::int as curse
+       coalesce(sum(${venitExpr()}), 0)::float as venit,
+       coalesce(sum(case when status = 'finalizat' then coalesce(rate,0) + coalesce(extra,0) else 0 end), 0)::float as venit_fin,
+       coalesce(sum(case when status = 'finalizat' then coalesce(miles,0) else 0 end), 0)::float as km,
+       (count(*) filter (where status = 'finalizat'))::int as curse,
+       coalesce(sum(case when status = 'anulat' then coalesce(cancel_fee,0) else 0 end), 0)::float as anulari,
+       (count(*) filter (where status = 'anulat'))::int as anulari_nr
      from jobs
-     where status = 'finalizat'`
+     where ${venitFilter()}`
   );
-  const r = rows[0] ?? { venit: 0, km: 0, curse: 0 };
-  const venitTotal = Number(r.venit) || 0;
-  const kmTotal = Number(r.km) || 0;
-  const curseFinalizate = Number(r.curse) || 0;
-  const mediaPeKm = kmTotal > 0 ? venitTotal / kmTotal : 0;
-  return { venitTotal, kmTotal, curseFinalizate, mediaPeKm };
+  const r = rows[0];
+  const venitTotal = Number(r?.venit) || 0;
+  const venitFin = Number(r?.venit_fin) || 0;
+  const kmTotal = Number(r?.km) || 0;
+  const curseFinalizate = Number(r?.curse) || 0;
+  const mediaPeKm = kmTotal > 0 ? venitFin / kmTotal : 0;
+  return {
+    venitTotal,
+    kmTotal,
+    curseFinalizate,
+    mediaPeKm,
+    anulariPlatite: Number(r?.anulari) || 0,
+    anulariPlatiteNr: Number(r?.anulari_nr) || 0,
+  };
 }
 
 const MONTH_LABELS = [
@@ -49,18 +94,19 @@ const MONTH_LABELS = [
 
 /**
  * Evoluția lunară (ultimele `months` luni, inclusiv luna curentă), pentru
- * graficul de comparație Venit / Km / Nr. curse — doar curse finalizate.
+ * graficul de comparație Venit / Km / Nr. curse. Venitul include anulările
+ * plătite; km și nr. curse doar cursele finalizate.
  * Completează cu 0 lunile fără curse, ca să apară mereu toate barele.
  */
 export async function getMonthlyTrend(months = 6): Promise<MonthlyPoint[]> {
   const { rows } = await pool.query<{ month: string; venit: number; km: number; curse: number }>(
     `select
        to_char(date_trunc('month', coalesce(start_at, created_at)), 'YYYY-MM') as month,
-       coalesce(sum(coalesce(rate,0) + coalesce(extra,0)), 0)::float as venit,
-       coalesce(sum(coalesce(miles,0)), 0)::float as km,
-       count(*)::int as curse
+       coalesce(sum(${venitExpr()}), 0)::float as venit,
+       coalesce(sum(case when status = 'finalizat' then coalesce(miles,0) else 0 end), 0)::float as km,
+       (count(*) filter (where status = 'finalizat'))::int as curse
      from jobs
-     where status = 'finalizat'
+     where ${venitFilter()}
        and coalesce(start_at, created_at) >= date_trunc('month', now()) - make_interval(months => $1::int)
      group by 1
      order by 1`,
@@ -86,18 +132,19 @@ export async function getMonthlyTrend(months = 6): Promise<MonthlyPoint[]> {
 }
 
 /**
- * Top șoferi după venit, doar pentru luna curentă (curse finalizate).
+ * Top șoferi după venit, doar pentru luna curentă. Venitul include
+ * anulările plătite; km și nr. curse doar cursele finalizate.
  */
 export async function getTopDriversThisMonth(limit = 5): Promise<TopDriver[]> {
   const { rows } = await pool.query<TopDriver>(
     `select
        d.name as name,
-       coalesce(sum(coalesce(j.rate,0) + coalesce(j.extra,0)), 0)::float as venit,
-       coalesce(sum(coalesce(j.miles,0)), 0)::float as km,
-       count(*)::int as curse
+       coalesce(sum(${venitExpr("j")}), 0)::float as venit,
+       coalesce(sum(case when j.status = 'finalizat' then coalesce(j.miles,0) else 0 end), 0)::float as km,
+       (count(*) filter (where j.status = 'finalizat'))::int as curse
      from jobs j
      join drivers d on d.id = j.driver_id
-     where j.status = 'finalizat'
+     where ${venitFilter("j")}
        and coalesce(j.start_at, j.created_at) >= date_trunc('month', now())
        and coalesce(j.start_at, j.created_at) < date_trunc('month', now()) + interval '1 month'
      group by d.name
@@ -190,11 +237,15 @@ export type PeriodStats = {
   venitPrev: number;
   kmPrev: number;
   cursePrev: number;
+  /** din venit: taxele de anulare încasate în perioadă */
+  anulari: number;
+  anulariPrev: number;
 };
 
 /**
  * Venit, km și curse finalizate în ultimele `days` zile, comparat cu
- * perioada precedentă de aceeași lungime.
+ * perioada precedentă de aceeași lungime. Venitul include anulările
+ * plătite; km și nr. curse doar cursele finalizate.
  */
 export async function getPeriodStats(days = 30): Promise<PeriodStats> {
   const { rows } = await pool.query<{
@@ -204,19 +255,23 @@ export async function getPeriodStats(days = 30): Promise<PeriodStats> {
     venit_prev: number;
     km_prev: number;
     curse_prev: number;
+    anulari: number;
+    anulari_prev: number;
   }>(
     `with f as (
        select
-         coalesce(rate, 0) + coalesce(extra, 0) as venit,
-         coalesce(miles, 0) as km,
+         ${venitExpr()} as venit,
+         case when status = 'finalizat' then coalesce(miles, 0) else 0 end as km,
+         (status = 'finalizat') as fin,
+         (status = 'anulat') as anul,
          coalesce(start_at, created_at) as t
        from jobs
-       where status = 'finalizat'
+       where ${venitFilter()}
      )
      select
        coalesce(sum(venit) filter (where t >= now() - make_interval(days => $1::int)), 0)::float as venit,
        coalesce(sum(km) filter (where t >= now() - make_interval(days => $1::int)), 0)::float as km,
-       (count(*) filter (where t >= now() - make_interval(days => $1::int)))::int as curse,
+       (count(*) filter (where fin and t >= now() - make_interval(days => $1::int)))::int as curse,
        coalesce(sum(venit) filter (
          where t >= now() - make_interval(days => $1::int * 2)
            and t < now() - make_interval(days => $1::int)
@@ -226,9 +281,16 @@ export async function getPeriodStats(days = 30): Promise<PeriodStats> {
            and t < now() - make_interval(days => $1::int)
        ), 0)::float as km_prev,
        (count(*) filter (
-         where t >= now() - make_interval(days => $1::int * 2)
+         where fin
+           and t >= now() - make_interval(days => $1::int * 2)
            and t < now() - make_interval(days => $1::int)
-       ))::int as curse_prev
+       ))::int as curse_prev,
+       coalesce(sum(venit) filter (where anul and t >= now() - make_interval(days => $1::int)), 0)::float as anulari,
+       coalesce(sum(venit) filter (
+         where anul
+           and t >= now() - make_interval(days => $1::int * 2)
+           and t < now() - make_interval(days => $1::int)
+       ), 0)::float as anulari_prev
      from f`,
     [days]
   );
@@ -240,6 +302,8 @@ export async function getPeriodStats(days = 30): Promise<PeriodStats> {
     venitPrev: Number(r?.venit_prev) || 0,
     kmPrev: Number(r?.km_prev) || 0,
     cursePrev: Number(r?.curse_prev) || 0,
+    anulari: Number(r?.anulari) || 0,
+    anulariPrev: Number(r?.anulari_prev) || 0,
   };
 }
 
