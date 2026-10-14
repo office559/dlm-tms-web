@@ -112,6 +112,29 @@ export async function lastUnloadPlaceByVehicle(vehicleIds: string[]): Promise<Ma
 }
 
 /**
+ * Notița și tipul de echipaj (single / team) ale fiecărui vehicul, citite
+ * direct din baza de date. Dacă coloanele nu există încă, întoarce o listă
+ * goală, ca pagina Planificare să nu se strice.
+ */
+export async function vehicleExtrasByVehicle(
+  vehicleIds: string[]
+): Promise<Map<string, { note: string | null; crewType: string | null }>> {
+  const map = new Map<string, { note: string | null; crewType: string | null }>();
+  if (vehicleIds.length === 0) return map;
+  try {
+    const { rows } = await pool.query<{
+      id: string;
+      note: string | null;
+      crew_type: string | null;
+    }>(`select id, note, crew_type from vehicles where id = any($1)`, [vehicleIds]);
+    rows.forEach((r) => map.set(r.id, { note: r.note, crewType: r.crew_type }));
+  } catch {
+    // coloanele note / crew_type nu există încă — rulează SQL-ul din Supabase
+  }
+  return map;
+}
+
+/**
  * Ultimul tip de pauză săptămânală (45h / 24h) făcut de fiecare vehicul,
  * din istoricul salvat la fiecare pornire de pauză săptămânală (vezi
  * `logWeeklyRestStart` mai jos) — folosit ca să se calculeze automat
@@ -155,149 +178,4 @@ export async function weeklyRestSuggestionByVehicle(
 /**
  * Salvează în istoric o pauză săptămânală pornită (tip + interval exact),
  * ca să rămână disponibilă pentru calculul sugestiei chiar și după ce
- * pauza curentă e finalizată și câmpurile din `vehicles` sunt resetate.
- */
-async function logWeeklyRestStart(
-  vehicleId: string,
-  type: string,
-  startAt: string,
-  endAt: string
-) {
-  await pool.query(
-    `insert into vehicle_weekly_rest_log (vehicle_id, type, start_at, end_at)
-     values ($1, $2, $3, $4)`,
-    [vehicleId, type, startAt, endAt]
-  );
-}
-
-/** Actualizare rapidă a unui vehicul din tabelul de Planificare (fără să ceară tot formularul). */
-export async function patchVehicleQuick(
-  id: string,
-  fields: {
-    driverId?: string | null;
-    location?: string | null;
-    pause?: boolean;
-    programStart?: string | null;
-    programEnd?: string | null;
-    programStartAt?: string | null;
-    programEndAt?: string | null;
-    restDurH?: number | null;
-    restStart?: string | null;
-    restEnd?: string | null;
-    restStartAt?: string | null;
-    restEndAt?: string | null;
-    weeklyRest?: boolean;
-    weeklyRestType?: string | null;
-    weeklyRestStart?: string | null;
-    weeklyRestEnd?: string | null;
-    weeklyRestStartAt?: string | null;
-    weeklyRestEndAt?: string | null;
-    stateOverride?: string | null;
-    casesAdd?: string;
-    casesRemove?: string;
-  }
-) {
-  const sets: string[] = [];
-  const vals: unknown[] = [id];
-  if (fields.driverId !== undefined) {
-    vals.push(fields.driverId || null);
-    sets.push(`driver_id = $${vals.length}`);
-  }
-  if (fields.location !== undefined) {
-    vals.push(fields.location || null);
-    sets.push(`location = $${vals.length}`);
-  }
-  if (fields.pause !== undefined) {
-    vals.push(fields.pause);
-    sets.push(`pause = $${vals.length}`);
-  }
-  if (fields.programStart !== undefined) {
-    vals.push(fields.programStart || null);
-    sets.push(`program_start = $${vals.length}`);
-  }
-  if (fields.programEnd !== undefined) {
-    vals.push(fields.programEnd || null);
-    sets.push(`program_end = $${vals.length}`);
-  }
-  if (fields.programStartAt !== undefined) {
-    vals.push(fields.programStartAt || null);
-    sets.push(`program_start_at = $${vals.length}`);
-  }
-  if (fields.programEndAt !== undefined) {
-    vals.push(fields.programEndAt || null);
-    sets.push(`program_end_at = $${vals.length}`);
-  }
-  if (fields.restDurH !== undefined) {
-    vals.push(fields.restDurH ?? null);
-    sets.push(`rest_dur_h = $${vals.length}`);
-  }
-  if (fields.restStart !== undefined) {
-    vals.push(fields.restStart || null);
-    sets.push(`rest_start = $${vals.length}`);
-  }
-  if (fields.restEnd !== undefined) {
-    vals.push(fields.restEnd || null);
-    sets.push(`rest_end = $${vals.length}`);
-  }
-  if (fields.restStartAt !== undefined) {
-    vals.push(fields.restStartAt || null);
-    sets.push(`rest_start_at = $${vals.length}`);
-  }
-  if (fields.restEndAt !== undefined) {
-    vals.push(fields.restEndAt || null);
-    sets.push(`rest_end_at = $${vals.length}`);
-  }
-  if (fields.weeklyRest !== undefined) {
-    vals.push(fields.weeklyRest);
-    sets.push(`weekly_rest = $${vals.length}`);
-  }
-  if (fields.weeklyRestType !== undefined) {
-    vals.push(fields.weeklyRestType || null);
-    sets.push(`weekly_rest_type = $${vals.length}`);
-  }
-  if (fields.weeklyRestStart !== undefined) {
-    vals.push(fields.weeklyRestStart || null);
-    sets.push(`weekly_rest_start = $${vals.length}`);
-  }
-  if (fields.weeklyRestEnd !== undefined) {
-    vals.push(fields.weeklyRestEnd || null);
-    sets.push(`weekly_rest_end = $${vals.length}`);
-  }
-  if (fields.weeklyRestStartAt !== undefined) {
-    vals.push(fields.weeklyRestStartAt || null);
-    sets.push(`weekly_rest_start_at = $${vals.length}`);
-  }
-  if (fields.weeklyRestEndAt !== undefined) {
-    vals.push(fields.weeklyRestEndAt || null);
-    sets.push(`weekly_rest_end_at = $${vals.length}`);
-  }
-  if (fields.stateOverride !== undefined) {
-    vals.push(fields.stateOverride || null);
-    sets.push(`state_override = $${vals.length}`);
-  }
-  if (fields.casesAdd) {
-    vals.push(fields.casesAdd);
-    sets.push(`cases = array_append(coalesce(cases, '{}'), $${vals.length})`);
-  }
-  if (fields.casesRemove) {
-    vals.push(fields.casesRemove);
-    sets.push(`cases = array_remove(cases, $${vals.length})`);
-  }
-
-  if (
-    fields.weeklyRest === true &&
-    fields.weeklyRestType &&
-    fields.weeklyRestStartAt &&
-    fields.weeklyRestEndAt
-  ) {
-    await logWeeklyRestStart(
-      id,
-      fields.weeklyRestType,
-      fields.weeklyRestStartAt,
-      fields.weeklyRestEndAt
-    );
-  }
-
-  if (sets.length === 0) return;
-  await pool.query(`update vehicles set ${sets.join(", ")} where id = $1`, vals);
-}
+ * pauza curentă e
