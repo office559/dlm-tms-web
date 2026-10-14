@@ -40,6 +40,7 @@ export function DriverSelect({
   return (
     <select
       className={`w-full min-w-[140px] rounded-lg border border-slate-200 px-2 py-1 text-sm font-semibold disabled:opacity-50 ${FLEET_STATE_STYLES[state]}`}
+      key={value ?? ""}
       defaultValue={value ?? ""}
       disabled={saving}
       onChange={async (e) => {
