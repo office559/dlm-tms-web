@@ -43,6 +43,8 @@ const STATE_TABS: { key: string; label: string }[] = [
   { key: "stationare", label: "Staționare" },
 ];
 
+const VALID_STATES = STATE_TABS.filter((t) => t.key !== "toate").map((t) => t.key);
+
 export default async function PlanningPage({
   searchParams,
 }: {
@@ -52,8 +54,14 @@ export default async function PlanningPage({
   if (!session) redirect("/login");
 
   const params = await searchParams;
-  const activeFilter =
-    params.stare && STATE_TABS.some((t) => t.key === params.stare) ? params.stare : "toate";
+
+  // Filtre multiple: ?stare=disponibil,alocat
+  const selected = new Set(
+    (params.stare ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => VALID_STATES.includes(s))
+  );
 
   const [allVehicles, drivers, trailers] = await Promise.all([
     listVehicles(),
@@ -81,7 +89,7 @@ export default async function PlanningPage({
   for (const r of allRows) counts[r.state] = (counts[r.state] ?? 0) + 1;
 
   const filteredRows =
-    activeFilter === "toate" ? allRows : allRows.filter((r) => r.state === activeFilter);
+    selected.size === 0 ? allRows : allRows.filter((r) => selected.has(r.state));
 
   const rows: PlanningRow[] = filteredRows.map(({ v, job, state }) => {
     const trailer = v.trailer_id ? trailerById.get(v.trailer_id) ?? null : null;
@@ -130,9 +138,21 @@ export default async function PlanningPage({
   });
 
   const emptyMessage =
-    activeFilter === "toate"
+    selected.size === 0
       ? "Niciun vehicul activ găsit. Adaugă sau activează vehicule în secțiunea Vehicule."
-      : "Niciun vehicul în această categorie.";
+      : "Niciun vehicul în categoriile selectate.";
+
+  // Link pentru un filtru: adaugă sau scoate starea din selecție.
+  function tabHref(key: string) {
+    if (key === "toate") return "/planning";
+    const next = new Set(selected);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    if (next.size === 0) return "/planning";
+    // păstrăm ordinea din bara de filtre
+    const ordered = VALID_STATES.filter((s) => next.has(s));
+    return `/planning?stare=${ordered.join(",")}`;
+  }
 
   return (
     <AppShell active="planning" crumb="Planificare" wide>
@@ -146,12 +166,12 @@ export default async function PlanningPage({
 
         <div className="flex flex-wrap gap-2">
           {STATE_TABS.map((t) => {
-            const tabClass = activeFilter === t.key
+            const isOn = t.key === "toate" ? selected.size === 0 : selected.has(t.key);
+            const tabClass = isOn
               ? "rounded-full px-3 py-1.5 text-sm font-medium transition bg-brand text-white"
               : "rounded-full px-3 py-1.5 text-sm font-medium transition bg-white border border-slate-200 text-slate-600 hover:border-brand";
-            const tabHref = t.key === "toate" ? "/planning" : `/planning?stare=${t.key}`;
             return (
-              <a key={t.key} href={tabHref} className={tabClass}>
+              <a key={t.key} href={tabHref(t.key)} className={tabClass}>
                 {t.label} ({counts[t.key] ?? 0})
               </a>
             );
