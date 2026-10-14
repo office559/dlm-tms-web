@@ -10,6 +10,7 @@ import {
   currentJobsByVehicle,
   lastUnloadPlaceByVehicle,
   weeklyRestSuggestionByVehicle,
+  vehicleExtrasByVehicle,
 } from "@/lib/fleet";
 import { PlanningTable } from "@/components/PlanningTable";
 import type { PlanningRow } from "@/components/PlanningTable";
@@ -74,11 +75,13 @@ export default async function PlanningPage({
 
   const trailerById = new Map(trailers.map((t) => [t.id, t]));
   const vehicleIds = vehicles.map((v) => v.id);
-  const [jobsByVehicle, lastUnloadByVehicle, weeklyRestSuggestion] = await Promise.all([
-    currentJobsByVehicle(vehicleIds),
-    lastUnloadPlaceByVehicle(vehicleIds),
-    weeklyRestSuggestionByVehicle(vehicleIds),
-  ]);
+  const [jobsByVehicle, lastUnloadByVehicle, weeklyRestSuggestion, extrasByVehicle] =
+    await Promise.all([
+      currentJobsByVehicle(vehicleIds),
+      lastUnloadPlaceByVehicle(vehicleIds),
+      weeklyRestSuggestionByVehicle(vehicleIds),
+      vehicleExtrasByVehicle(vehicleIds),
+    ]);
 
   const allRows = vehicles
     .map((v) => ({ v, job: jobsByVehicle.get(v.id) ?? null }))
@@ -93,6 +96,7 @@ export default async function PlanningPage({
 
   const rows: PlanningRow[] = filteredRows.map(({ v, job, state }) => {
     const trailer = v.trailer_id ? trailerById.get(v.trailer_id) ?? null : null;
+    const extras = extrasByVehicle.get(v.id);
 
     let waState: "none" | "pending" | "confirmed" = "none";
     let waRead = false;
@@ -111,6 +115,8 @@ export default async function PlanningPage({
       jobRef: job?.ref ?? null,
       jobDateLabel: job?.start_at ? fmtDate(job.start_at) : "—",
       driverId: v.driver_id,
+      crewType: extras?.crewType ?? null,
+      note: extras?.note ?? null,
       programStart: v.program_start,
       programEnd: v.program_end,
       programStartAt: v.program_start_at ? v.program_start_at.toString() : null,
