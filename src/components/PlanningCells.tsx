@@ -274,7 +274,7 @@ type StareStep = "status" | "cancelFee" | "kmStart" | "kmEnd" | "done";
  * La trecerea în Tranzit se cere kilometrajul de start de pe bord, iar la
  * finalizarea cursei kilometrajul final; aplicația calculează km parcurși
  * și prețul pe km (tarif + extra, împărțit la km). Kilometrajul se poate
- * și omite.
+ * și omite. O cursă se poate anula atât din Viitor, cât și din Tranzit.
  */
 export function StareControl({
   vehicleId,
@@ -316,6 +316,11 @@ export function StareControl({
     options.push({
       label: FINISH_LABEL,
       style: "text-emerald-700 bg-emerald-50 hover:bg-emerald-100",
+      run: async () => {},
+    });
+    options.push({
+      label: CANCEL_LABEL,
+      style: "text-red-700 bg-red-50 hover:bg-red-100",
       run: async () => {},
     });
   } else if (state === "pauza") {
