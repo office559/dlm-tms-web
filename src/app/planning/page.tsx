@@ -55,11 +55,14 @@ export default async function PlanningPage({
   const activeFilter =
     params.stare && STATE_TABS.some((t) => t.key === params.stare) ? params.stare : "toate";
 
-  const [vehicles, drivers, trailers] = await Promise.all([
+  const [allVehicles, drivers, trailers] = await Promise.all([
     listVehicles(),
     listDrivers(),
     listTrailers(),
   ]);
+
+  // Vehiculele inactive nu apar în Planificare (rămân în lista de Vehicule).
+  const vehicles = allVehicles.filter((v) => v.active);
 
   const trailerById = new Map(trailers.map((t) => [t.id, t]));
   const vehicleIds = vehicles.map((v) => v.id);
@@ -128,7 +131,7 @@ export default async function PlanningPage({
 
   const emptyMessage =
     activeFilter === "toate"
-      ? "Niciun vehicul găsit. Adaugă vehicule în secțiunea Vehicule."
+      ? "Niciun vehicul activ găsit. Adaugă sau activează vehicule în secțiunea Vehicule."
       : "Niciun vehicul în această categorie.";
 
   return (
