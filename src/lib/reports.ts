@@ -1,114 +1,293 @@
-import { pool } from "@/lib/db";
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import {
+  getRevenueByCurrency,
+  getCostsByCategory,
+  getCostsByVehicle,
+  getCostsTotal,
+  getBrokerageSummary,
+  getJobsSummary,
+} from "@/lib/reports";
+import { listCompanies } from "@/lib/companies";
+import { AppShell } from "@/components/AppShell";
 
-export type CurrencyRevenue = {
-  currency: string;
-  count: number;
-  total: number;
-};
+const pad = (n: number) => String(n).padStart(2, "0");
 
-export type CategoryCost = {
-  category: string;
-  total: number;
-};
-
-export type VehicleCost = {
-  plate: string;
-  total: number;
-};
-
-export type BrokerageSummary = {
-  count: number;
-  client_total: number;
-  sub_total: number;
-  margin: number;
-};
-
-export type JobsSummary = {
-  total: number;
-  finalizat: number;
-  activ: number;
-  planificare: number;
-  anulat: number;
-};
-
-export async function getRevenueByCurrency(from: string, to: string) {
-  const { rows } = await pool.query<CurrencyRevenue>(
-    `select
-       coalesce(currency, '—') as currency,
-       count(*)::int as count,
-       coalesce(sum(coalesce(rate,0) + coalesce(extra,0)), 0)::float as total
-     from jobs
-     where coalesce(start_at::date, created_at::date) between $1 and $2
-     group by currency
-     order by total desc`,
-    [from, to]
-  );
-  return rows;
+function fmt(d: Date) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export async function getCostsByCategory(from: string, to: string) {
-  const { rows } = await pool.query<CategoryCost>(
-    `select category, coalesce(sum(amount), 0)::float as total
-     from costs
-     where date between $1 and $2
-     group by category
-     order by total desc`,
-    [from, to]
-  );
-  return rows;
+function firstOfMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
 }
 
-export async function getCostsByVehicle(from: string, to: string) {
-  const { rows } = await pool.query<VehicleCost>(
-    `select v.plate as plate, coalesce(sum(c.amount), 0)::float as total
-     from costs c
-     join vehicles v on v.id = c.vehicle_id
-     where c.date between $1 and $2
-     group by v.plate
-     order by total desc
-     limit 8`,
-    [from, to]
-  );
-  return rows;
+function today() {
+  return fmt(new Date());
 }
 
-export async function getCostsTotal(from: string, to: string) {
-  const { rows } = await pool.query<{ total: number }>(
-    `select coalesce(sum(amount), 0)::float as total from costs where date between $1 and $2`,
-    [from, to]
-  );
-  return rows[0]?.total ?? 0;
+/** Luni–Duminică pentru săptămâna aflată la `offsetWeeks` față de cea curentă. */
+function weekRange(offsetWeeks: number) {
+  const d = new Date();
+  const dayFromMonday = (d.getDay() + 6) % 7;
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dayFromMonday + offsetWeeks * 7);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+  return { from: fmt(start), to: fmt(end) };
 }
 
-export async function getBrokerageSummary(from: string, to: string) {
-  const { rows } = await pool.query<BrokerageSummary>(
-    `select
-       count(*)::int as count,
-       coalesce(sum(coalesce(client_price,0)), 0)::float as client_total,
-       coalesce(sum(coalesce(sub_price,0)), 0)::float as sub_total,
-       coalesce(sum(coalesce(client_price,0) - coalesce(sub_price,0)), 0)::float as margin
-     from brokerage
-     where coalesce(collect_date, created_at::date) between $1 and $2`,
-    [from, to]
-  );
-  return rows[0];
+/** Prima–ultima zi a lunii aflate la `offsetMonths` față de cea curentă. */
+function monthRange(offsetMonths: number) {
+  const d = new Date();
+  const start = new Date(d.getFullYear(), d.getMonth() + offsetMonths, 1);
+  const end = new Date(d.getFullYear(), d.getMonth() + offsetMonths + 1, 0);
+  return { from: fmt(start), to: fmt(end) };
 }
 
-export async function getJobsSummary(from: string, to: string) {
-  const { rows } = await pool.query<{ status: string; count: number }>(
-    `select status, count(*)::int as count
-     from jobs
-     where coalesce(start_at::date, created_at::date) between $1 and $2
-     group by status`,
-    [from, to]
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string; firma?: string }>;
+}) {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect("/login");
+
+  const params = await searchParams;
+  const from = params.from || firstOfMonth();
+  const to = params.to || today();
+  const firma = params.firma || "";
+
+  const companies = await listCompanies();
+  const companyLabel =
+    firma === ""
+      ? "Toate firmele"
+      : firma === "none"
+        ? "Fără firmă"
+        : companies.find((c) => c.id === firma)?.name ?? "Firmă necunoscută";
+
+  const [revenue, costsByCategory, costsByVehicle, costsTotal, brokerage, jobs] = await Promise.all([
+    getRevenueByCurrency(from, to, firma),
+    getCostsByCategory(from, to, firma),
+    getCostsByVehicle(from, to, firma),
+    getCostsTotal(from, to, firma),
+    getBrokerageSummary(from, to),
+    getJobsSummary(from, to, firma),
+  ]);
+
+  const showBrokerage = firma === "";
+
+  const presets = [
+    { label: "Săptămâna aceasta", ...weekRange(0) },
+    { label: "Săptămâna trecută", ...weekRange(-1) },
+    { label: "Luna aceasta", ...monthRange(0) },
+    { label: "Luna trecută", ...monthRange(-1) },
+  ];
+
+  const presetHref = (p: { from: string; to: string }) => {
+    const qs = new URLSearchParams({ from: p.from, to: p.to });
+    if (firma) qs.set("firma", firma);
+    return `/reports?${qs.toString()}`;
+  };
+
+  return (
+    <AppShell active="reports" crumb="Rapoarte & Profituri">
+      <div className="space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold text-brand-dark">Rapoarte &amp; Profituri</h1>
+        <p className="text-slate-600 mt-1">
+          Situație agregată pentru perioada selectată · <span className="font-medium">{companyLabel}</span>
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {presets.map((p) => {
+          const active = p.from === from && p.to === to;
+          return (
+            <a
+              key={p.label}
+              href={presetHref(p)}
+              className={
+                active
+                  ? "rounded-full bg-brand px-3 py-1.5 text-sm font-medium text-white"
+                  : "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-brand"
+              }
+            >
+              {p.label}
+            </a>
+          );
+        })}
+      </div>
+
+      <form className="flex flex-wrap items-end gap-4 bg-white rounded-2xl border border-slate-200 p-4">
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">Firmă</label>
+          <select
+            name="firma"
+            defaultValue={firma}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:border-brand"
+          >
+            <option value="">Toate firmele</option>
+            {companies.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value="none">Fără firmă</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">De la</label>
+          <input
+            type="date"
+            name="from"
+            defaultValue={from}
+            className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
+          />
+        </div>
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">Până la</label>
+          <input
+            type="date"
+            name="to"
+            defaultValue={to}
+            className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
+          />
+        </div>
+        <button
+          type="submit"
+          className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition"
+        >
+          Filtrează
+        </button>
+      </form>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <p className="text-sm text-slate-500">Curse în perioadă</p>
+          <p className="text-2xl font-semibold text-brand-dark mt-1">{jobs.total}</p>
+          <p className="text-xs text-slate-500 mt-2">
+            {jobs.finalizat} finalizate · {jobs.activ} active · {jobs.planificare} planificate · {jobs.anulat} anulate
+          </p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <p className="text-sm text-slate-500">Cheltuieli flotă</p>
+          <p className="text-2xl font-semibold text-red-600 mt-1">{costsTotal.toFixed(2)}</p>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <p className="text-sm text-slate-500">Marjă brokeraj</p>
+          {showBrokerage ? (
+            <>
+              <p className={`text-2xl font-semibold mt-1 ${brokerage.margin < 0 ? "text-red-600" : "text-emerald-700"}`}>
+                {brokerage.margin.toFixed(2)}
+              </p>
+              <p className="text-xs text-slate-500 mt-2">{brokerage.count} înregistrări</p>
+            </>
+          ) : (
+            <>
+              <p className="text-2xl font-semibold mt-1 text-slate-300">—</p>
+              <p className="text-xs text-slate-500 mt-2">
+                Brokerajul nu aparține unei firme. Apare doar la „Toate firmele".
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <h2 className="font-medium text-brand-dark">Venituri curse pe monedă</h2>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500 text-left">
+              <tr>
+                <th className="px-4 py-2">Monedă</th>
+                <th className="px-4 py-2">Nr. curse</th>
+                <th className="px-4 py-2">Total (tarif + extra)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {revenue.map((r) => (
+                <tr key={r.currency} className="border-t border-slate-100">
+                  <td className="px-4 py-2 font-medium">{r.currency}</td>
+                  <td className="px-4 py-2">{r.count}</td>
+                  <td className="px-4 py-2">{Number(r.total).toFixed(2)}</td>
+                </tr>
+              ))}
+              {revenue.length === 0 && (
+                <tr>
+                  <td colSpan={3} className="px-4 py-6 text-center text-slate-400">
+                    Nicio cursă în perioadă.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <h2 className="font-medium text-brand-dark">Cheltuieli pe categorie</h2>
+          </div>
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-slate-500 text-left">
+              <tr>
+                <th className="px-4 py-2">Categorie</th>
+                <th className="px-4 py-2">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {costsByCategory.map((c) => (
+                <tr key={c.category} className="border-t border-slate-100">
+                  <td className="px-4 py-2 font-medium">{c.category}</td>
+                  <td className="px-4 py-2">{Number(c.total).toFixed(2)}</td>
+                </tr>
+              ))}
+              {costsByCategory.length === 0 && (
+                <tr>
+                  <td colSpan={2} className="px-4 py-6 text-center text-slate-400">
+                    Nicio cheltuială în perioadă.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100">
+          <h2 className="font-medium text-brand-dark">Cheltuieli pe vehicul (top 8)</h2>
+        </div>
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 text-slate-500 text-left">
+            <tr>
+              <th className="px-4 py-2">Vehicul</th>
+              <th className="px-4 py-2">Total cheltuieli</th>
+            </tr>
+          </thead>
+          <tbody>
+            {costsByVehicle.map((v) => (
+              <tr key={v.plate} className="border-t border-slate-100">
+                <td className="px-4 py-2 font-medium">{v.plate}</td>
+                <td className="px-4 py-2">{Number(v.total).toFixed(2)}</td>
+              </tr>
+            ))}
+            {costsByVehicle.length === 0 && (
+              <tr>
+                <td colSpan={2} className="px-4 py-6 text-center text-slate-400">
+                  Nicio cheltuială asociată unui vehicul în perioadă.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-xs text-slate-400">
+        Notă: veniturile din curse sunt afișate pe monedă (pot fi în EUR, USD, GBP sau RON), iar cheltuielile și marja de brokeraj sunt în RON — profitul net trebuie calculat manual dacă monedele diferă. Cursele și cheltuielile se leagă de o firmă prin vehiculul lor; cele fără vehicul apar la „Toate firmele" și la „Fără firmă".
+      </p>
+      </div>
+    </AppShell>
   );
-  const summary: JobsSummary = { total: 0, finalizat: 0, activ: 0, planificare: 0, anulat: 0 };
-  for (const r of rows) {
-    summary.total += Number(r.count);
-    if (r.status === "finalizat") summary.finalizat = Number(r.count);
-    else if (r.status === "activ") summary.activ = Number(r.count);
-    else if (r.status === "planificare") summary.planificare = Number(r.count);
-    else if (r.status === "anulat") summary.anulat = Number(r.count);
-  }
-  return summary;
 }
