@@ -15,6 +15,7 @@ type VehicleFormValues = {
   tachoExp: string;
   driverId: string;
   trailerId: string;
+  companyId: string;
   active: boolean;
 };
 
@@ -30,6 +31,7 @@ const EMPTY: VehicleFormValues = {
   tachoExp: "",
   driverId: "",
   trailerId: "",
+  companyId: "",
   active: true,
 };
 
@@ -37,16 +39,21 @@ export function VehicleForm({
   initial,
   drivers,
   trailers,
+  companies = [],
 }: {
   initial?: Partial<VehicleFormValues> & { id: string };
   drivers: { id: string; name: string }[];
   trailers: { id: string; plate: string }[];
+  companies?: { id: string; name: string; active: boolean }[];
 }) {
   const router = useRouter();
   const [values, setValues] = useState<VehicleFormValues>({ ...EMPTY, ...initial });
   const [status, setStatus] = useState<"idle" | "loading">("idle");
   const [error, setError] = useState<string | null>(null);
   const isEdit = Boolean(initial?.id);
+
+  // Firmele active, plus firma curentă a vehiculului chiar dacă a fost dezactivată.
+  const companyOptions = companies.filter((c) => c.active || c.id === values.companyId);
 
   function set<K extends keyof VehicleFormValues>(key: K, value: VehicleFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
@@ -68,6 +75,7 @@ export function VehicleForm({
       tachoExp: values.tachoExp || null,
       driverId: values.driverId || null,
       trailerId: values.trailerId || null,
+      companyId: values.companyId || null,
       active: values.active,
     };
     const res = await fetch(isEdit ? `/api/vehicles/${initial!.id}` : "/api/vehicles", {
@@ -97,6 +105,24 @@ export function VehicleForm({
             className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
           />
         </div>
+
+        {companies.length > 0 && (
+          <div className="space-y-1 col-span-2">
+            <label className="text-sm text-slate-600">Firmă (cui aparține vehiculul)</label>
+            <select
+              value={values.companyId}
+              onChange={(e) => set("companyId", e.target.value)}
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
+            >
+              <option value="">— Fără firmă —</option>
+              {companyOptions.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="space-y-1">
           <label className="text-sm text-slate-600">Tip vehicul</label>
