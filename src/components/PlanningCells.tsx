@@ -4,6 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { FleetState } from "@/lib/fleet-labels";
 import { FLEET_STATE_LABELS, FLEET_STATE_STYLES } from "@/lib/fleet-labels";
+import { useTimezone } from "@/components/TimezoneProvider";
+import { formatTimeInTz, nowTimeInTz, zonedTimeToDate } from "@/lib/tz";
 
 async function patchVehicle(id: string, body: Record<string, unknown>) {
   await fetch(`/api/vehicles/${id}/quick`, {
@@ -217,10 +219,10 @@ export function LocationControl({
   );
 }
 
-function startPauseBody(hours: number, startTime?: string): Record<string, unknown> {
-  const now = startTime ? combineDateTime(startTime) : new Date();
+function startPauseBody(hours: number, tz: string, startTime?: string): Record<string, unknown> {
+  const now = startTime ? zonedTimeToDate(startTime, tz) : new Date();
   const end = new Date(now.getTime() + hours * 60 * 60 * 1000);
-  const fmt = (d: Date) => d.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
+  const fmt = (d: Date) => formatTimeInTz(d, tz);
   return {
     pause: true,
     restDurH: hours,
@@ -241,14 +243,6 @@ function endPauseBody(): Record<string, unknown> {
     restStartAt: null,
     restEndAt: null,
   };
-}
-
-/** Ora "HH:MM" combinată cu data de azi. */
-function combineDateTime(time: string, base: Date = new Date()): Date {
-  const [h, m] = time.split(":").map((n) => Number(n) || 0);
-  const d = new Date(base);
-  d.setHours(h, m, 0, 0);
-  return d;
 }
 
 /** "3h 42m" / "42m" dintr-o durată în milisecunde (minim 0). */
@@ -286,6 +280,7 @@ export function StareControl({
   state: FleetState;
 }) {
   const router = useRouter();
+  const tz = useTimezone();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<StareStep>("status");
   const [customFee, setCustomFee] = useState("");
@@ -343,7 +338,7 @@ export function StareControl({
     options.push({
       label: "Pauză",
       style: "text-sky-700 bg-sky-50 hover:bg-sky-100",
-      run: () => patchVehicle(vehicleId, startPauseBody(9)),
+      run: () => patchVehicle(vehicleId, startPauseBody(9, tz)),
     });
   } else if (state === "indisponibil") {
     options.push({
@@ -354,7 +349,7 @@ export function StareControl({
     options.push({
       label: "Pauză",
       style: "text-sky-700 bg-sky-50 hover:bg-sky-100",
-      run: () => patchVehicle(vehicleId, startPauseBody(9)),
+      run: () => patchVehicle(vehicleId, startPauseBody(9, tz)),
     });
   }
 
@@ -839,14 +834,29 @@ export function ProgramControl({
   programEndAt: string | null;
 }) {
   const router = useRouter();
+  const tz = useTimezone();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [start, setStart] = useState(programStart ?? "");
+
+  // Orele afișate, în fusul orar ales (cu rezervă pe textul salvat).
+  const shownStart = (programStartAt && formatTimeInTz(programStartAt, tz)) || programStart;
+  const shownEnd = (programEndAt && formatTimeInTz(programEndAt, tz)) || programEnd;
+
+  const [start, setStart] = useState(shownStart ?? "");
   const [duration, setDuration] = useState<number | "">(() => {
-    if (!programStart || !programEnd) return "";
-    const guess = PROGRAM_DURATIONS.find((d) => addHoursToTime(programStart, d) === programEnd);
+    if (!shownStart || !shownEnd) return "";
+    const guess = PROGRAM_DURATIONS.find((d) => addHoursToTime(shownStart, d) === shownEnd);
     return guess ?? "";
   });
+
+  function openEditor() {
+    setStart(shownStart ?? "");
+    if (shownStart && shownEnd) {
+      const guess = PROGRAM_DURATIONS.find((d) => addHoursToTime(shownStart, d) === shownEnd);
+      setDuration(guess ?? "");
+    }
+    setOpen(true);
+  }
 
   async function save() {
     if (!start || !duration) {
@@ -855,8 +865,8 @@ export function ProgramControl({
     }
     setSaving(true);
     const end = addHoursToTime(start, Number(duration));
-    const startAt = combineDateTime(start);
-    let endAt = combineDateTime(end);
+    const startAt = zonedTimeToDate(start, tz);
+    let endAt = zonedTimeToDate(end, tz);
     if (endAt.getTime() <= startAt.getTime()) {
       endAt = new Date(endAt.getTime() + 24 * 60 * 60 * 1000);
     }
@@ -902,15 +912,15 @@ export function ProgramControl({
 
   return (
     <div className="flex flex-col gap-0.5">
-      {programStart && programEnd ? (
+      {shownStart && shownEnd ? (
         <div className="flex items-center gap-1.5">
           <span className="inline-flex overflow-hidden rounded-lg text-sm font-semibold">
-            <span className="whitespace-nowrap bg-green-700 px-2 py-1 text-white">{programStart}</span>
-            <span className="whitespace-nowrap bg-red-500 px-2 py-1 text-white">{programEnd}</span>
+            <span className="whitespace-nowrap bg-green-700 px-2 py-1 text-white">{shownStart}</span>
+            <span className="whitespace-nowrap bg-red-500 px-2 py-1 text-white">{shownEnd}</span>
           </span>
           <button
             type="button"
-            onClick={() => setOpen(true)}
+            onClick={openEditor}
             aria-label="Editează programul"
             className="text-slate-400 hover:text-slate-600"
           >
@@ -920,7 +930,7 @@ export function ProgramControl({
       ) : (
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={openEditor}
           className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600"
         >
           <span>—</span>
@@ -949,539 +959,3 @@ export function ProgramControl({
               </button>
             </div>
             <div className="flex flex-col gap-2">
-              <input
-                type="time"
-                className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
-                value={start}
-                disabled={saving}
-                onChange={(e) => setStart(e.target.value)}
-              />
-              <select
-                className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
-                value={duration}
-                disabled={saving}
-                onChange={(e) => setDuration(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">— ore</option>
-                {PROGRAM_DURATIONS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}h
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                disabled={saving || !start || !duration}
-                onClick={save}
-                className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
-              >
-                Salvează
-              </button>
-              {programStart && programEnd && (
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={cancel}
-                  className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 transition"
-                >
-                  Anulează programul
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-const PAUSE_DURATIONS = [9, 11, 24];
-
-/**
- * Pauză vehicul: dacă nu e activă, arată „— [+]"; dacă e activă, arată o
- * pastilă roșu (start) / verde (final) cu creion de editare, și dedesubt
- * „Mai are Xh Ym" calculat din ora exactă de final a pauzei.
- */
-export function PauseBadgeControl({
-  vehicleId,
-  pause,
-  restStart,
-  restEnd,
-  restEndAt,
-}: {
-  vehicleId: string;
-  pause: boolean;
-  restStart: string | null;
-  restEnd: string | null;
-  restEndAt: string | null;
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [custom, setCustom] = useState("");
-  const [startTime, setStartTime] = useState(() => {
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  });
-
-  async function start(hours: number) {
-    setSaving(true);
-    await patchVehicle(vehicleId, startPauseBody(hours, startTime));
-    setSaving(false);
-    setOpen(false);
-    router.refresh();
-  }
-
-  async function end() {
-    setSaving(true);
-    await patchVehicle(vehicleId, endPauseBody());
-    setSaving(false);
-    setOpen(false);
-    router.refresh();
-  }
-
-  const endAtDate = restEndAt ? new Date(restEndAt) : null;
-  const now = Date.now();
-  let subText: string | null = null;
-  if (pause && endAtDate) {
-    subText =
-      now < endAtDate.getTime() ? `Mai are ${fmtCountdown(endAtDate.getTime() - now)}` : "Pauză încheiată";
-  }
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      {pause && restStart && restEnd ? (
-        <div className="flex items-center gap-1.5">
-          <span className="inline-flex overflow-hidden rounded-lg text-sm font-semibold">
-            <span className="whitespace-nowrap bg-red-500 px-2 py-1 text-white">{restStart}</span>
-            <span className="whitespace-nowrap bg-emerald-500 px-2 py-1 text-white">{restEnd}</span>
-          </span>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Editează pauza"
-            className="text-slate-400 hover:text-slate-600"
-          >
-            ✎
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600"
-        >
-          <span>—</span>
-          <span aria-hidden="true">✎</span>
-        </button>
-      )}
-      {subText && <div className="text-xs text-slate-400">{subText}</div>}
-
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-brand-dark">Pauză vehicul</h3>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="text-lg leading-none text-slate-400 hover:text-slate-600"
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-500">Ora de început a pauzei</label>
-                <input
-                  type="time"
-                  className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
-                  value={startTime}
-                  disabled={saving}
-                  onChange={(e) => setStartTime(e.target.value)}
-                />
-              </div>
-              {PAUSE_DURATIONS.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => start(d)}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-left text-sm hover:border-brand hover:bg-slate-50 transition disabled:opacity-50"
-                >
-                  {d}h
-                </button>
-              ))}
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  placeholder="ore personalizat"
-                  className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
-                  value={custom}
-                  disabled={saving}
-                  onChange={(e) => setCustom(e.target.value)}
-                />
-                <button
-                  type="button"
-                  disabled={saving || !custom}
-                  onClick={() => start(Number(custom))}
-                  className="shrink-0 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
-                >
-                  OK
-                </button>
-              </div>
-              {pause && (
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={end}
-                  className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 transition"
-                >
-                  Finalizează pauza
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Iconiță de lună, pentru cardurile de repaus săptămânal (45h / 24h). */
-function MoonIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-      <path d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9.003 9.003 0 1 0 20.354 15.354Z" />
-    </svg>
-  );
-}
-
-const WEEKLY_REST_HOURS: Record<"45" | "24", number> = { "45": 45, "24": 24 };
-
-/**
- * Pauză Săptămânală vehicul: dacă nu e activă, arată „— [+]"; dispecerul
- * alege repaus normal (45h) sau redus (24h), iar ora de final se calculează
- * automat (ora de start + 45/24h), la fel ca la Pauză (zilnică).
- */
-export function WeeklyRestControl({
-  vehicleId,
-  weeklyRest,
-  weeklyRestType,
-  weeklyRestStart,
-  weeklyRestEnd,
-  weeklyRestEndAt,
-  suggestedType,
-}: {
-  vehicleId: string;
-  weeklyRest: boolean;
-  weeklyRestType: string | null;
-  weeklyRestStart: string | null;
-  weeklyRestEnd: string | null;
-  weeklyRestEndAt: string | null;
-  suggestedType: "45" | "24";
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [startTime, setStartTime] = useState(() => {
-    const now = new Date();
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${pad(now.getHours())}:${pad(now.getMinutes())}`;
-  });
-
-  async function start(type: "45" | "24") {
-    setSaving(true);
-    const hours = WEEKLY_REST_HOURS[type];
-    const now = combineDateTime(startTime);
-    const end = new Date(now.getTime() + hours * 60 * 60 * 1000);
-    const fmt = (d: Date) => d.toLocaleTimeString("ro-RO", { hour: "2-digit", minute: "2-digit" });
-    await patchVehicle(vehicleId, {
-      weeklyRest: true,
-      weeklyRestType: type,
-      weeklyRestStart: fmt(now),
-      weeklyRestEnd: fmt(end),
-      weeklyRestStartAt: now.toISOString(),
-      weeklyRestEndAt: end.toISOString(),
-    });
-    setSaving(false);
-    setOpen(false);
-    router.refresh();
-  }
-
-  async function endRest() {
-    setSaving(true);
-    await patchVehicle(vehicleId, {
-      weeklyRest: false,
-      weeklyRestType: null,
-      weeklyRestStart: null,
-      weeklyRestEnd: null,
-      weeklyRestStartAt: null,
-      weeklyRestEndAt: null,
-    });
-    setSaving(false);
-    setOpen(false);
-    router.refresh();
-  }
-
-  const endAtDate = weeklyRestEndAt ? new Date(weeklyRestEndAt) : null;
-  const now = Date.now();
-  let subText: string | null = null;
-  if (weeklyRest && endAtDate) {
-    subText =
-      now < endAtDate.getTime()
-        ? `Mai are ${fmtCountdown(endAtDate.getTime() - now)}`
-        : "Repaus încheiat";
-  }
-
-  const pillColor = weeklyRestType === "45" ? "bg-purple-500" : "bg-sky-500";
-
-  return (
-    <div className="flex flex-col gap-0.5">
-      {weeklyRest && weeklyRestStart && weeklyRestEnd ? (
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`whitespace-nowrap rounded-lg ${pillColor} px-2 py-1 text-sm font-semibold text-white`}
-          >
-            {weeklyRestStart} – {weeklyRestEnd}
-          </span>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Editează pauza săptămânală"
-            className="text-slate-400 hover:text-slate-600"
-          >
-            ✎
-          </button>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600"
-        >
-          <span>—</span>
-          <span aria-hidden="true">✎</span>
-        </button>
-      )}
-      {subText && <div className="text-xs text-slate-400">{subText}</div>}
-      {!weeklyRest && (
-        <div className="text-xs font-medium text-purple-500">
-          Recomandat: {suggestedType}h
-        </div>
-      )}
-
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-brand-dark">Pauză Săptămânală</h3>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="text-lg leading-none text-slate-400 hover:text-slate-600"
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-500">Ora de început</label>
-                <input
-                  type="time"
-                  className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
-                  value={startTime}
-                  disabled={saving}
-                  onChange={(e) => setStartTime(e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => start("45")}
-                  className={`relative flex flex-col items-center gap-1 rounded-2xl border-2 bg-white px-2 py-3 transition disabled:opacity-50 ${
-                    suggestedType === "45"
-                      ? "border-purple-400 bg-purple-50/50"
-                      : "border-purple-200 hover:border-purple-400 hover:bg-purple-50"
-                  }`}
-                >
-                  {suggestedType === "45" && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-purple-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                      Recomandat
-                    </span>
-                  )}
-                  <MoonIcon className="h-6 w-6 text-purple-500" />
-                  <span className="text-sm font-bold text-slate-700">45h</span>
-                  <span className="text-[11px] text-center font-medium text-purple-600">
-                    Repaus săptămânal
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => start("24")}
-                  className={`relative flex flex-col items-center gap-1 rounded-2xl border-2 bg-white px-2 py-3 transition disabled:opacity-50 ${
-                    suggestedType === "24"
-                      ? "border-sky-400 bg-sky-50/50"
-                      : "border-sky-200 hover:border-sky-400 hover:bg-sky-50"
-                  }`}
-                >
-                  {suggestedType === "24" && (
-                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-semibold text-white">
-                      Recomandat
-                    </span>
-                  )}
-                  <MoonIcon className="h-6 w-6 text-sky-500" />
-                  <span className="text-sm font-bold text-slate-700">24h</span>
-                  <span className="text-[11px] text-center font-medium text-sky-600">
-                    Repaus redus
-                  </span>
-                </button>
-              </div>
-              {weeklyRest && (
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={endRest}
-                  className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 transition"
-                >
-                  Finalizează pauza săptămânală
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Cazuri: fiecare vehicul poate avea mai multe numere de caz atașate —
- * afișate ca etichete mici, cu buton [+] pentru adăugare rapidă (popup cu
- * un singur câmp text) și „×" pe fiecare etichetă pentru ștergere.
- */
-export function CazuriControl({
-  vehicleId,
-  cases,
-}: {
-  vehicleId: string;
-  cases: string[];
-}) {
-  const router = useRouter();
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [value, setValue] = useState("");
-
-  async function add() {
-    const v = value.trim();
-    if (!v) return;
-    setSaving(true);
-    await patchVehicle(vehicleId, { casesAdd: v });
-    setSaving(false);
-    setValue("");
-    setOpen(false);
-    router.refresh();
-  }
-
-  async function remove(c: string) {
-    setSaving(true);
-    await patchVehicle(vehicleId, { casesRemove: c });
-    setSaving(false);
-    router.refresh();
-  }
-
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-1">
-        {cases.map((c) => (
-          <span
-            key={c}
-            className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
-          >
-            {c}
-            <button
-              type="button"
-              onClick={() => remove(c)}
-              disabled={saving}
-              aria-label={`Șterge cazul ${c}`}
-              className="text-slate-400 hover:text-red-500 disabled:opacity-50"
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          disabled={saving}
-          aria-label="Adaugă caz"
-          title="Adaugă număr de caz"
-          className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-brand hover:text-brand disabled:opacity-50"
-        >
-          +
-        </button>
-      </div>
-
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4"
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-brand-dark">Adaugă caz</h3>
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="text-lg leading-none text-slate-400 hover:text-slate-600"
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex flex-col gap-2">
-              <input
-                type="text"
-                autoFocus
-                placeholder="Număr de CAZ"
-                className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
-                value={value}
-                disabled={saving}
-                onChange={(e) => setValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") add();
-                }}
-              />
-              <button
-                type="button"
-                disabled={saving || !value.trim()}
-                onClick={add}
-                className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
-              >
-                Adaugă
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
