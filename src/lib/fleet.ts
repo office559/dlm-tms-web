@@ -4,17 +4,11 @@ import type { Job } from "@/lib/jobs";
 import type { FleetState } from "@/lib/fleet-labels";
 import { FLEET_STATE_LABELS, FLEET_STATE_STYLES, FLEET_ROW_STYLES } from "@/lib/fleet-labels";
 
-// Reexportate pentru compatibilitate — fișierele client (ex. PlanningCells.tsx)
-// importă tipul și etichetele din "@/lib/fleet-labels" direct, ca să nu tragă
-// "pg" (server-only) în bundle-ul de client.
+// Reexportate pentru compatibilitate (fișierele client importă din fleet-labels).
 export type { FleetState };
 export { FLEET_STATE_LABELS, FLEET_STATE_STYLES, FLEET_ROW_STYLES };
 
-/**
- * True dacă vehiculul are o pauză cu oră de sfârșit care a trecut deja.
- * Bifa `pause` rămâne true în baza de date după ce pauza expiră, așa că
- * starea se calculează aici, în funcție de ora curentă.
- */
+/** True dacă pauza are oră de sfârșit care a trecut deja. */
 function pauseEnded(v: Vehicle): boolean {
   const raw = (v as unknown as { rest_end_at?: string | Date | null }).rest_end_at;
   if (!raw) return false;
@@ -23,12 +17,7 @@ function pauseEnded(v: Vehicle): boolean {
   return end <= Date.now();
 }
 
-/**
- * Starea unui vehicul în Planificare, derivată din datele reale (nu mai e
- * stocată separat): activ/inactiv, suprascriere manuală, cursa curentă și
- * pauza. Oglindește logica din macheta veche, adaptată la statusurile
- * reale de cursă din aplicație (planificare / activ / finalizat / anulat).
- */
+/** Starea unui vehicul în Planificare, derivată din datele reale. */
 export function fleetState(v: Vehicle, currentJob: Job | null): FleetState {
   if (!v.active) return "stationare";
   if (v.state_override === "stationare") return "stationare";
@@ -40,12 +29,7 @@ export function fleetState(v: Vehicle, currentJob: Job | null): FleetState {
   return "disponibil";
 }
 
-/**
- * Șterge pauzele scurte care au expirat: scoate bifa de pauză și orele
- * (start/sfârșit/durată), ca vehiculul să apară curat în Planificare.
- * Se apelează la încărcarea tabelului; erorile sunt ignorate ca să nu
- * blocheze pagina.
- */
+/** Șterge pauzele scurte expirate (bifa + orele), ca vehiculul să apară curat. */
 async function clearExpiredPauses() {
   try {
     await pool.query(
@@ -61,15 +45,11 @@ async function clearExpiredPauses() {
           and rest_end_at <= now()`
     );
   } catch {
-    // ignorăm — curățarea se va încerca din nou la următoarea încărcare
+    // se încearcă din nou la următoarea încărcare
   }
 }
 
-/**
- * Pentru fiecare vehicul din listă, găsește cursa lui curentă sau
- * următoare (status planificare/activ), preferând cea aflată deja în
- * desfășurare.
- */
+/** Cursa curentă sau următoare (planificare / activ) pentru fiecare vehicul. */
 export async function currentJobsByVehicle(vehicleIds: string[]): Promise<Map<string, Job>> {
   await clearExpiredPauses();
   if (vehicleIds.length === 0) return new Map();
@@ -88,11 +68,7 @@ export async function currentJobsByVehicle(vehicleIds: string[]): Promise<Map<st
   return map;
 }
 
-/**
- * Pentru vehiculele fără locație setată manual, ultima locație de
- * descărcare (din ultima cursă finalizată) — folosită ca valoare automată
- * în Planificare, până când dispecerul o schimbă manual.
- */
+/** Ultima locație de descărcare (din ultima cursă finalizată) pentru fiecare vehicul. */
 export async function lastUnloadPlaceByVehicle(vehicleIds: string[]): Promise<Map<string, string>> {
   if (vehicleIds.length === 0) return new Map();
   const { rows } = await pool.query<{ vehicle_id: string; unload_place: string | null }>(
@@ -111,11 +87,7 @@ export async function lastUnloadPlaceByVehicle(vehicleIds: string[]): Promise<Ma
   return map;
 }
 
-/**
- * Notița și tipul de echipaj (single / team) ale fiecărui vehicul, citite
- * direct din baza de date. Dacă coloanele nu există încă, întoarce o listă
- * goală, ca pagina Planificare să nu se strice.
- */
+/** Notița și tipul de echipaj (single / team) ale fiecărui vehicul. */
 export async function vehicleExtrasByVehicle(
   vehicleIds: string[]
 ): Promise<Map<string, { note: string | null; crewType: string | null }>> {
@@ -129,17 +101,12 @@ export async function vehicleExtrasByVehicle(
     }>(`select id, note, crew_type from vehicles where id = any($1)`, [vehicleIds]);
     rows.forEach((r) => map.set(r.id, { note: r.note, crewType: r.crew_type }));
   } catch {
-    // coloanele note / crew_type nu există încă — rulează SQL-ul din Supabase
+    // coloanele note / crew_type nu există încă
   }
   return map;
 }
 
-/**
- * Ultimul tip de pauză săptămânală (45h / 24h) făcut de fiecare vehicul,
- * din istoricul salvat la fiecare pornire de pauză săptămânală (vezi
- * `logWeeklyRestStart` mai jos) — folosit ca să se calculeze automat
- * sugestia pentru săptămâna următoare.
- */
+/** Ultimul tip de pauză săptămânală (45 / 24) al fiecărui vehicul. */
 async function lastWeeklyRestTypeByVehicle(vehicleIds: string[]): Promise<Map<string, string>> {
   if (vehicleIds.length === 0) return new Map();
   const { rows } = await pool.query<{ vehicle_id: string; type: string }>(
@@ -154,15 +121,7 @@ async function lastWeeklyRestTypeByVehicle(vehicleIds: string[]): Promise<Map<st
   return map;
 }
 
-/**
- * Sugestia de pauză săptămânală pentru fiecare vehicul (45h sau 24h),
- * calculată din ultima pauză săptămânală înregistrată: dacă ultima a fost
- * redusă (24h), următoarea TREBUIE să fie normală (45h, conform regulii —
- * nu poți lua 24h de două ori la rând); dacă ultima a fost normală (45h),
- * se sugerează alternarea la 24h; dacă nu există niciun istoric, se
- * sugerează 45h ca punct de plecare sigur. Dispecerul poate oricând alege
- * manual altă variantă din popup — e doar o sugestie, nu o blocare.
- */
+/** Sugestia pentru pauza săptămânală următoare: după 24h urmează 45h, altfel alternează. */
 export async function weeklyRestSuggestionByVehicle(
   vehicleIds: string[]
 ): Promise<Map<string, "45" | "24">> {
@@ -175,7 +134,161 @@ export async function weeklyRestSuggestionByVehicle(
   return map;
 }
 
-/**
- * Salvează în istoric o pauză săptămânală pornită (tip + interval exact),
- * ca să rămână disponibilă pentru calculul sugestiei chiar și după ce
- * pauza curentă e
+/** Salvează în istoric o pauză săptămânală pornită. */
+async function logWeeklyRestStart(
+  vehicleId: string,
+  type: string,
+  startAt: string,
+  endAt: string
+) {
+  await pool.query(
+    `insert into vehicle_weekly_rest_log (vehicle_id, type, start_at, end_at)
+     values ($1, $2, $3, $4)`,
+    [vehicleId, type, startAt, endAt]
+  );
+}
+
+/** Actualizare rapidă a unui vehicul din tabelul de Planificare. */
+export async function patchVehicleQuick(
+  id: string,
+  fields: {
+    driverId?: string | null;
+    location?: string | null;
+    pause?: boolean;
+    programStart?: string | null;
+    programEnd?: string | null;
+    programStartAt?: string | null;
+    programEndAt?: string | null;
+    restDurH?: number | null;
+    restStart?: string | null;
+    restEnd?: string | null;
+    restStartAt?: string | null;
+    restEndAt?: string | null;
+    weeklyRest?: boolean;
+    weeklyRestType?: string | null;
+    weeklyRestStart?: string | null;
+    weeklyRestEnd?: string | null;
+    weeklyRestStartAt?: string | null;
+    weeklyRestEndAt?: string | null;
+    stateOverride?: string | null;
+    casesAdd?: string;
+    casesRemove?: string;
+    note?: string | null;
+    crewType?: string | null;
+  }
+) {
+  const sets: string[] = [];
+  const vals: unknown[] = [id];
+  if (fields.driverId !== undefined) {
+    vals.push(fields.driverId || null);
+    sets.push(`driver_id = $${vals.length}`);
+  }
+  if (fields.location !== undefined) {
+    vals.push(fields.location || null);
+    sets.push(`location = $${vals.length}`);
+  }
+  if (fields.pause !== undefined) {
+    vals.push(fields.pause);
+    sets.push(`pause = $${vals.length}`);
+  }
+  if (fields.programStart !== undefined) {
+    vals.push(fields.programStart || null);
+    sets.push(`program_start = $${vals.length}`);
+  }
+  if (fields.programEnd !== undefined) {
+    vals.push(fields.programEnd || null);
+    sets.push(`program_end = $${vals.length}`);
+  }
+  if (fields.programStartAt !== undefined) {
+    vals.push(fields.programStartAt || null);
+    sets.push(`program_start_at = $${vals.length}`);
+  }
+  if (fields.programEndAt !== undefined) {
+    vals.push(fields.programEndAt || null);
+    sets.push(`program_end_at = $${vals.length}`);
+  }
+  if (fields.restDurH !== undefined) {
+    vals.push(fields.restDurH ?? null);
+    sets.push(`rest_dur_h = $${vals.length}`);
+  }
+  if (fields.restStart !== undefined) {
+    vals.push(fields.restStart || null);
+    sets.push(`rest_start = $${vals.length}`);
+  }
+  if (fields.restEnd !== undefined) {
+    vals.push(fields.restEnd || null);
+    sets.push(`rest_end = $${vals.length}`);
+  }
+  if (fields.restStartAt !== undefined) {
+    vals.push(fields.restStartAt || null);
+    sets.push(`rest_start_at = $${vals.length}`);
+  }
+  if (fields.restEndAt !== undefined) {
+    vals.push(fields.restEndAt || null);
+    sets.push(`rest_end_at = $${vals.length}`);
+  }
+  if (fields.weeklyRest !== undefined) {
+    vals.push(fields.weeklyRest);
+    sets.push(`weekly_rest = $${vals.length}`);
+  }
+  if (fields.weeklyRestType !== undefined) {
+    vals.push(fields.weeklyRestType || null);
+    sets.push(`weekly_rest_type = $${vals.length}`);
+  }
+  if (fields.weeklyRestStart !== undefined) {
+    vals.push(fields.weeklyRestStart || null);
+    sets.push(`weekly_rest_start = $${vals.length}`);
+  }
+  if (fields.weeklyRestEnd !== undefined) {
+    vals.push(fields.weeklyRestEnd || null);
+    sets.push(`weekly_rest_end = $${vals.length}`);
+  }
+  if (fields.weeklyRestStartAt !== undefined) {
+    vals.push(fields.weeklyRestStartAt || null);
+    sets.push(`weekly_rest_start_at = $${vals.length}`);
+  }
+  if (fields.weeklyRestEndAt !== undefined) {
+    vals.push(fields.weeklyRestEndAt || null);
+    sets.push(`weekly_rest_end_at = $${vals.length}`);
+  }
+  if (fields.stateOverride !== undefined) {
+    vals.push(fields.stateOverride || null);
+    sets.push(`state_override = $${vals.length}`);
+  }
+  if (fields.casesAdd) {
+    vals.push(fields.casesAdd);
+    sets.push(`cases = array_append(coalesce(cases, '{}'), $${vals.length})`);
+  }
+  if (fields.casesRemove) {
+    vals.push(fields.casesRemove);
+    sets.push(`cases = array_remove(cases, $${vals.length})`);
+  }
+  if (fields.note !== undefined) {
+    const text = typeof fields.note === "string" ? fields.note.trim() : "";
+    vals.push(text || null);
+    sets.push(`note = $${vals.length}`);
+  }
+  if (fields.crewType !== undefined) {
+    const crew =
+      fields.crewType === "team" || fields.crewType === "single" ? fields.crewType : null;
+    vals.push(crew);
+    sets.push(`crew_type = $${vals.length}`);
+  }
+
+  if (
+    fields.weeklyRest === true &&
+    fields.weeklyRestType &&
+    fields.weeklyRestStartAt &&
+    fields.weeklyRestEndAt
+  ) {
+    await logWeeklyRestStart(
+      id,
+      fields.weeklyRestType,
+      fields.weeklyRestStartAt,
+      fields.weeklyRestEndAt
+    );
+  }
+
+  if (sets.length === 0) return;
+  await pool.query(`update vehicles set ${sets.join(", ")} where id = $1`, vals);
+}
