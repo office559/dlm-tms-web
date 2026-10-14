@@ -29,6 +29,8 @@ export type Job = {
   wa_sent_at: Date | null;
   wa_read_at: Date | null;
   wa_confirmed_at: Date | null;
+  km_start: number | null;
+  km_end: number | null;
 };
 
 export type JobInput = {
@@ -149,35 +151,31 @@ export async function deleteJob(id: string) {
 }
 
 /**
- * Schimbare rapidă doar a statusului unei curse (Alocat → Tranzit / Anulare,
- * apoi Tranzit → Finalizare) — folosită din Planificare, unde nu vrem să
- * suprascriem tot formularul cursei ca la PATCH /api/jobs/[id].
- *
- * `cancelFee` se salvează doar când statusul devine "anulat" (unele curse
- * anulate se plătesc totuși o taxă) — pentru orice alt status, coloana
- * cancel_fee rămâne neschimbată.
+ * Schimbare rapidă doar a statusului unei curse (din Planificare).
+ * `cancelFee` se salvează doar când statusul devine "anulat".
+ * `km` (opțional) salvează kilometrajul de pe bord: start și/sau final;
+ * o valoare lipsă (null) nu șterge ce era salvat deja.
  */
 export async function patchJobStatus(
   id: string,
   status: string,
-  cancelFee?: number | null
+  cancelFee?: number | null,
+  km?: { start?: number | null; end?: number | null }
 ) {
   const { rows } = await pool.query<Job>(
     `update jobs set
        status = $2,
-       cancel_fee = case when $2 = 'anulat' then $3 else cancel_fee end
+       cancel_fee = case when $2 = 'anulat' then $3 else cancel_fee end,
+       km_start = coalesce($4::numeric, km_start),
+       km_end = coalesce($5::numeric, km_end)
      where id = $1
      returning *`,
-    [id, status, cancelFee ?? null]
+    [id, status, cancelFee ?? null, km?.start ?? null, km?.end ?? null]
   );
   return rows[0] ?? null;
 }
 
-/**
- * Salvează SID-ul mesajului WhatsApp trimis automat pentru această cursă și
- * resetează starea de citire/confirmare (folosit când se trimite o
- * notificare nouă de alocare — de ex. dacă șoferul e schimbat din nou).
- */
+/** Salvează SID-ul mesajului WhatsApp trimis pentru cursă și resetează citirea/confirmarea. */
 export async function setJobWhatsAppSent(id: string, messageSid: string) {
   await pool.query(
     `update jobs
@@ -187,11 +185,7 @@ export async function setJobWhatsAppSent(id: string, messageSid: string) {
   );
 }
 
-/**
- * Marchează mesajul cu acest SID ca citit (apelat din webhook-ul de status
- * al Twilio, când MessageStatus devine "read"). Nu suprascrie o citire deja
- * înregistrată.
- */
+/** Marchează mesajul cu acest SID ca citit (nu suprascrie o citire existentă). */
 export async function markWhatsAppReadBySid(messageSid: string) {
   await pool.query(
     `update jobs set wa_read_at = now() where wa_message_sid = $1 and wa_read_at is null`,
@@ -199,11 +193,7 @@ export async function markWhatsAppReadBySid(messageSid: string) {
   );
 }
 
-/**
- * Găsește cea mai recentă cursă a unui șofer pentru care s-a trimis un
- * mesaj WhatsApp și care încă nu a fost confirmată (folosit din webhook-ul
- * de mesaje primite, când șoferul apasă butonul "Confirmă").
- */
+/** Cea mai recentă cursă a unui șofer cu mesaj WhatsApp trimis și neconfirmată încă. */
 export async function findLatestPendingJobForDriver(driverId: string) {
   const { rows } = await pool.query<Job>(
     `select * from jobs
