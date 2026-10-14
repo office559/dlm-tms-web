@@ -11,6 +11,19 @@ export type { FleetState };
 export { FLEET_STATE_LABELS, FLEET_STATE_STYLES, FLEET_ROW_STYLES };
 
 /**
+ * True dacă vehiculul are o pauză cu oră de sfârșit care a trecut deja.
+ * Bifa `pause` rămâne true în baza de date după ce pauza expiră, așa că
+ * starea se calculează aici, în funcție de ora curentă.
+ */
+function pauseEnded(v: Vehicle): boolean {
+  const raw = (v as unknown as { rest_end_at?: string | Date | null }).rest_end_at;
+  if (!raw) return false;
+  const end = new Date(raw).getTime();
+  if (Number.isNaN(end)) return false;
+  return end <= Date.now();
+}
+
+/**
  * Starea unui vehicul în Planificare, derivată din datele reale (nu mai e
  * stocată separat): activ/inactiv, suprascriere manuală, cursa curentă și
  * pauza. Oglindește logica din macheta veche, adaptată la statusurile
@@ -21,7 +34,7 @@ export function fleetState(v: Vehicle, currentJob: Job | null): FleetState {
   if (v.state_override === "stationare") return "stationare";
   if (currentJob && currentJob.status === "activ") return "tranzit";
   if (v.state_override === "indisponibil") return "indisponibil";
-  if (v.pause) return "pauza";
+  if (v.pause && !pauseEnded(v)) return "pauza";
   if (currentJob && currentJob.status === "planificare") return "alocat";
   if (!v.driver_id) return "indisponibil";
   return "disponibil";
