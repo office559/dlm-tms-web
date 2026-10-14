@@ -5,8 +5,9 @@ import { patchVehicleQuick } from "@/lib/fleet";
 
 /**
  * Actualizare rapidă a unui vehicul din tabelul de Planificare (șofer,
- * locație, pauză, stare manuală) — separat de PATCH /api/vehicles/[id],
- * care cere tot formularul complet al vehiculului.
+ * locație, program, pauză, pauză săptămânală, cazuri, stare manuală) —
+ * separat de PATCH /api/vehicles/[id], care cere tot formularul complet
+ * al vehiculului.
  */
 export async function PATCH(
   req: NextRequest,
@@ -33,9 +34,15 @@ export async function PATCH(
     restEnd: "restEnd" in body ? body.restEnd : undefined,
     restStartAt: "restStartAt" in body ? body.restStartAt : undefined,
     restEndAt: "restEndAt" in body ? body.restEndAt : undefined,
+    weeklyRest: "weeklyRest" in body ? Boolean(body.weeklyRest) : undefined,
+    weeklyRestType: "weeklyRestType" in body ? body.weeklyRestType : undefined,
+    weeklyRestStart: "weeklyRestStart" in body ? body.weeklyRestStart : undefined,
+    weeklyRestEnd: "weeklyRestEnd" in body ? body.weeklyRestEnd : undefined,
+    weeklyRestStartAt: "weeklyRestStartAt" in body ? body.weeklyRestStartAt : undefined,
+    weeklyRestEndAt: "weeklyRestEndAt" in body ? body.weeklyRestEndAt : undefined,
     stateOverride: "stateOverride" in body ? body.stateOverride : undefined,
-    casesAdd: "casesAdd" in body ? body.casesAdd : undefined,
-    casesRemove: "casesRemove" in body ? body.casesRemove : undefined,
+    casesAdd: typeof body.casesAdd === "string" ? body.casesAdd : undefined,
+    casesRemove: typeof body.casesRemove === "string" ? body.casesRemove : undefined,
   });
 
   return NextResponse.json({ ok: true });
