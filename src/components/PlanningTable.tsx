@@ -14,6 +14,7 @@ import {
   StareControl,
   WeeklyRestControl,
 } from "@/components/PlanningCells";
+import { CrewSelect, NoteControl } from "@/components/PlanningExtras";
 
 export type PlanningRow = {
   vehicleId: string;
@@ -25,6 +26,8 @@ export type PlanningRow = {
   jobRef: string | null;
   jobDateLabel: string;
   driverId: string | null;
+  crewType: string | null;
+  note: string | null;
   programStart: string | null;
   programEnd: string | null;
   programStartAt: string | null;
@@ -56,6 +59,7 @@ type ColumnKey =
   | "data"
   | "stare"
   | "sofer"
+  | "echipaj"
   | "program"
   | "pauza"
   | "pauzaSapt"
@@ -63,7 +67,8 @@ type ColumnKey =
   | "traseu"
   | "loading"
   | "cazuri"
-  | "whatsapp";
+  | "whatsapp"
+  | "notita";
 
 const DEFAULT_ORDER: ColumnKey[] = [
   "vehicul",
@@ -71,6 +76,7 @@ const DEFAULT_ORDER: ColumnKey[] = [
   "data",
   "stare",
   "sofer",
+  "echipaj",
   "program",
   "pauza",
   "pauzaSapt",
@@ -79,6 +85,7 @@ const DEFAULT_ORDER: ColumnKey[] = [
   "loading",
   "cazuri",
   "whatsapp",
+  "notita",
 ];
 
 const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
@@ -87,6 +94,7 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   data: 110,
   stare: 150,
   sofer: 230,
+  echipaj: 160,
   program: 210,
   pauza: 200,
   pauzaSapt: 200,
@@ -95,6 +103,7 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   loading: 110,
   cazuri: 170,
   whatsapp: 130,
+  notita: 240,
 };
 
 const MIN_WIDTH = 60;
@@ -293,6 +302,11 @@ const COLUMNS: ColumnDef[] = [
     ),
   },
   {
+    key: "echipaj",
+    label: "Echipaj",
+    render: (r) => <CrewSelect vehicleId={r.vehicleId} value={r.crewType} />,
+  },
+  {
     key: "program",
     label: "Program",
     render: (r) => (
@@ -388,6 +402,11 @@ const COLUMNS: ColumnDef[] = [
     label: "WhatsApp",
     render: (r) => waBadge(r.waState, r.waRead),
   },
+  {
+    key: "notita",
+    label: "Notiță",
+    render: (r) => <NoteControl vehicleId={r.vehicleId} value={r.note} />,
+  },
 ];
 
 const COLUMN_MAP: Record<ColumnKey, ColumnDef> = COLUMNS.reduce(
@@ -431,7 +450,7 @@ export function PlanningTable({
   }, []);
 
   // Reîmprospătare automată: doar când fila e vizibilă și nu scrii într-un
-  // câmp (text / oră / număr) dintr-o fereastră de editare deschisă.
+  // câmp (text / oră / număr / notiță) dintr-o fereastră de editare deschisă.
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState !== "visible") return;
