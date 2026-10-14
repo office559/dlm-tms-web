@@ -41,11 +41,37 @@ export function fleetState(v: Vehicle, currentJob: Job | null): FleetState {
 }
 
 /**
+ * Șterge pauzele scurte care au expirat: scoate bifa de pauză și orele
+ * (start/sfârșit/durată), ca vehiculul să apară curat în Planificare.
+ * Se apelează la încărcarea tabelului; erorile sunt ignorate ca să nu
+ * blocheze pagina.
+ */
+async function clearExpiredPauses() {
+  try {
+    await pool.query(
+      `update vehicles
+          set pause = false,
+              rest_dur_h = null,
+              rest_start = null,
+              rest_end = null,
+              rest_start_at = null,
+              rest_end_at = null
+        where pause = true
+          and rest_end_at is not null
+          and rest_end_at <= now()`
+    );
+  } catch {
+    // ignorăm — curățarea se va încerca din nou la următoarea încărcare
+  }
+}
+
+/**
  * Pentru fiecare vehicul din listă, găsește cursa lui curentă sau
  * următoare (status planificare/activ), preferând cea aflată deja în
  * desfășurare.
  */
 export async function currentJobsByVehicle(vehicleIds: string[]): Promise<Map<string, Job>> {
+  await clearExpiredPauses();
   if (vehicleIds.length === 0) return new Map();
   const { rows } = await pool.query<Job>(
     `select distinct on (vehicle_id) *
