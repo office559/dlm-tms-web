@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactElement } from "react";
 import { signOut } from "@/lib/auth-client";
+import { DEFAULT_TIMEZONE, TIMEZONES, zonedParts } from "@/lib/tz";
+import { TimezoneProvider } from "@/components/TimezoneProvider";
 
 export type NavItem = { key: string; href: string; label: string };
 export type NavGroup = { title: string; items: NavItem[] };
@@ -228,7 +230,8 @@ function NavIcon({ navKey }: { navKey: string }) {
   return <Icon />;
 }
 
-function LiveClock() {
+/** Ceasul din bara de sus, în fusul orar ales. */
+function LiveClock({ timezone }: { timezone: string }) {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
@@ -239,10 +242,11 @@ function LiveClock() {
 
   if (!now) return null;
 
+  const p = zonedParts(now, timezone);
+
   return (
     <span className="hidden lg:inline text-xs font-mono text-slate-500 whitespace-nowrap">
-      {pad(now.getHours())}:{pad(now.getMinutes())}:{pad(now.getSeconds())} · {now.getDate()}{" "}
-      {MONTHS[now.getMonth()]} {now.getFullYear()}
+      {pad(p.hour)}:{pad(p.minute)}:{pad(p.second)} · {p.day} {MONTHS[p.month - 1]} {p.year}
     </span>
   );
 }
@@ -254,6 +258,7 @@ export function ShellFrame({
   userInitials,
   userName,
   alertCount,
+  timezone,
   wide,
   children,
 }: {
@@ -263,13 +268,22 @@ export function ShellFrame({
   userInitials: string;
   userName: string;
   alertCount: number;
+  timezone?: string;
   wide?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [tz, setTz] = useState(timezone ?? DEFAULT_TIMEZONE);
+  const [tzSaving, setTzSaving] = useState(false);
+  const [tzError, setTzError] = useState(false);
   const router = useRouter();
+
+  // Fusul orar venit de pe server (după salvare / reîmprospătare).
+  useEffect(() => {
+    setTz(timezone ?? DEFAULT_TIMEZONE);
+  }, [timezone]);
 
   // Meniul strâns/extins se păstrează în browser.
   useEffect(() => {
@@ -292,6 +306,27 @@ export function ShellFrame({
     });
   }
 
+  async function changeTimezone(next: string) {
+    const prev = tz;
+    setTz(next);
+    setTzSaving(true);
+    setTzError(false);
+    try {
+      const res = await fetch("/api/preferences/timezone", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ timezone: next }),
+      });
+      if (!res.ok) throw new Error("save failed");
+      router.refresh();
+    } catch {
+      setTz(prev);
+      setTzError(true);
+    } finally {
+      setTzSaving(false);
+    }
+  }
+
   async function handleLogout() {
     setLoggingOut(true);
     await signOut();
@@ -303,153 +338,174 @@ export function ShellFrame({
   const hideWhenCollapsed = collapsed ? "md:hidden" : "";
 
   return (
-    <div className="h-screen flex overflow-hidden bg-slate-100">
-      {open && (
-        <div className="fixed inset-0 bg-black/40 z-20 md:hidden" onClick={() => setOpen(false)} />
-      )}
+    <TimezoneProvider value={tz}>
+      <div className="h-screen flex overflow-hidden bg-slate-100">
+        {open && (
+          <div className="fixed inset-0 bg-black/40 z-20 md:hidden" onClick={() => setOpen(false)} />
+        )}
 
-      <aside
-        className={`fixed md:relative md:static inset-y-0 left-0 z-30 h-full w-60 ${
-          collapsed ? "md:w-[68px]" : "md:w-60"
-        } bg-[var(--sidebar-bg,#ffffff)] border-r border-slate-200 flex flex-col transition-[transform,width] duration-200 ${
-          open ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0`}
-      >
-        {/* Linia de pe marginea meniului: apasă ca să strângi / extinzi meniul. */}
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          title={collapsed ? "Extinde meniul" : "Restrânge meniul"}
-          aria-label={collapsed ? "Extinde meniul" : "Restrânge meniul"}
-          className="hidden md:block absolute top-0 -right-[3px] z-40 h-full w-[6px] cursor-pointer bg-transparent transition hover:bg-sky-400/60"
-        />
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          title={collapsed ? "Extinde meniul" : "Restrânge meniul"}
-          aria-label={collapsed ? "Extinde meniul" : "Restrânge meniul"}
-          className="hidden md:grid absolute top-1/2 -right-3 z-40 h-6 w-6 -translate-y-1/2 place-items-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-sm transition hover:border-sky-400 hover:text-sky-600"
+        <aside
+          className={`fixed md:relative md:static inset-y-0 left-0 z-30 h-full w-60 ${
+            collapsed ? "md:w-[68px]" : "md:w-60"
+          } bg-[var(--sidebar-bg,#ffffff)] border-r border-slate-200 flex flex-col transition-[transform,width] duration-200 ${
+            open ? "translate-x-0" : "-translate-x-full"
+          } md:translate-x-0`}
         >
-          <CollapseChevron collapsed={collapsed} />
-        </button>
-
-        <div className="p-3.5 pb-2">
-          <div className={`bg-white border border-slate-200 rounded-lg px-4 py-2.5 ${hideWhenCollapsed}`}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="DLM" className="w-full h-auto block" />
-          </div>
-          {collapsed && (
-            <div className="hidden md:grid h-10 w-full place-items-center rounded-lg border border-slate-200 bg-white text-[12px] font-extrabold tracking-tight text-brand-dark">
-              DLM
-            </div>
-          )}
-        </div>
-        <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2.5 pb-2.5">
-          {navGroups.map((g) => (
-            <div key={g.title}>
-              <h4
-                className={`mt-3.5 mb-1 px-2 text-[10.5px] tracking-wider uppercase text-slate-400 font-semibold ${hideWhenCollapsed}`}
-              >
-                {g.title}
-              </h4>
-              {collapsed && <div className="hidden md:block mt-2.5 mb-1.5 mx-2 border-t border-slate-200" />}
-              {g.items.map((item) => {
-                const on = activeKey === item.key;
-                return (
-                  <Link
-                    key={item.key}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    title={collapsed ? item.label : undefined}
-                    className={`flex items-center gap-2.5 px-2.5 py-1.5 mb-0.5 rounded-lg text-sm border-l-[3px] transition ${
-                      collapsed ? "md:justify-center md:px-0 md:gap-0" : ""
-                    } ${
-                      on
-                        ? "bg-orange-50 text-brand-dark border-orange-500 font-semibold"
-                        : "text-slate-600 border-transparent font-medium hover:bg-slate-50 hover:text-slate-900"
-                    }`}
-                  >
-                    <NavIcon navKey={item.key} />
-                    <span className={hideWhenCollapsed}>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-        <div className="border-t border-slate-200 px-2.5 py-2">
+          {/* Linia de pe marginea meniului: apasă ca să strângi / extinzi meniul. */}
           <button
             type="button"
-            onClick={handleLogout}
-            disabled={loggingOut}
-            title={collapsed ? "Deconectare" : undefined}
-            className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50 ${
-              collapsed ? "md:justify-center md:px-0 md:gap-0" : ""
-            }`}
-          >
-            <LogoutIcon />
-            <span className={hideWhenCollapsed}>{loggingOut ? "Se deconectează..." : "Deconectare"}</span>
-          </button>
-        </div>
-        <div className={`px-3.5 py-2 border-t border-slate-200 text-[11px] text-slate-400 ${hideWhenCollapsed}`}>
-          DLM Trans
-        </div>
-      </aside>
-
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="flex items-center gap-3 px-4 md:px-5 py-2.5 bg-white border-b border-slate-200 flex-none">
+            onClick={toggleCollapsed}
+            title={collapsed ? "Extinde meniul" : "Restrânge meniul"}
+            aria-label={collapsed ? "Extinde meniul" : "Restrânge meniul"}
+            className="hidden md:block absolute top-0 -right-[3px] z-40 h-full w-[6px] cursor-pointer bg-transparent transition hover:bg-sky-400/60"
+          />
           <button
             type="button"
-            className="md:hidden rounded-lg border border-slate-300 w-8 h-8 grid place-items-center text-slate-600 flex-none"
-            aria-label="Meniu"
-            onClick={() => setOpen((v) => !v)}
+            onClick={toggleCollapsed}
+            title={collapsed ? "Extinde meniul" : "Restrânge meniul"}
+            aria-label={collapsed ? "Extinde meniul" : "Restrânge meniul"}
+            className="hidden md:grid absolute top-1/2 -right-3 z-40 h-6 w-6 -translate-y-1/2 place-items-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-sm transition hover:border-sky-400 hover:text-sky-600"
           >
-            ☰
+            <CollapseChevron collapsed={collapsed} />
           </button>
-          <div className="text-xs text-slate-500 whitespace-nowrap hidden sm:block">
-            DLM &rsaquo; <b className="text-slate-800">{crumb}</b>
+
+          <div className="p-3.5 pb-2">
+            <div className={`bg-white border border-slate-200 rounded-lg px-4 py-2.5 ${hideWhenCollapsed}`}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo.png" alt="DLM" className="w-full h-auto block" />
+            </div>
+            {collapsed && (
+              <div className="hidden md:grid h-10 w-full place-items-center rounded-lg border border-slate-200 bg-white text-[12px] font-extrabold tracking-tight text-brand-dark">
+                DLM
+              </div>
+            )}
           </div>
-          <form action="/jobs" method="GET" className="hidden md:block flex-1 max-w-xs">
-            <input
-              type="text"
-              name="q"
-              placeholder="Caută curse, șoferi, vehicule..."
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm outline-none focus:border-brand"
-            />
-          </form>
-          <div className="flex-1" />
-          <Link
-            href="/jobs/new"
-            className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-brand text-white text-sm font-medium px-3.5 py-1.5 hover:bg-brand-dark transition whitespace-nowrap"
-          >
-            ✦ Creează cursă
-          </Link>
-          <LiveClock />
-          <Link
-            href="/alerts"
-            className="relative rounded-lg border border-slate-200 w-8 h-8 grid place-items-center text-slate-500 hover:bg-slate-50 flex-none"
-            aria-label="Alerte"
-          >
-            🔔
-            {alertCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full px-1.5 leading-[15px]">
-                {alertCount}
+          <nav className="flex-1 overflow-y-auto overflow-x-hidden px-2.5 pb-2.5">
+            {navGroups.map((g) => (
+              <div key={g.title}>
+                <h4
+                  className={`mt-3.5 mb-1 px-2 text-[10.5px] tracking-wider uppercase text-slate-400 font-semibold ${hideWhenCollapsed}`}
+                >
+                  {g.title}
+                </h4>
+                {collapsed && <div className="hidden md:block mt-2.5 mb-1.5 mx-2 border-t border-slate-200" />}
+                {g.items.map((item) => {
+                  const on = activeKey === item.key;
+                  return (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      onClick={() => setOpen(false)}
+                      title={collapsed ? item.label : undefined}
+                      className={`flex items-center gap-2.5 px-2.5 py-1.5 mb-0.5 rounded-lg text-sm border-l-[3px] transition ${
+                        collapsed ? "md:justify-center md:px-0 md:gap-0" : ""
+                      } ${
+                        on
+                          ? "bg-orange-50 text-brand-dark border-orange-500 font-semibold"
+                          : "text-slate-600 border-transparent font-medium hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                    >
+                      <NavIcon navKey={item.key} />
+                      <span className={hideWhenCollapsed}>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
+          <div className="border-t border-slate-200 px-2.5 py-2">
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              title={collapsed ? "Deconectare" : undefined}
+              className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50 ${
+                collapsed ? "md:justify-center md:px-0 md:gap-0" : ""
+              }`}
+            >
+              <LogoutIcon />
+              <span className={hideWhenCollapsed}>{loggingOut ? "Se deconectează..." : "Deconectare"}</span>
+            </button>
+          </div>
+          <div className={`px-3.5 py-2 border-t border-slate-200 text-[11px] text-slate-400 ${hideWhenCollapsed}`}>
+            DLM Trans
+          </div>
+        </aside>
+
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="flex items-center gap-3 px-4 md:px-5 py-2.5 bg-white border-b border-slate-200 flex-none">
+            <button
+              type="button"
+              className="md:hidden rounded-lg border border-slate-300 w-8 h-8 grid place-items-center text-slate-600 flex-none"
+              aria-label="Meniu"
+              onClick={() => setOpen((v) => !v)}
+            >
+              ☰
+            </button>
+            <div className="text-xs text-slate-500 whitespace-nowrap hidden sm:block">
+              DLM &rsaquo; <b className="text-slate-800">{crumb}</b>
+            </div>
+            <form action="/jobs" method="GET" className="hidden md:block flex-1 max-w-xs">
+              <input
+                type="text"
+                name="q"
+                placeholder="Caută curse, șoferi, vehicule..."
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm outline-none focus:border-brand"
+              />
+            </form>
+            <div className="flex-1" />
+            <Link
+              href="/jobs/new"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-brand text-white text-sm font-medium px-3.5 py-1.5 hover:bg-brand-dark transition whitespace-nowrap"
+            >
+              ✦ Creează cursă
+            </Link>
+            {tzError && (
+              <span className="hidden md:inline text-xs text-red-600 whitespace-nowrap">
+                Nu s-a salvat
               </span>
             )}
-          </Link>
-          <div
-            className="w-8 h-8 rounded-full bg-brand text-white grid place-items-center text-[11.5px] font-semibold flex-none"
-            title={userName}
-          >
-            {userInitials}
-          </div>
-        </header>
-        <div className="flex-1 overflow-auto">
-          <div className={wide ? "px-3 py-5 md:px-4 md:py-6" : "max-w-[1500px] mx-auto p-5 md:p-6"}>
-            {children}
+            <select
+              value={tz}
+              onChange={(e) => changeTimezone(e.target.value)}
+              disabled={tzSaving}
+              title="Fus orar (se păstrează pe contul tău)"
+              aria-label="Fus orar"
+              className="hidden md:block max-w-[170px] rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600 outline-none focus:border-brand disabled:opacity-50"
+            >
+              {TIMEZONES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <LiveClock timezone={tz} />
+            <Link
+              href="/alerts"
+              className="relative rounded-lg border border-slate-200 w-8 h-8 grid place-items-center text-slate-500 hover:bg-slate-50 flex-none"
+              aria-label="Alerte"
+            >
+              🔔
+              {alertCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] rounded-full px-1.5 leading-[15px]">
+                  {alertCount}
+                </span>
+              )}
+            </Link>
+            <div
+              className="w-8 h-8 rounded-full bg-brand text-white grid place-items-center text-[11.5px] font-semibold flex-none"
+              title={userName}
+            >
+              {userInitials}
+            </div>
+          </header>
+          <div className="flex-1 overflow-auto">
+            <div className={wide ? "px-3 py-5 md:px-4 md:py-6" : "max-w-[1500px] mx-auto p-5 md:p-6"}>
+              {children}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </TimezoneProvider>
   );
 }
