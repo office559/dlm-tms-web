@@ -132,7 +132,7 @@ export function WeeklyRestControl({
       )}
       {subText && <div className="text-xs text-slate-400">{subText}</div>}
       {!weeklyRest && (
-        <div className="text-sm font-semibold text-violet-700">
+        <div className="text-sm font-semibold text-slate-900">
           Recomandat: {suggestedType}h
         </div>
       )}
