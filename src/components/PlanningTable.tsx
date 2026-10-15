@@ -176,7 +176,7 @@ const COLUMNS: ColumnDef[] = [
           <ChevronIcon />
         </div>
         {r.trailerType && (
-          <div className="pl-[22px] text-xs text-slate-400">({r.trailerType})</div>
+          <div className="pl-[22px] text-[13px] font-bold text-slate-600">({r.trailerType})</div>
         )}
       </>
     ),
