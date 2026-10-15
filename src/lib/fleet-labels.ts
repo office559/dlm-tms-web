@@ -18,13 +18,13 @@ export const FLEET_STATE_LABELS: Record<FleetState, string> = {
 };
 
 export const FLEET_STATE_STYLES: Record<FleetState, string> = {
-  disponibil: "text-green-700 bg-green-50",
-  indisponibil: "text-red-700 bg-red-50",
-  pauza: "text-sky-700 bg-sky-50",
-  alocat: "text-amber-700 bg-amber-50",
-  tranzit: "text-orange-700 bg-orange-50",
-  stationare: "text-red-700 bg-red-50",
-  pending: "text-violet-700 bg-violet-100",
+  disponibil: "text-slate-900 bg-green-50",
+  indisponibil: "text-slate-900 bg-red-50",
+  pauza: "text-slate-900 bg-sky-50",
+  alocat: "text-slate-900 bg-amber-50",
+  tranzit: "text-slate-900 bg-orange-50",
+  stationare: "text-slate-900 bg-red-50",
+  pending: "text-slate-900 bg-violet-100",
 };
 
 /**
