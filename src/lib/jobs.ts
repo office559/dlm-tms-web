@@ -64,18 +64,24 @@ function nullify<T>(v: T | "" | undefined): T | null {
 }
 
 /**
- * Când o cursă devine "finalizat", locația mașinii devine locul de descărcare
- * al cursei (depozitul unde a descărcat). Dacă lipsește mașina sau locul de
- * descărcare, nu se schimbă nimic.
+ * Când o cursă devine "finalizat":
+ *  - locația mașinii devine locul de descărcare al cursei (dacă e completat);
+ *  - mașina trece în starea "pending", până o mută dispecerul în Disponibil /
+ *    Pauză / Indisponibil. O mașină aflată pe "Staționare" rămâne așa.
  */
-async function syncVehicleLocationFromJob(job: Job | null) {
-  if (!job || job.status !== "finalizat") return;
+async function syncVehicleAfterFinish(job: Job | null) {
+  if (!job || job.status !== "finalizat" || !job.vehicle_id) return;
   const place = (job.unload_place ?? "").trim();
-  if (!job.vehicle_id || !place) return;
-  await pool.query(`update vehicles set location = $2 where id = $1`, [
-    job.vehicle_id,
-    place,
-  ]);
+  await pool.query(
+    `update vehicles
+        set location = coalesce(nullif($2, ''), location),
+            state_override = case
+              when state_override = 'stationare' then state_override
+              else 'pending'
+            end
+      where id = $1`,
+    [job.vehicle_id, place]
+  );
 }
 
 export async function listJobs() {
@@ -127,7 +133,7 @@ export async function createJob(input: JobInput) {
 }
 
 export async function updateJob(id: string, input: JobInput) {
-  // statusul de dinainte: locația mașinii se schimbă doar la trecerea în "finalizat"
+  // statusul de dinainte: mașina se schimbă doar la trecerea în "finalizat"
   const prev = await pool.query<{ status: string }>(
     `select status from jobs where id = $1`,
     [id]
@@ -167,7 +173,7 @@ export async function updateJob(id: string, input: JobInput) {
   );
   const job = rows[0] ?? null;
   if (job && job.status === "finalizat" && prevStatus !== "finalizat") {
-    await syncVehicleLocationFromJob(job);
+    await syncVehicleAfterFinish(job);
   }
   return job;
 }
@@ -181,7 +187,7 @@ export async function deleteJob(id: string) {
  * `cancelFee` se salvează doar când statusul devine "anulat".
  * `km` (opțional) salvează kilometrajul de pe bord: start și/sau final;
  * o valoare lipsă (null) nu șterge ce era salvat deja.
- * La "finalizat", locația mașinii devine locul de descărcare al cursei.
+ * La "finalizat": locația mașinii = locul de descărcare, iar mașina trece în "pending".
  */
 export async function patchJobStatus(
   id: string,
@@ -200,7 +206,7 @@ export async function patchJobStatus(
     [id, status, cancelFee ?? null, km?.start ?? null, km?.end ?? null]
   );
   const job = rows[0] ?? null;
-  await syncVehicleLocationFromJob(job);
+  await syncVehicleAfterFinish(job);
   return job;
 }
 
