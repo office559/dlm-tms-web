@@ -6,70 +6,21 @@ import type { FleetState } from "@/lib/fleet-labels";
 import { FLEET_STATE_LABELS } from "@/lib/fleet-labels";
 import { useTimezone } from "@/components/TimezoneProvider";
 import { endPauseBody, patchVehicle, startPauseBody } from "@/lib/planning-helpers";
-
-async function patchJobStatus(jobId: string, status: string, cancelFee?: number | null) {
-  await fetch(`/api/jobs/${jobId}/quick`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status, cancelFee: cancelFee ?? null }),
-  });
-}
-
-/** Schimbă statusul cursei cu kilometraj; întoarce un mesaj de eroare sau null dacă a mers. */
-async function patchJobWithKm(
-  jobId: string,
-  status: string,
-  km: { start?: number | null; end?: number | null }
-): Promise<string | null> {
-  try {
-    const res = await fetch(`/api/jobs/${jobId}/quick`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, kmStart: km.start ?? null, kmEnd: km.end ?? null }),
-    });
-    if (res.ok) return null;
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    return data?.error || "Nu s-a putut salva.";
-  } catch {
-    return "Nu s-a putut salva.";
-  }
-}
-
-type JobKmInfo = {
-  kmStart: number | null;
-  kmEnd: number | null;
-  price: number | null;
-  currency: string | null;
-};
-
-async function fetchJobKmInfo(jobId: string): Promise<JobKmInfo | null> {
-  try {
-    const res = await fetch(`/api/jobs/${jobId}/quick`);
-    if (!res.ok) return null;
-    return (await res.json()) as JobKmInfo;
-  } catch {
-    return null;
-  }
-}
-
-/** Număr dintr-un câmp text; null dacă e gol sau invalid. */
-function parseKm(s: string): number | null {
-  const t = s.trim();
-  if (!t) return null;
-  const n = Number(t);
-  return Number.isFinite(n) && n >= 0 ? n : null;
-}
-
-/** Km parcurși și preț pe km, din km start / final și prețul total al cursei. */
-function calcKm(startStr: string, endStr: string, price: number | null) {
-  const s = parseKm(startStr);
-  const e = parseKm(endStr);
-  const driven = s !== null && e !== null && e >= s ? e - s : null;
-  const perKm = driven !== null && driven > 0 && price !== null ? price / driven : null;
-  return { s, e, driven, perKm };
-}
-
-const CANCEL_FEE_PRESETS = [220, 320];
+import {
+  calcKm,
+  fetchJobKmInfo,
+  parseKm,
+  patchJobStatus,
+  patchJobWithKm,
+} from "@/lib/stare-helpers";
+import type { JobKmInfo } from "@/lib/stare-helpers";
+import {
+  CancelFeeStep,
+  DialogHeader,
+  DoneStep,
+  KmEndStep,
+  KmStartStep,
+} from "@/components/StareDialogs";
 
 type StareOption = {
   label: string;
@@ -341,16 +292,7 @@ export function StareControl({
           >
             {step === "status" && (
               <>
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-brand-dark">Schimbă status</h3>
-                  <button
-                    type="button"
-                    onClick={closeAll}
-                    className="text-lg leading-none text-slate-400 hover:text-slate-600"
-                  >
-                    ×
-                  </button>
-                </div>
+                <DialogHeader title="Schimbă status" onClose={closeAll} />
                 <div className="flex flex-col gap-2">
                   {options.map((o) => (
                     <button
@@ -367,191 +309,55 @@ export function StareControl({
             )}
 
             {step === "cancelFee" && (
-              <>
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-brand-dark">Taxă de anulare</h3>
-                  <button
-                    type="button"
-                    onClick={closeAll}
-                    className="text-lg leading-none text-slate-400 hover:text-slate-600"
-                  >
-                    ×
-                  </button>
-                </div>
-                <p className="mb-3 text-xs text-slate-500">
-                  Unele curse anulate se plătesc totuși. Alege o sumă sau anulează fără taxă.
-                </p>
-                <div className="flex flex-col gap-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    {CANCEL_FEE_PRESETS.map((amount) => (
-                      <button
-                        key={amount}
-                        type="button"
-                        disabled={saving}
-                        onClick={() => confirmCancel(amount)}
-                        className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 transition"
-                      >
-                        {amount} €
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min={0}
-                      placeholder="Sumă personalizată"
-                      className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
-                      value={customFee}
-                      disabled={saving}
-                      onChange={(e) => setCustomFee(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && customFee) confirmCancel(Number(customFee));
-                      }}
-                    />
-                    <button
-                      type="button"
-                      disabled={saving || !customFee}
-                      onClick={() => confirmCancel(Number(customFee))}
-                      className="shrink-0 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
-                    >
-                      OK
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => confirmCancel(null)}
-                    className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 underline hover:text-slate-700 disabled:opacity-50 transition"
-                  >
-                    Anulează fără taxă
-                  </button>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => setStep("status")}
-                    className="rounded-lg px-3 py-2 text-left text-sm text-slate-400 hover:text-slate-600 disabled:opacity-50"
-                  >
-                    ← Înapoi
-                  </button>
-                </div>
-              </>
+              <CancelFeeStep
+                saving={saving}
+                customFee={customFee}
+                setCustomFee={setCustomFee}
+                confirmCancel={confirmCancel}
+                onBack={() => setStep("status")}
+                onClose={closeAll}
+              />
             )}
 
             {step === "kmStart" && (
-              <>
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-brand-dark">Kilometraj start</h3>
-                  <button
-                    type="button"
-                    onClick={closeAll}
-                    className="text-lg leading-none text-slate-400 hover:text-slate-600"
-                  >
-                    ×
-                  </button>
-                </div>
-                <p className="mb-3 text-xs text-slate-500">
-                  Trece kilometrajul de pe bordul mașinii la plecare.
-                </p>
-                <div className="flex flex-col gap-2">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    autoFocus
-                    placeholder="Km bord (start)"
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:opacity-50"
-                    value={kmStartInput}
-                    disabled={saving}
-                    onChange={(e) => setKmStartInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") confirmTransit(true);
-                    }}
-                  />
-                  {error && <div className="text-xs text-red-600">{error}</div>}
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => confirmTransit(true)}
-                    className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
-                  >
-                    Pornește cursa
-                  </button>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => confirmTransit(false)}
-                    className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 underline hover:text-slate-700 disabled:opacity-50 transition"
-                  >
-                    Pornește fără km
-                  </button>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => {
-                      setError(null);
-                      setStep("status");
-                    }}
-                    className="rounded-lg px-3 py-2 text-left text-sm text-slate-400 hover:text-slate-600 disabled:opacity-50"
-                  >
-                    ← Înapoi
-                  </button>
-                </div>
-              </>
+              <KmStartStep
+                saving={saving}
+                error={error}
+                value={kmStartInput}
+                setValue={setKmStartInput}
+                onConfirm={confirmTransit}
+                onBack={() => {
+                  setError(null);
+                  setStep("status");
+                }}
+                onClose={closeAll}
+              />
             )}
 
             {step === "kmEnd" && (
-              <>
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-brand-dark">Kilometraj final</h3>
-                  <button
-                    type="button"
-                    onClick={closeAll}
-                    className="text-lg leading-none text-slate-400 hover:text-slate-600"
-                  >
-                    ×
-                  </button>
-                </div>
-                <p className="mb-3 text-xs text-slate-500">
-                  Trece kilometrajul de pe bord la finalul cursei. Aplicația calculează km parcurși
-                  și prețul pe km.
-                </p>
-                <div className="flex flex-col gap-2">
-                  {jobInfo?.kmStart != null ? (
-                    <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                      Km la start:{" "}
-                      <span className="font-semibold">
-                        {jobInfo.kmStart.toLocaleString("ro-RO")}
-                      </span>
-                    </div>
-                  ) : (
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min={0}
-                      placeholder="Km bord (start)"
-                      className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:opacity-50"
-                      value={kmStartInput}
-                      disabled={saving}
-                      onChange={(e) => setKmStartInput(e.target.value)}
-                    />
-                  )}
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min={0}
-                    autoFocus
-                    placeholder="Km bord (final)"
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:opacity-50"
-                    value={kmEndInput}
-                    disabled={saving}
-                    onChange={(e) => setKmEndInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") confirmFinish(true);
-                    }}
-                  />
-                  {finishCalc.driven !== null && (
-                    <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                      <div>
-                        Km parcurși:{" "}
-                        <span className="font-semibold">
-                          {finishCalc.driven.toLocaleString("ro-RO")}
+              <KmEndStep
+                saving={saving}
+                error={error}
+                jobInfo={jobInfo}
+                kmStartInput={kmStartInput}
+                setKmStartInput={setKmStartInput}
+                kmEndInput={kmEndInput}
+                setKmEndInput={setKmEndInput}
+                calc={finishCalc}
+                currencyLabel={currencyLabel}
+                onConfirm={confirmFinish}
+                onBack={() => {
+                  setError(null);
+                  setStep("status");
+                }}
+                onClose={closeAll}
+              />
+            )}
+
+            {step === "done" && result && <DoneStep result={result} onClose={closeAll} />}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
