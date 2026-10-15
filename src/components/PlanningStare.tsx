@@ -136,6 +136,22 @@ export function StareControl({
       style: "text-red-700 bg-red-50 hover:bg-red-100",
       run: async () => {},
     });
+  } else if (state === "pending") {
+    options.push({
+      label: "Disponibil",
+      style: "text-green-700 bg-green-50 hover:bg-green-100",
+      run: () => patchVehicle(vehicleId, { stateOverride: null }),
+    });
+    options.push({
+      label: "Pauză",
+      style: "text-sky-700 bg-sky-50 hover:bg-sky-100",
+      run: () => patchVehicle(vehicleId, startPauseBody(9, tz)),
+    });
+    options.push({
+      label: "Indisponibil",
+      style: "text-red-700 bg-red-50 hover:bg-red-100",
+      run: () => patchVehicle(vehicleId, { stateOverride: "indisponibil" }),
+    });
   } else if (state === "pauza") {
     options.push({
       label: "Disponibil",
