@@ -81,13 +81,13 @@ type StareStep = "status" | "cancelFee" | "kmStart" | "kmEnd" | "done";
 
 /** Culorile badge-ului de Stare din tabel: text închis, fundal mai intens, ca să se vadă bine. */
 const STARE_BADGE_STYLES: Record<FleetState, string> = {
-  disponibil: "text-green-800 bg-green-200",
-  indisponibil: "text-red-800 bg-red-200",
-  pauza: "text-sky-800 bg-sky-200",
-  alocat: "text-amber-800 bg-amber-200",
-  tranzit: "text-orange-800 bg-orange-200",
-  stationare: "text-red-800 bg-red-200",
-  pending: "text-violet-800 bg-violet-200",
+  disponibil: "text-green-900 bg-green-300",
+  indisponibil: "text-red-900 bg-red-300",
+  pauza: "text-blue-900 bg-blue-300",
+  alocat: "text-yellow-900 bg-yellow-300",
+  tranzit: "text-orange-900 bg-orange-300",
+  stationare: "text-red-900 bg-red-300",
+  pending: "text-violet-900 bg-violet-300",
 };
 
 /**
@@ -555,93 +555,3 @@ export function StareControl({
                         Km parcurși:{" "}
                         <span className="font-semibold">
                           {finishCalc.driven.toLocaleString("ro-RO")}
-                        </span>
-                      </div>
-                      {finishCalc.perKm !== null && (
-                        <div>
-                          Preț pe km:{" "}
-                          <span className="font-semibold">
-                            {finishCalc.perKm.toFixed(2)} {currencyLabel}/km
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {finishCalc.s !== null && finishCalc.e !== null && finishCalc.e < finishCalc.s && (
-                    <div className="text-xs text-red-600">
-                      Kilometrajul final nu poate fi mai mic decât cel de start.
-                    </div>
-                  )}
-                  {error && <div className="text-xs text-red-600">{error}</div>}
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => confirmFinish(true)}
-                    className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
-                  >
-                    Finalizează cursa
-                  </button>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => confirmFinish(false)}
-                    className="rounded-lg px-3 py-2 text-sm font-medium text-slate-500 underline hover:text-slate-700 disabled:opacity-50 transition"
-                  >
-                    Finalizează fără km
-                  </button>
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() => {
-                      setError(null);
-                      setStep("status");
-                    }}
-                    className="rounded-lg px-3 py-2 text-left text-sm text-slate-400 hover:text-slate-600 disabled:opacity-50"
-                  >
-                    ← Înapoi
-                  </button>
-                </div>
-              </>
-            )}
-
-            {step === "done" && result && (
-              <>
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-brand-dark">Cursă finalizată</h3>
-                  <button
-                    type="button"
-                    onClick={closeAll}
-                    className="text-lg leading-none text-slate-400 hover:text-slate-600"
-                  >
-                    ×
-                  </button>
-                </div>
-                <div className="mb-3 rounded-lg bg-emerald-50 px-3 py-3 text-sm text-emerald-800">
-                  <div>
-                    Km parcurși:{" "}
-                    <span className="font-semibold">{result.driven.toLocaleString("ro-RO")}</span>
-                  </div>
-                  <div>
-                    Preț pe km:{" "}
-                    <span className="font-semibold">
-                      {result.perKm !== null
-                        ? `${result.perKm.toFixed(2)} ${result.currency}/km`
-                        : "— (cursa nu are preț setat)"}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={closeAll}
-                  className="w-full rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark transition"
-                >
-                  OK
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-    </>
-  );
-}
