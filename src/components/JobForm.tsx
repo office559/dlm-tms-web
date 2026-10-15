@@ -270,7 +270,8 @@ export function JobForm({
       setStatus("idle");
       return;
     }
-    router.push("/jobs");
+    // Cursa nouă te duce direct în Planificare; editarea rămâne pe pagina Curse.
+    router.push(isEdit ? "/jobs" : "/planning");
     router.refresh();
   }
 
