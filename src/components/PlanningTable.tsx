@@ -92,7 +92,7 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   vehicul: 260,
   vrid: 110,
   data: 110,
-  stare: 190,
+  stare: 170,
   sofer: 230,
   echipaj: 160,
   program: 210,
@@ -101,7 +101,7 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   locatie: 130,
   traseu: 240,
   cazuri: 170,
-  whatsapp: 190,
+  whatsapp: 170,
   notita: 240,
 };
 
@@ -220,17 +220,17 @@ function waBadge(state: "none" | "pending" | "confirmed", read: boolean) {
   if (state === "none") return <span className="text-slate-300 text-xs">—</span>;
   if (state === "confirmed") {
     return (
-      <span className="whitespace-nowrap rounded-full bg-green-200 px-3.5 py-1 text-[15px] font-extrabold text-green-800">
+      <span className="whitespace-nowrap rounded-full bg-green-200 px-3 py-[3px] text-[13px] font-extrabold text-green-800">
         Confirmat
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <span className="rounded-full bg-amber-200 px-3.5 py-1 text-[15px] font-extrabold text-amber-800">
+      <span className="rounded-full bg-amber-200 px-3 py-[3px] text-[13px] font-extrabold text-amber-800">
         Pending
       </span>
-      {read && <span className="text-sm font-bold text-slate-600">(citit)</span>}
+      {read && <span className="text-[12.5px] font-bold text-slate-600">(citit)</span>}
     </span>
   );
 }
@@ -579,7 +579,7 @@ export function PlanningTable({
         </thead>
         <tbody>
           {rows.map((r) => {
-            const rowClass = `border-t border-slate-100 align-top ${FLEET_ROW_STYLES[r.state]}`;
+            const rowClass = `border-t border-slate-100 align-middle ${FLEET_ROW_STYLES[r.state]}`;
             return (
               <tr key={r.vehicleId} className={rowClass}>
                 {orderedColumns.map((col) => (
