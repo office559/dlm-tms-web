@@ -220,14 +220,14 @@ function waBadge(state: "none" | "pending" | "confirmed", read: boolean) {
   if (state === "none") return <span className="text-slate-300 text-xs">—</span>;
   if (state === "confirmed") {
     return (
-      <span className="whitespace-nowrap rounded-full bg-green-200 px-3 py-[3px] text-[13px] font-extrabold text-green-800">
+      <span className="whitespace-nowrap rounded-full bg-green-300 px-3 py-[3px] text-[13px] font-extrabold text-green-900">
         Confirmat
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <span className="rounded-full bg-amber-200 px-3 py-[3px] text-[13px] font-extrabold text-amber-800">
+      <span className="rounded-full bg-amber-300 px-3 py-[3px] text-[13px] font-extrabold text-amber-900">
         Pending
       </span>
       {read && <span className="text-[12.5px] font-bold text-slate-600">(citit)</span>}
