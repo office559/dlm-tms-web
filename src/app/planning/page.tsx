@@ -24,6 +24,13 @@ function iso(s: string | Date | null | undefined): string | null {
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
+/** Moment (Date sau text) → milisecunde; null dacă lipsește sau e invalid. */
+function ms(s: string | Date | null | undefined): number | null {
+  if (!s) return null;
+  const t = new Date(s).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
 const STATE_ORDER: Record<string, number> = {
   pending: -1,
   pauza: 0,
@@ -44,6 +51,32 @@ const STATE_TABS: { key: string; label: string }[] = [
   { key: "indisponibil", label: "Indisponibil" },
   { key: "stationare", label: "Staționare" },
 ];
+
+/**
+ * Cheia de ordonare în cadrul aceleiași stări (milisecunde; mai mic = mai sus).
+ *  - Pauză: momentul în care se termină pauza (zilnică sau săptămânală);
+ *  - Viitor: momentul încărcării cursei următoare.
+ */
+function orderKey(
+  state: string,
+  v: {
+    pause: boolean;
+    rest_end_at: string | Date | null;
+    weekly_rest: boolean;
+    weekly_rest_end_at: string | Date | null;
+  },
+  job: { start_at: string | Date | null } | null
+): number | null {
+  if (state === "pauza") {
+    const ends = [
+      v.pause ? ms(v.rest_end_at) : null,
+      v.weekly_rest ? ms(v.weekly_rest_end_at) : null,
+    ].filter((x): x is number => x !== null);
+    return ends.length ? Math.max(...ends) : null;
+  }
+  if (state === "alocat") return ms(job?.start_at ?? null);
+  return null;
+}
 
 const VALID_STATES = STATE_TABS.filter((t) => t.key !== "toate").map((t) => t.key);
 
@@ -96,7 +129,19 @@ export default async function PlanningPage({
   const allRows = vehicles
     .map((v) => ({ v, job: jobsByVehicle.get(v.id) ?? null }))
     .map((x) => ({ ...x, state: fleetState(x.v, x.job) }))
-    .sort((a, b) => (STATE_ORDER[a.state] ?? 9) - (STATE_ORDER[b.state] ?? 9));
+    .sort((a, b) => {
+      // 1) grupat pe stare
+      const byState = (STATE_ORDER[a.state] ?? 9) - (STATE_ORDER[b.state] ?? 9);
+      if (byState !== 0) return byState;
+      // 2) în cadrul stării: Pauză = în ordinea în care se termină pauza,
+      //    Viitor = în ordinea în care încarcă. Fără oră → la sfârșit.
+      const ka = orderKey(a.state, a.v, a.job);
+      const kb = orderKey(b.state, b.v, b.job);
+      if (ka === null && kb === null) return 0;
+      if (ka === null) return 1;
+      if (kb === null) return -1;
+      return ka - kb;
+    });
 
   const counts: Record<string, number> = { toate: allRows.length };
   for (const r of allRows) counts[r.state] = (counts[r.state] ?? 0) + 1;
