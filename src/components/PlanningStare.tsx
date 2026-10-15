@@ -323,7 +323,7 @@ export function StareControl({
         type="button"
         disabled={saving || !clickable}
         onClick={() => setOpen(true)}
-        className={`whitespace-nowrap rounded-full px-4 py-1.5 text-base font-extrabold transition ${STARE_BADGE_STYLES[state]} ${
+        className={`whitespace-nowrap rounded-full px-3 py-1 text-[13.5px] font-extrabold transition ${STARE_BADGE_STYLES[state]} ${
           clickable ? "cursor-pointer hover:opacity-75" : "cursor-default"
         } disabled:opacity-50`}
       >
