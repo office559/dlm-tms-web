@@ -47,11 +47,12 @@ const EXTRACT_TOOL = {
       startAt: {
         type: "string",
         description:
-          "Data și ora încărcării, format exact YYYY-MM-DDTHH:mm (oră locală, 24h). Dacă nu apare ora, folosește 08:00. Dacă nu apare deloc data, string gol.",
+          "Data și ora încărcării, format exact YYYY-MM-DDTHH:mm (24h). Copiază ora EXACT așa cum este scrisă în document (ex. \"Thu, Oct 15, 14:00 CEST\" → 2026-10-15T14:00). NU converti în alt fus orar și ignoră abrevierile de fus (CEST, CET, EET, UTC etc.): ora scrisă este ora locului respectiv și se păstrează neschimbată. Dacă nu apare ora, folosește 08:00. Dacă nu apare deloc data, string gol.",
       },
       endAt: {
         type: "string",
-        description: "Data și ora descărcării, același format ca startAt, sau string gol.",
+        description:
+          "Data și ora descărcării, același format și aceeași regulă ca startAt (ora copiată exact din document, fără conversie de fus orar; ex. \"Fri, Oct 16, 10:00 CEST\" → 2026-10-16T10:00), sau string gol.",
       },
       miles: {
         type: "string",
@@ -179,6 +180,7 @@ export async function POST(req: NextRequest) {
           `Ești un asistent care ajută un dispecer de transport rutier din România să introducă o cursă nouă în sistem. ` +
           `Data de azi este ${today}. Primești fie un text (comandă copiată din email sau WhatsApp), fie o poză (comandă pe hârtie, document, CMR, captură de ecran), fie ambele — posibil în română, engleză sau amestecate. ` +
           `Dacă primești o poză, citește cu atenție tot ce e relevant din ea: locul de încărcare, locul de descărcare, data și ora încărcării/descărcării, tariful, distanța (km/mile), referința comenzii. ` +
+          `REGULĂ IMPORTANTĂ PENTRU ORE: copiază orele EXACT așa cum sunt scrise în document (ex. "Thu, Oct 15, 14:00 CEST" → 2026-10-15T14:00). Nu converti niciodată orele în alt fus orar (nici în ora României, nici în UTC) și ignoră abrevierile de fus orar (CEST, CET, EET, UTC etc.). Ora scrisă este ora locală a locului respectiv și trebuie păstrată neschimbată. Nu adăuga și nu scădea ore. ` +
           `Pentru locul de încărcare/descărcare: dacă înaintea orașului apare un cod scurt de depozit/terminal (ex. dintr-un load board: "SCN2 KAISERSLAUTERN, Rhineland-Palatinate" sau "DNW3 DÜSSELDORF, North Rhine-Westphalia"), pune DOAR codul (SCN2, respectiv DNW3) în loadPlace/unloadPlace, nu orașul întreg. ` +
           `Extrage câmpurile cerute apelând tool-ul extract_job_details. Nu inventa informații care nu apar în text sau în poză.`,
         messages: [{ role: "user", content }],
