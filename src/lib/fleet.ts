@@ -22,6 +22,8 @@ export function fleetState(v: Vehicle, currentJob: Job | null): FleetState {
   if (!v.active) return "stationare";
   if (v.state_override === "stationare") return "stationare";
   if (currentJob && currentJob.status === "activ") return "tranzit";
+  // După finalizarea unei curse, vehiculul rămâne "pending" până îl mută dispecerul.
+  if (v.state_override === "pending") return "pending";
   if (v.state_override === "indisponibil") return "indisponibil";
   if (v.pause && !pauseEnded(v)) return "pauza";
   if (currentJob && currentJob.status === "planificare") return "alocat";
