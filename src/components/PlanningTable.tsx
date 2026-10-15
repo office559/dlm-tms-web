@@ -92,7 +92,7 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   vehicul: 260,
   vrid: 110,
   data: 110,
-  stare: 150,
+  stare: 190,
   sofer: 230,
   echipaj: 160,
   program: 210,
@@ -101,7 +101,7 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   locatie: 130,
   traseu: 240,
   cazuri: 170,
-  whatsapp: 130,
+  whatsapp: 190,
   notita: 240,
 };
 
@@ -220,13 +220,17 @@ function waBadge(state: "none" | "pending" | "confirmed", read: boolean) {
   if (state === "none") return <span className="text-slate-300 text-xs">—</span>;
   if (state === "confirmed") {
     return (
-      <span className="rounded-full px-2 py-0.5 text-xs text-green-700 bg-green-50">Confirmat</span>
+      <span className="whitespace-nowrap rounded-full bg-green-200 px-3.5 py-1 text-[15px] font-extrabold text-green-800">
+        Confirmat
+      </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1">
-      <span className="rounded-full px-2 py-0.5 text-xs text-amber-700 bg-amber-50">Pending</span>
-      {read && <span className="text-slate-400 text-xs">(citit)</span>}
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span className="rounded-full bg-amber-200 px-3.5 py-1 text-[15px] font-extrabold text-amber-800">
+        Pending
+      </span>
+      {read && <span className="text-sm font-bold text-slate-600">(citit)</span>}
     </span>
   );
 }
