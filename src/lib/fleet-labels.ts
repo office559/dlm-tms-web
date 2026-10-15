@@ -35,11 +35,11 @@ export const FLEET_STATE_STYLES: Record<FleetState, string> = {
  * Indisponibil/Staționare rămân neutre (fără evidențiere).
  */
 export const FLEET_ROW_STYLES: Record<FleetState, string> = {
-  disponibil: "bg-green-50",
+  disponibil: "bg-green-200",
   indisponibil: "",
-  pauza: "bg-sky-100",
-  alocat: "bg-yellow-100",
-  tranzit: "bg-orange-100",
+  pauza: "bg-blue-200",
+  alocat: "bg-yellow-200",
+  tranzit: "bg-orange-200",
   stationare: "",
-  pending: "bg-violet-50",
+  pending: "bg-violet-100",
 };
