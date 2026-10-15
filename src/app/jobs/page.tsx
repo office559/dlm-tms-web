@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
@@ -20,11 +21,40 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_STYLES: Record<string, string> = {
-  planificare: "text-slate-600 bg-slate-100",
-  activ: "text-blue-700 bg-blue-50",
-  finalizat: "text-green-700 bg-green-50",
-  anulat: "text-red-700 bg-red-50",
+  planificare: "border-yellow-500 text-yellow-700",
+  activ: "border-orange-500 text-orange-700",
+  finalizat: "border-green-600 text-green-700",
+  anulat: "border-red-600 text-red-700",
 };
+
+/** Ziua cursei (după ora salvată, tratată ca oră locală), pentru grupare. */
+function dayKey(d: Date | null): string {
+  return d ? new Date(d).toISOString().slice(0, 10) : "none";
+}
+
+function dayLabel(d: Date | null): string {
+  if (!d) return "Fără dată";
+  const s = new Date(d).toLocaleDateString("ro-RO", {
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function fmtStart(d: Date | null): string {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("ro-RO", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
+}
 
 function WaConfirmBadge({
   waMessageSid,
@@ -39,7 +69,7 @@ function WaConfirmBadge({
 
   if (waConfirmedAt) {
     return (
-      <span className="rounded-full px-2 py-0.5 text-xs text-green-700 bg-green-50">
+      <span className="rounded-full border-2 border-green-600 bg-white px-2.5 py-0.5 text-[13px] font-bold text-green-700">
         Confirmat
       </span>
     );
@@ -47,10 +77,10 @@ function WaConfirmBadge({
 
   return (
     <span className="inline-flex items-center gap-1">
-      <span className="rounded-full px-2 py-0.5 text-xs text-amber-700 bg-amber-50">
+      <span className="rounded-full border-2 border-amber-500 bg-white px-2.5 py-0.5 text-[13px] font-bold text-amber-700">
         Pending
       </span>
-      {waReadAt && <span className="text-slate-400 text-xs">(citit)</span>}
+      {waReadAt && <span className="text-slate-500 text-xs font-semibold">(citit)</span>}
     </span>
   );
 }
@@ -109,6 +139,18 @@ export default async function JobsPage({
     )
   );
 
+  // Cursele grupate pe zile (în ordinea în care apar în listă).
+  const groups: { key: string; label: string; jobs: typeof filteredJobs }[] = [];
+  for (const j of filteredJobs) {
+    const key = dayKey(j.start_at);
+    let g = groups.find((x) => x.key === key);
+    if (!g) {
+      g = { key, label: dayLabel(j.start_at), jobs: [] };
+      groups.push(g);
+    }
+    g.jobs.push(j);
+  }
+
   return (
     <AppShell active="jobs" crumb="Job Center">
       <div className="space-y-6">
@@ -141,8 +183,8 @@ export default async function JobsPage({
       </form>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
+        <table className="w-full text-[14.5px]">
+          <thead className="bg-orange-50 text-orange-800 text-left">
             <tr>
               <th className="px-4 py-3">Traseu</th>
               <th className="px-4 py-3">Client</th>
@@ -156,47 +198,63 @@ export default async function JobsPage({
             </tr>
           </thead>
           <tbody>
-            {filteredJobs.map((j) => {
-              const dName = j.driver_id ? driverName.get(j.driver_id) : null;
-              const dPhone = j.driver_id ? driverPhone.get(j.driver_id) : null;
-              const cName = j.client_id ? customerName.get(j.client_id) ?? null : null;
-              const waHref = dName && dPhone ? waLink(dPhone, waCountry, jobMessage(j, dName, cName)) : null;
-              return (
-                <tr key={j.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-medium">
-                    {j.load_place || "—"} → {j.unload_place || "—"}
-                  </td>
-                  <td className="px-4 py-3">{cName ?? "—"}</td>
-                  <td className="px-4 py-3">{dName ?? "—"}</td>
-                  <td className="px-4 py-3">{j.vehicle_id ? vehiclePlate.get(j.vehicle_id) ?? "—" : "—"}</td>
-                  <td className="px-4 py-3">
-                    {j.start_at ? new Date(j.start_at).toLocaleString("ro-RO") : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    {j.rate != null ? `${j.rate} ${j.currency ?? ""}` : "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLES[j.status] ?? "text-slate-600 bg-slate-100"}`}>
-                      {STATUS_LABELS[j.status] ?? j.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <WaConfirmBadge
-                      waMessageSid={j.wa_message_sid}
-                      waReadAt={j.wa_read_at}
-                      waConfirmedAt={j.wa_confirmed_at}
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-right space-x-3">
-                    <WhatsAppLink href={waHref} label="Anunță șofer" />
-                    <a href={`/jobs/${j.id}`} className="text-brand hover:text-brand-dark text-sm">
-                      Editează
-                    </a>
-                    <DeleteButton url={`/api/jobs/${j.id}`} confirmText={`Ștergi cursa ${j.ref || j.id}?`} />
+            {groups.map((g) => (
+              <Fragment key={g.key}>
+                <tr className="bg-[#1e3a5f] text-white">
+                  <td colSpan={9} className="px-4 py-2">
+                    <div className="flex items-center justify-between text-sm font-extrabold">
+                      <span>{g.label}</span>
+                      <span className="font-semibold opacity-80">
+                        {g.jobs.length} {g.jobs.length === 1 ? "cursă" : "curse"}
+                      </span>
+                    </div>
                   </td>
                 </tr>
-              );
-            })}
+                {g.jobs.map((j) => {
+                  const dName = j.driver_id ? driverName.get(j.driver_id) : null;
+                  const dPhone = j.driver_id ? driverPhone.get(j.driver_id) : null;
+                  const cName = j.client_id ? customerName.get(j.client_id) ?? null : null;
+                  const waHref = dName && dPhone ? waLink(dPhone, waCountry, jobMessage(j, dName, cName)) : null;
+                  return (
+                    <tr key={j.id} className="border-t border-slate-200">
+                      <td className="px-4 py-3 font-extrabold">
+                        {j.load_place || "—"} → {j.unload_place || "—"}
+                      </td>
+                      <td className="px-4 py-3">{cName ?? "—"}</td>
+                      <td className="px-4 py-3">{dName ?? "—"}</td>
+                      <td className="px-4 py-3">{j.vehicle_id ? vehiclePlate.get(j.vehicle_id) ?? "—" : "—"}</td>
+                      <td className="px-4 py-3">{fmtStart(j.start_at)}</td>
+                      <td className="px-4 py-3 font-extrabold">
+                        {j.rate != null ? `${j.rate} ${j.currency ?? ""}` : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`rounded-full border-2 bg-white px-2.5 py-0.5 text-[13px] font-bold ${
+                            STATUS_STYLES[j.status] ?? "border-slate-400 text-slate-600"
+                          }`}
+                        >
+                          {STATUS_LABELS[j.status] ?? j.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <WaConfirmBadge
+                          waMessageSid={j.wa_message_sid}
+                          waReadAt={j.wa_read_at}
+                          waConfirmedAt={j.wa_confirmed_at}
+                        />
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold space-x-3">
+                        <WhatsAppLink href={waHref} label="Anunță șofer" />
+                        <a href={`/jobs/${j.id}`} className="text-sm font-bold text-slate-900 hover:text-brand">
+                          Editează
+                        </a>
+                        <DeleteButton url={`/api/jobs/${j.id}`} confirmText={`Ștergi cursa ${j.ref || j.id}?`} />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </Fragment>
+            ))}
             {filteredJobs.length === 0 && (
               <tr>
                 <td colSpan={9} className="px-4 py-6 text-center text-slate-400">
