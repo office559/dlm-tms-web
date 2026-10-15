@@ -63,6 +63,21 @@ function nullify<T>(v: T | "" | undefined): T | null {
   return v === "" || v === undefined ? null : v;
 }
 
+/**
+ * Când o cursă devine "finalizat", locația mașinii devine locul de descărcare
+ * al cursei (depozitul unde a descărcat). Dacă lipsește mașina sau locul de
+ * descărcare, nu se schimbă nimic.
+ */
+async function syncVehicleLocationFromJob(job: Job | null) {
+  if (!job || job.status !== "finalizat") return;
+  const place = (job.unload_place ?? "").trim();
+  if (!job.vehicle_id || !place) return;
+  await pool.query(`update vehicles set location = $2 where id = $1`, [
+    job.vehicle_id,
+    place,
+  ]);
+}
+
 export async function listJobs() {
   const { rows } = await pool.query<Job>(
     `select * from jobs order by coalesce(start_at, created_at) desc`
@@ -112,6 +127,13 @@ export async function createJob(input: JobInput) {
 }
 
 export async function updateJob(id: string, input: JobInput) {
+  // statusul de dinainte: locația mașinii se schimbă doar la trecerea în "finalizat"
+  const prev = await pool.query<{ status: string }>(
+    `select status from jobs where id = $1`,
+    [id]
+  );
+  const prevStatus = prev.rows[0]?.status ?? null;
+
   const { rows } = await pool.query<Job>(
     `update jobs set
        kind = $2, client_id = $3, ref = $4, load_place = $5, unload_place = $6,
@@ -143,7 +165,11 @@ export async function updateJob(id: string, input: JobInput) {
       nullify(input.paidAt),
     ]
   );
-  return rows[0] ?? null;
+  const job = rows[0] ?? null;
+  if (job && job.status === "finalizat" && prevStatus !== "finalizat") {
+    await syncVehicleLocationFromJob(job);
+  }
+  return job;
 }
 
 export async function deleteJob(id: string) {
@@ -155,6 +181,7 @@ export async function deleteJob(id: string) {
  * `cancelFee` se salvează doar când statusul devine "anulat".
  * `km` (opțional) salvează kilometrajul de pe bord: start și/sau final;
  * o valoare lipsă (null) nu șterge ce era salvat deja.
+ * La "finalizat", locația mașinii devine locul de descărcare al cursei.
  */
 export async function patchJobStatus(
   id: string,
@@ -172,7 +199,9 @@ export async function patchJobStatus(
      returning *`,
     [id, status, cancelFee ?? null, km?.start ?? null, km?.end ?? null]
   );
-  return rows[0] ?? null;
+  const job = rows[0] ?? null;
+  await syncVehicleLocationFromJob(job);
+  return job;
 }
 
 /** Salvează SID-ul mesajului WhatsApp trimis pentru cursă și resetează citirea/confirmarea. */
