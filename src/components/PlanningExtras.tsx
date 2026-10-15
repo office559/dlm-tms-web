@@ -49,20 +49,13 @@ export function CrewSelect({
     router.refresh();
   }
 
-  const color =
-    val === "team"
-      ? "border-purple-300 bg-purple-50 text-purple-700"
-      : val === "single"
-        ? "border-sky-300 bg-sky-50 text-sky-700"
-        : "border-slate-200 bg-white text-slate-500";
-
   return (
     <div>
       <select
         value={val}
         onChange={onChange}
         disabled={saving}
-        className={`w-full rounded-lg border px-2 py-1 text-sm font-medium outline-none focus:border-brand disabled:opacity-60 ${color}`}
+        className="w-full rounded-lg border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-900 outline-none focus:border-brand disabled:opacity-60"
       >
         <option value="">— Alege —</option>
         <option value="single">Single driver</option>
