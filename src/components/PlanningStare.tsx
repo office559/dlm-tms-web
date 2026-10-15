@@ -30,15 +30,15 @@ type StareOption = {
 
 type StareStep = "status" | "cancelFee" | "kmStart" | "kmEnd" | "done";
 
-/** Culorile badge-ului de Stare din tabel: text închis, fundal mai intens, ca să se vadă bine. */
+/** Culorile badge-ului de Stare din tabel: text negru, fundal mai intens, ca să se vadă bine. */
 const STARE_BADGE_STYLES: Record<FleetState, string> = {
-  disponibil: "text-green-900 bg-green-300",
-  indisponibil: "text-red-900 bg-red-300",
-  pauza: "text-blue-900 bg-blue-300",
-  alocat: "text-yellow-900 bg-yellow-300",
-  tranzit: "text-orange-900 bg-orange-300",
-  stationare: "text-red-900 bg-red-300",
-  pending: "text-violet-900 bg-violet-300",
+  disponibil: "text-slate-900 bg-green-300",
+  indisponibil: "text-slate-900 bg-red-300",
+  pauza: "text-slate-900 bg-blue-300",
+  alocat: "text-slate-900 bg-yellow-300",
+  tranzit: "text-slate-900 bg-orange-300",
+  stationare: "text-slate-900 bg-red-300",
+  pending: "text-slate-900 bg-violet-300",
 };
 
 /**
