@@ -25,6 +25,7 @@ function iso(s: string | Date | null | undefined): string | null {
 }
 
 const STATE_ORDER: Record<string, number> = {
+  pending: -1,
   pauza: 0,
   disponibil: 1,
   indisponibil: 2,
@@ -35,6 +36,7 @@ const STATE_ORDER: Record<string, number> = {
 
 const STATE_TABS: { key: string; label: string }[] = [
   { key: "toate", label: "Toate" },
+  { key: "pending", label: "Pending" },
   { key: "disponibil", label: "Disponibil" },
   { key: "alocat", label: "Viitor" },
   { key: "tranzit", label: "Tranzit" },
