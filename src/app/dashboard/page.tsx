@@ -232,14 +232,24 @@ function JobStatusBadge({ status }: { status: string }) {
 
 /* ------------------------------ Pagina ------------------------------ */
 
-const FLEET_ORDER = ["disponibil", "alocat", "tranzit", "pauza", "indisponibil", "stationare"];
+// Culorile stărilor flotei — aceleași ca în Planificare.
+const FLEET_ORDER = [
+  "disponibil",
+  "pending",
+  "alocat",
+  "tranzit",
+  "pauza",
+  "indisponibil",
+  "stationare",
+];
 const FLEET_COLORS: Record<string, string> = {
-  disponibil: "#10b981",
-  alocat: "#8b5cf6",
-  tranzit: "#3b82f6",
-  pauza: "#f59e0b",
-  indisponibil: "#ef4444",
-  stationare: "#94a3b8",
+  disponibil: "#22c55e", // verde
+  pending: "#8b5cf6", // violet
+  alocat: "#eab308", // galben (Viitor)
+  tranzit: "#f97316", // portocaliu
+  pauza: "#3b82f6", // albastru
+  indisponibil: "#ef4444", // roșu
+  stationare: "#94a3b8", // gri
 };
 
 export default async function DashboardPage() {
