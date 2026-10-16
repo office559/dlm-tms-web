@@ -30,15 +30,15 @@ type StareOption = {
 
 type StareStep = "status" | "cancelFee" | "kmStart" | "kmEnd" | "done";
 
-/** Culorile badge-ului de Stare din tabel: text negru, fundal mai intens, ca să se vadă bine. */
-const STARE_BADGE_STYLES: Record<FleetState, string> = {
-  disponibil: "text-slate-900 bg-green-300",
-  indisponibil: "text-slate-900 bg-red-300",
-  pauza: "text-slate-900 bg-blue-300",
-  alocat: "text-slate-900 bg-yellow-300",
-  tranzit: "text-slate-900 bg-orange-300",
-  stationare: "text-slate-900 bg-red-300",
-  pending: "text-slate-900 bg-violet-300",
+/** Culorile punctului (și ale haloului lui) din dreptul stării, în culorile din Planificare. */
+const STARE_DOT_STYLES: Record<FleetState, string> = {
+  disponibil: "bg-green-500 ring-green-300",
+  indisponibil: "bg-red-500 ring-red-300",
+  pauza: "bg-blue-500 ring-blue-300",
+  alocat: "bg-yellow-500 ring-yellow-300",
+  tranzit: "bg-orange-500 ring-orange-300",
+  stationare: "bg-red-500 ring-red-300",
+  pending: "bg-violet-500 ring-violet-300",
 };
 
 /**
@@ -274,10 +274,14 @@ export function StareControl({
         type="button"
         disabled={saving || !clickable}
         onClick={() => setOpen(true)}
-        className={`whitespace-nowrap rounded-full px-3 py-1 text-[13.5px] font-extrabold transition ${STARE_BADGE_STYLES[state]} ${
+        className={`inline-flex items-center gap-2 whitespace-nowrap rounded-md px-1 py-1 text-[13px] font-extrabold text-slate-900 transition ${
           clickable ? "cursor-pointer hover:opacity-75" : "cursor-default"
         } disabled:opacity-50`}
       >
+        <span
+          aria-hidden="true"
+          className={`h-[11px] w-[11px] shrink-0 rounded-full ring-[3px] ${STARE_DOT_STYLES[state]}`}
+        />
         {FLEET_STATE_LABELS[state]}
       </button>
 
