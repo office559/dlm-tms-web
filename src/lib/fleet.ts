@@ -277,6 +277,18 @@ export async function patchVehicleQuick(
     sets.push(`crew_type = $${vals.length}`);
   }
 
+  // Vehiculul e "pending" (după o cursă finalizată). Când dispecerul îi notează
+  // o pauză, trece automat în Pauză; când îi notează un program, trece în
+  // Disponibil (sau Alocat, dacă are o cursă planificată). Dacă starea manuală
+  // e trimisă explicit în același apel, aceasta rămâne cea care contează.
+  const startsPause = fields.pause === true;
+  const setsProgram = Boolean(
+    fields.programStart || fields.programStartAt || fields.programEnd || fields.programEndAt
+  );
+  if (fields.stateOverride === undefined && (startsPause || setsProgram)) {
+    sets.push(`state_override = case when state_override = 'pending' then null else state_override end`);
+  }
+
   if (
     fields.weeklyRest === true &&
     fields.weeklyRestType &&
