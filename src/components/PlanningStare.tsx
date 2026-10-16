@@ -274,7 +274,7 @@ export function StareControl({
         type="button"
         disabled={saving || !clickable}
         onClick={() => setOpen(true)}
-        className={`inline-flex items-center gap-2 whitespace-nowrap rounded-md px-1 py-1 text-[13px] font-extrabold text-slate-900 transition ${
+        className={`inline-flex items-center gap-2 whitespace-nowrap rounded-md px-1 py-1 text-[13.5px] font-medium text-slate-900 transition ${
           clickable ? "cursor-pointer hover:opacity-75" : "cursor-default"
         } disabled:opacity-50`}
       >
