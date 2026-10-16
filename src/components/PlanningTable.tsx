@@ -154,6 +154,7 @@ function shortDateTime(label: string): string {
   return label.replace(/^(\d{2}\.\d{2})\.\d{4}\s+/, "$1 · ");
 }
 
+
 type ColumnDef = {
   key: ColumnKey;
   label: string;
@@ -456,10 +457,10 @@ export function PlanningTable({
             );
           })}
         </colgroup>
-        <thead className="bg-orange-50 text-orange-800 text-left">
+        <thead className="bg-gradient-to-r from-orange-100 to-orange-50 text-orange-900 text-left">
           <tr>
             {orderedColumns.map((col) => {
-              const thClass = `relative px-4 py-3 whitespace-nowrap select-none ${
+              const thClass = `relative border-l border-orange-200 px-4 py-3 font-bold whitespace-nowrap select-none first:border-l-0 ${
                 dragKey === col.key ? "opacity-40" : ""
               }`;
               return (
