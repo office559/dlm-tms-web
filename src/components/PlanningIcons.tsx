@@ -69,21 +69,28 @@ export function ResetIcon() {
   );
 }
 
+/** Starea mesajului WhatsApp: punct colorat cu halou + text (verde = confirmat, galben = în așteptare). */
 export function waBadge(state: "none" | "pending" | "confirmed", read: boolean) {
   if (state === "none") return <span className="text-slate-300 text-xs">—</span>;
   if (state === "confirmed") {
     return (
-      <span className="whitespace-nowrap rounded-full bg-green-300 px-3 py-[3px] text-[13px] font-extrabold text-green-900">
+      <span className="inline-flex items-center gap-2 whitespace-nowrap text-[13.5px] font-medium text-slate-900">
+        <span
+          aria-hidden="true"
+          className="h-[11px] w-[11px] shrink-0 rounded-full bg-green-500 ring-[3px] ring-green-300"
+        />
         Confirmat
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <span className="rounded-full bg-amber-300 px-3 py-[3px] text-[13px] font-extrabold text-amber-900">
-        Pending
-      </span>
-      {read && <span className="text-[12.5px] font-bold text-slate-600">(citit)</span>}
+    <span className="inline-flex items-center gap-2 whitespace-nowrap text-[13.5px] font-medium text-slate-900">
+      <span
+        aria-hidden="true"
+        className="h-[11px] w-[11px] shrink-0 rounded-full bg-amber-500 ring-[3px] ring-amber-300"
+      />
+      Pending
+      {read && <span className="text-[12.5px] font-normal text-slate-600">(citit)</span>}
     </span>
   );
 }
