@@ -66,21 +66,57 @@ function nullify<T>(v: T | "" | undefined): T | null {
 /**
  * Când o cursă devine "finalizat":
  *  - locația mașinii devine locul de descărcare al cursei (dacă e completat);
- *  - mașina trece în starea "pending", până o mută dispecerul în Disponibil /
- *    Pauză / Indisponibil. O mașină aflată pe "Staționare" rămâne așa.
+ *  - dacă mașina mai are o cursă planificată (adăugată din timp), aceasta
+ *    pornește automat (Tranzit), cu kilometrajul de start = kilometrajul final
+ *    al cursei terminate, iar mașina rămâne în Tranzit;
+ *  - altfel mașina trece în starea "pending", până o mută dispecerul în
+ *    Disponibil / Pauză / Indisponibil. O mașină aflată pe "Staționare" rămâne așa.
  */
 async function syncVehicleAfterFinish(job: Job | null) {
   if (!job || job.status !== "finalizat" || !job.vehicle_id) return;
   const place = (job.unload_place ?? "").trim();
+
+  const veh = await pool.query<{ state_override: string | null }>(
+    `select state_override from vehicles where id = $1`,
+    [job.vehicle_id]
+  );
+  const stationary = veh.rows[0]?.state_override === "stationare";
+
+  // Următoarea cursă planificată a aceluiași vehicul (cea mai apropiată ca start).
+  let nextId: string | null = null;
+  if (!stationary) {
+    const next = await pool.query<{ id: string }>(
+      `select id from jobs
+        where vehicle_id = $1
+          and status = 'planificare'
+          and id <> $2
+        order by start_at asc nulls last, created_at asc
+        limit 1`,
+      [job.vehicle_id, job.id]
+    );
+    nextId = next.rows[0]?.id ?? null;
+  }
+
+  if (nextId) {
+    await pool.query(
+      `update jobs
+          set status = 'activ',
+              km_start = coalesce(km_start, $2::numeric)
+        where id = $1`,
+      [nextId, job.km_end ?? null]
+    );
+  }
+
   await pool.query(
     `update vehicles
         set location = coalesce(nullif($2, ''), location),
             state_override = case
               when state_override = 'stationare' then state_override
+              when $3::boolean then null
               else 'pending'
             end
       where id = $1`,
-    [job.vehicle_id, place]
+    [job.vehicle_id, place, nextId !== null]
   );
 }
 
@@ -187,7 +223,8 @@ export async function deleteJob(id: string) {
  * `cancelFee` se salvează doar când statusul devine "anulat".
  * `km` (opțional) salvează kilometrajul de pe bord: start și/sau final;
  * o valoare lipsă (null) nu șterge ce era salvat deja.
- * La "finalizat": locația mașinii = locul de descărcare, iar mașina trece în "pending".
+ * La "finalizat": locația mașinii = locul de descărcare; dacă are o cursă următoare, aceasta
+ * pornește automat (Tranzit), altfel mașina trece în "pending".
  */
 export async function patchJobStatus(
   id: string,
