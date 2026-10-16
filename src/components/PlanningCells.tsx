@@ -51,7 +51,7 @@ export function DriverSelect({
 /**
  * Locație vehicul: dacă dispecerul n-a pus nimic manual, se completează
  * automat cu locul ultimei descărcări a vehiculului (fallback). Se afișează
- * ca o pastilă maro cald, îngroșată, cu creion de editare alături.
+ * ca o pastilă mică, gri cald, cu text negru îngroșat și creion de editare alături.
  */
 export function LocationControl({
   vehicleId,
@@ -80,7 +80,7 @@ export function LocationControl({
     <div className="flex flex-col gap-0.5">
       {initial ? (
         <div className="flex items-center gap-1.5">
-          <span className="whitespace-nowrap rounded-lg bg-amber-800 px-3 py-[3px] text-[13.5px] font-extrabold text-white">
+          <span className="whitespace-nowrap rounded-md border border-stone-400 bg-stone-200 px-2 py-px text-[12.5px] font-bold text-stone-900">
             {initial}
           </span>
           <button
