@@ -5,11 +5,11 @@ import { listVehicles } from "@/lib/vehicles";
 import { listDrivers } from "@/lib/drivers";
 import { listTrailers } from "@/lib/trailers";
 import { AppShell } from "@/components/AppShell";
-import { getUserTimezone } from "@/lib/user-prefs";
-import { DEFAULT_TIMEZONE, formatDateInTz, formatTimeInTz } from "@/lib/tz";
+import { formatDateInTz, formatTimeInTz } from "@/lib/tz";
 import {
   fleetState,
   currentJobsByVehicle,
+  plannedJobsByVehicle,
   lastUnloadPlaceByVehicle,
   weeklyRestSuggestionByVehicle,
   vehicleExtrasByVehicle,
@@ -88,14 +88,11 @@ export default async function PlanningPage({
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
-  let tz = DEFAULT_TIMEZONE;
-  try {
-    tz = await getUserTimezone(session.user.id);
-  } catch {
-    tz = DEFAULT_TIMEZONE;
-  }
-  const fmtDate = (s: string | Date | null) => formatDateInTz(s, tz);
-  const fmtTime = (s: string | Date | null) => formatTimeInTz(s, tz);
+  // Orele de încărcare / descărcare ale curselor se introduc în formular ca
+  // oră locală a locului respectiv (ex. 14:00 din comanda Amazon) și se salvează
+  // exact așa. Le afișăm neschimbate, nu convertite în fusul orar ales în Setări.
+  const fmtDate = (s: string | Date | null) => formatDateInTz(s, "UTC");
+  const fmtTime = (s: string | Date | null) => formatTimeInTz(s, "UTC");
 
   const params = await searchParams;
 
@@ -118,9 +115,16 @@ export default async function PlanningPage({
 
   const trailerById = new Map(trailers.map((t) => [t.id, t]));
   const vehicleIds = vehicles.map((v) => v.id);
-  const [jobsByVehicle, lastUnloadByVehicle, weeklyRestSuggestion, extrasByVehicle] =
+  const [
+    jobsByVehicle,
+    plannedByVehicle,
+    lastUnloadByVehicle,
+    weeklyRestSuggestion,
+    extrasByVehicle,
+  ] =
     await Promise.all([
       currentJobsByVehicle(vehicleIds),
+      plannedJobsByVehicle(vehicleIds),
       lastUnloadPlaceByVehicle(vehicleIds),
       weeklyRestSuggestionByVehicle(vehicleIds),
       vehicleExtrasByVehicle(vehicleIds),
@@ -153,6 +157,9 @@ export default async function PlanningPage({
     const trailer = v.trailer_id ? trailerById.get(v.trailer_id) ?? null : null;
     const extras = extrasByVehicle.get(v.id);
 
+    // Cursele următoare: planificate și diferite de cea afișată acum în rând.
+    const upcoming = (plannedByVehicle.get(v.id) ?? []).filter((j) => j.id !== job?.id);
+
     let waState: "none" | "pending" | "confirmed" = "none";
     let waRead = false;
     if (job?.wa_message_sid) {
@@ -168,6 +175,8 @@ export default async function PlanningPage({
       state,
       jobId: job ? job.id : null,
       jobRef: job?.ref ?? null,
+      nextJobRef: upcoming[0] ? upcoming[0].ref || upcoming[0].id : null,
+      nextJobCount: upcoming.length,
       jobDateLabel: job?.start_at ? fmtDate(job.start_at) : "—",
       driverId: v.driver_id,
       crewType: extras?.crewType ?? null,
