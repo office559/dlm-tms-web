@@ -69,57 +69,28 @@ export function ResetIcon() {
   );
 }
 
-/** Bifă dublă (ca în WhatsApp), pentru mesajul confirmat. */
-function DoubleCheckIcon() {
-  return (
-    <svg
-      viewBox="0 0 28 24"
-      className="h-[13px] w-[17px] shrink-0 text-blue-600"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M2 12l5 5L18 6" />
-      <path d="M11 17l1.5 1.5L24 6" />
-    </svg>
-  );
-}
-
-/** Ceas mic, pentru mesajul în așteptare. */
-function ClockIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-[13px] w-[13px] shrink-0 text-amber-700"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.6"
-      strokeLinecap="round"
-    >
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 7v5l3 2" />
-    </svg>
-  );
-}
-
-/** Starea mesajului WhatsApp: bifă dublă albastră = confirmat, ceas = în așteptare. Fără fundal, text normal. */
+/** Starea mesajului WhatsApp: punct colorat cu halou + text (verde = confirmat, galben = în așteptare). */
 export function waBadge(state: "none" | "pending" | "confirmed", read: boolean) {
   if (state === "none") return <span className="text-slate-300 text-xs">—</span>;
   if (state === "confirmed") {
     return (
-      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[13.5px] font-medium text-green-900">
-        <DoubleCheckIcon />
+      <span className="inline-flex items-center gap-2 whitespace-nowrap text-[13.5px] font-medium text-slate-900">
+        <span
+          aria-hidden="true"
+          className="h-[11px] w-[11px] shrink-0 rounded-full bg-green-500 ring-[3px] ring-green-300"
+        />
         Confirmat
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[13.5px] font-medium text-amber-900">
-      <ClockIcon />
+    <span className="inline-flex items-center gap-2 whitespace-nowrap text-[13.5px] font-medium text-slate-900">
+      <span
+        aria-hidden="true"
+        className="h-[11px] w-[11px] shrink-0 rounded-full bg-amber-500 ring-[3px] ring-amber-300"
+      />
       Pending
-      {read && <span className="ml-1 text-[12.5px] font-normal text-slate-600">(citit)</span>}
+      {read && <span className="text-[12.5px] font-normal text-slate-600">(citit)</span>}
     </span>
   );
 }
