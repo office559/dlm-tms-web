@@ -70,6 +70,27 @@ export async function currentJobsByVehicle(vehicleIds: string[]): Promise<Map<st
   return map;
 }
 
+/** Toate cursele planificate (încă nepornite) ale fiecărui vehicul, în ordinea startului. */
+export async function plannedJobsByVehicle(vehicleIds: string[]): Promise<Map<string, Job[]>> {
+  const map = new Map<string, Job[]>();
+  if (vehicleIds.length === 0) return map;
+  const { rows } = await pool.query<Job>(
+    `select *
+       from jobs
+      where vehicle_id = any($1)
+        and status = 'planificare'
+      order by vehicle_id, start_at asc nulls last, created_at asc`,
+    [vehicleIds]
+  );
+  rows.forEach((j) => {
+    if (!j.vehicle_id) return;
+    const list = map.get(j.vehicle_id) ?? [];
+    list.push(j);
+    map.set(j.vehicle_id, list);
+  });
+  return map;
+}
+
 /** Ultima locație de descărcare (din ultima cursă finalizată) pentru fiecare vehicul. */
 export async function lastUnloadPlaceByVehicle(vehicleIds: string[]): Promise<Map<string, string>> {
   if (vehicleIds.length === 0) return new Map();
