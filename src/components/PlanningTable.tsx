@@ -31,6 +31,8 @@ export type PlanningRow = {
   state: FleetState;
   jobId: string | null;
   jobRef: string | null;
+  nextJobRef: string | null;
+  nextJobCount: number;
   jobDateLabel: string;
   driverId: string | null;
   crewType: string | null;
@@ -97,7 +99,7 @@ const DEFAULT_ORDER: ColumnKey[] = [
 
 const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   vehicul: 260,
-  vrid: 110,
+  vrid: 170,
   data: 110,
   stare: 170,
   sofer: 230,
@@ -188,9 +190,19 @@ const COLUMNS: ColumnDef[] = [
     cellClassName: "font-mono text-sm font-semibold",
     render: (r) =>
       r.jobId ? (
-        <a href={`/jobs/${r.jobId}`} className="text-brand hover:text-brand-dark">
-          {r.jobRef || r.jobId}
-        </a>
+        <div className="flex flex-col items-start gap-1">
+          <a href={`/jobs/${r.jobId}`} className="text-brand hover:text-brand-dark">
+            {r.jobRef || r.jobId}
+          </a>
+          {r.nextJobCount > 0 && (
+            <span
+              title={`Următoarea cursă: ${r.nextJobRef}`}
+              className="max-w-full truncate rounded-md border border-orange-700 bg-white px-1.5 font-sans text-[11.5px] font-semibold text-orange-900"
+            >
+              +{r.nextJobCount} urmează: {r.nextJobRef}
+            </span>
+          )}
+        </div>
       ) : (
         "—"
       ),
