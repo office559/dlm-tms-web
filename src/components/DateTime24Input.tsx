@@ -37,12 +37,13 @@ export function DateTime24Input({
   onChange: (next: string) => void;
   className?: string;
 }) {
-  const [datePart, timePart] = value ? value.split("T") : ["", ""];
-  const [timeText, setTimeText] = useState(timePart ?? "");
+  const [datePart, rawTime] = value ? value.split("T") : ["", ""];
+  const timePart = (rawTime ?? "").slice(0, 5); // fără secunde
+  const [timeText, setTimeText] = useState(timePart);
 
   // Dacă valoarea se schimbă din afară (ex. completare automată din AI), ne aliniem.
   useEffect(() => {
-    setTimeText(timePart ?? "");
+    setTimeText(timePart);
   }, [timePart]);
 
   function emit(nextDate: string, nextTime: string) {
@@ -61,7 +62,7 @@ export function DateTime24Input({
         type="date"
         value={datePart ?? ""}
         onChange={(e) => emit(e.target.value, timeText)}
-        className={className}
+        className={`${className ?? ""} min-w-0 flex-1`}
       />
       <input
         type="text"
@@ -81,7 +82,7 @@ export function DateTime24Input({
           }
         }}
         aria-invalid={invalid}
-        className={`${className ?? ""} w-24 shrink-0 text-center ${invalid ? "border-red-400" : ""}`}
+        className={`${className ?? ""} !w-24 shrink-0 text-center ${invalid ? "border-red-400" : ""}`}
       />
     </div>
   );
