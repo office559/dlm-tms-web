@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { listVehicles } from "@/lib/vehicles";
 import { listDrivers } from "@/lib/drivers";
 import { listTrailers } from "@/lib/trailers";
+import { listCustomers } from "@/lib/customers";
 import { AppShell } from "@/components/AppShell";
 import { formatDateInTz, formatTimeInTz } from "@/lib/tz";
 import {
@@ -104,11 +105,15 @@ export default async function PlanningPage({
       .filter((s) => VALID_STATES.includes(s))
   );
 
-  const [allVehicles, drivers, trailers] = await Promise.all([
+  const [allVehicles, drivers, trailers, customers] = await Promise.all([
     listVehicles(),
     listDrivers(),
     listTrailers(),
+    listCustomers(),
   ]);
+
+  // Codul (SCAC) fiecărui client, după id-ul clientului.
+  const codeByClient = new Map(customers.map((c) => [c.id, c.code]));
 
   // Vehiculele inactive nu apar în Planificare (rămân în lista de Vehicule).
   const vehicles = allVehicles.filter((v) => v.active);
@@ -175,6 +180,7 @@ export default async function PlanningPage({
       state,
       jobId: job ? job.id : null,
       jobRef: job?.ref ?? null,
+      scac: job?.client_id ? codeByClient.get(job.client_id) ?? null : null,
       nextJobRef: upcoming[0] ? upcoming[0].ref || upcoming[0].id : null,
       nextJobCount: upcoming.length,
       jobDateLabel: job?.start_at ? fmtDate(job.start_at) : "—",
