@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import type { FleetState } from "@/lib/fleet-labels";
+import type { PlanningRow } from "@/components/planning-types";
 import { FLEET_ROW_STYLES } from "@/lib/fleet-labels";
 import {
   CazuriControl,
@@ -15,6 +15,7 @@ import {
   WeeklyRestControl,
 } from "@/components/PlanningCells";
 import { CrewSelect, NoteControl } from "@/components/PlanningExtras";
+import { RouteCell } from "@/components/PlanningRoute";
 import {
   ChevronIcon,
   DragHandleIcon,
@@ -23,50 +24,12 @@ import {
   waBadge,
 } from "@/components/PlanningIcons";
 
-export type PlanningRow = {
-  vehicleId: string;
-  plate: string;
-  trailerPlate: string | null;
-  trailerType: string | null;
-  state: FleetState;
-  jobId: string | null;
-  jobRef: string | null;
-  nextJobRef: string | null;
-  nextJobCount: number;
-  jobDateLabel: string;
-  driverId: string | null;
-  crewType: string | null;
-  note: string | null;
-  programStart: string | null;
-  programEnd: string | null;
-  programStartAt: string | null;
-  programEndAt: string | null;
-  pause: boolean;
-  restStart: string | null;
-  restEnd: string | null;
-  restStartAt: string | null;
-  restEndAt: string | null;
-  weeklyRest: boolean;
-  weeklyRestType: string | null;
-  weeklyRestStart: string | null;
-  weeklyRestEnd: string | null;
-  weeklyRestStartAt: string | null;
-  weeklyRestEndAt: string | null;
-  weeklyRestSuggested: "45" | "24";
-  location: string | null;
-  fallbackLocation: string | null;
-  loadPlace: string | null;
-  unloadPlace: string | null;
-  loadDateLabel: string;
-  unloadDateLabel: string;
-  waState: "none" | "pending" | "confirmed";
-  waRead: boolean;
-  cases: string[];
-};
+export type { PlanningRow } from "@/components/planning-types";
 
 type ColumnKey =
   | "vehicul"
   | "vrid"
+  | "scac"
   | "data"
   | "stare"
   | "sofer"
@@ -83,6 +46,7 @@ type ColumnKey =
 const DEFAULT_ORDER: ColumnKey[] = [
   "vehicul",
   "vrid",
+  "scac",
   "data",
   "stare",
   "sofer",
@@ -100,6 +64,7 @@ const DEFAULT_ORDER: ColumnKey[] = [
 const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   vehicul: 260,
   vrid: 170,
+  scac: 100,
   data: 110,
   stare: 170,
   sofer: 230,
@@ -150,13 +115,6 @@ function loadState(): StoredState {
   }
 }
 
-/** "15.10.2026 14:00" → "15.10 · 14:00" (fără an, ca să încapă în coloană). */
-function shortDateTime(label: string): string {
-  if (!label) return "—";
-  return label.replace(/^(\d{2}\.\d{2})\.\d{4}\s+/, "$1 · ");
-}
-
-
 type ColumnDef = {
   key: ColumnKey;
   label: string;
@@ -206,6 +164,12 @@ const COLUMNS: ColumnDef[] = [
       ) : (
         "—"
       ),
+  },
+  {
+    key: "scac",
+    label: "SCAC",
+    cellClassName: "font-mono text-sm font-semibold",
+    render: (r) => r.scac || "—",
   },
   {
     key: "data",
@@ -282,24 +246,7 @@ const COLUMNS: ColumnDef[] = [
   {
     key: "traseu",
     label: "ÎNC - DSC",
-    render: (r) =>
-      r.jobId ? (
-        <div className="relative pl-5 text-[13px] leading-6">
-          <span className="absolute bottom-3 left-[5px] top-3 w-0.5 bg-slate-300" />
-          <div className="relative whitespace-nowrap">
-            <span className="absolute -left-[19px] top-[7px] h-2.5 w-2.5 rounded-full border-2 border-green-600 bg-white" />
-            <span className="mr-1.5 font-extrabold text-blue-700">{r.loadPlace || "—"}</span>
-            <span className="text-slate-600">{shortDateTime(r.loadDateLabel)}</span>
-          </div>
-          <div className="relative whitespace-nowrap">
-            <span className="absolute -left-[19px] top-[7px] h-2.5 w-2.5 rounded-full border-2 border-red-600 bg-white" />
-            <span className="mr-1.5 font-extrabold text-blue-700">{r.unloadPlace || "—"}</span>
-            <span className="text-slate-600">{shortDateTime(r.unloadDateLabel)}</span>
-          </div>
-        </div>
-      ) : (
-        <a href={"/jobs/new?vehicleId=" + r.vehicleId} title="Creează cursă pentru acest vehicul" className="inline-grid h-6 w-6 place-items-center rounded-full border border-dashed border-slate-300 text-slate-400 hover:border-brand hover:text-brand transition">+</a>
-      ),
+    render: (r) => <RouteCell row={r} />,
   },
   {
     key: "cazuri",
