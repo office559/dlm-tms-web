@@ -17,6 +17,19 @@ function pauseEnded(v: Vehicle): boolean {
   return end <= Date.now();
 }
 
+/** True dacă vehiculul are o pauză săptămânală în curs (nesfârșită încă). */
+function weeklyRestActive(v: Vehicle): boolean {
+  const x = v as unknown as {
+    weekly_rest?: boolean | null;
+    weekly_rest_end_at?: string | Date | null;
+  };
+  if (!x.weekly_rest) return false;
+  if (!x.weekly_rest_end_at) return true;
+  const end = new Date(x.weekly_rest_end_at).getTime();
+  if (Number.isNaN(end)) return true;
+  return end > Date.now();
+}
+
 /** Starea unui vehicul în Planificare, derivată din datele reale. */
 export function fleetState(v: Vehicle, currentJob: Job | null): FleetState {
   if (!v.active) return "stationare";
@@ -26,6 +39,7 @@ export function fleetState(v: Vehicle, currentJob: Job | null): FleetState {
   if (v.state_override === "pending") return "pending";
   if (v.state_override === "indisponibil") return "indisponibil";
   if (v.pause && !pauseEnded(v)) return "pauza";
+  if (weeklyRestActive(v)) return "pauza";
   if (currentJob && currentJob.status === "planificare") return "alocat";
   if (!v.driver_id) return "indisponibil";
   return "disponibil";
@@ -299,15 +313,34 @@ export async function patchVehicleQuick(
   }
 
   // Vehiculul e "pending" (după o cursă finalizată). Când dispecerul îi notează
-  // o pauză, trece automat în Pauză; când îi notează un program, trece în
-  // Disponibil (sau Alocat, dacă are o cursă planificată). Dacă starea manuală
-  // e trimisă explicit în același apel, aceasta rămâne cea care contează.
-  const startsPause = fields.pause === true;
+  // o pauză (zilnică sau săptămânală), trece automat în Pauză; când îi notează
+  // un program, trece în Disponibil (sau Alocat, dacă are o cursă planificată).
+  // Dacă starea manuală e trimisă explicit în același apel, aceasta rămâne cea
+  // care contează.
+  const startsPause = fields.pause === true || fields.weeklyRest === true;
   const setsProgram = Boolean(
     fields.programStart || fields.programStartAt || fields.programEnd || fields.programEndAt
   );
   if (fields.stateOverride === undefined && (startsPause || setsProgram)) {
     sets.push(`state_override = case when state_override = 'pending' then null else state_override end`);
+  }
+
+  // Din meniul Stare, "Disponibil" / "Indisponibil" în timpul unei pauze
+  // încheie pauza (pause = false + stare manuală). Dacă vehiculul era în Pauză
+  // din cauza pauzei săptămânale, o încheiem și pe aceasta.
+  if (
+    fields.pause === false &&
+    fields.stateOverride !== undefined &&
+    fields.weeklyRest === undefined
+  ) {
+    sets.push(
+      `weekly_rest = false`,
+      `weekly_rest_type = null`,
+      `weekly_rest_start = null`,
+      `weekly_rest_end = null`,
+      `weekly_rest_start_at = null`,
+      `weekly_rest_end_at = null`
+    );
   }
 
   if (
