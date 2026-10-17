@@ -1,0 +1,44 @@
+import type { FleetState } from "@/lib/fleet-labels";
+
+/** Un rând din tabelul Planificare (un vehicul + cursa lui curentă). */
+export type PlanningRow = {
+  vehicleId: string;
+  plate: string;
+  trailerPlate: string | null;
+  trailerType: string | null;
+  state: FleetState;
+  jobId: string | null;
+  jobRef: string | null;
+  scac: string | null;
+  nextJobRef: string | null;
+  nextJobCount: number;
+  jobDateLabel: string;
+  driverId: string | null;
+  crewType: string | null;
+  note: string | null;
+  programStart: string | null;
+  programEnd: string | null;
+  programStartAt: string | null;
+  programEndAt: string | null;
+  pause: boolean;
+  restStart: string | null;
+  restEnd: string | null;
+  restStartAt: string | null;
+  restEndAt: string | null;
+  weeklyRest: boolean;
+  weeklyRestType: string | null;
+  weeklyRestStart: string | null;
+  weeklyRestEnd: string | null;
+  weeklyRestStartAt: string | null;
+  weeklyRestEndAt: string | null;
+  weeklyRestSuggested: "45" | "24";
+  location: string | null;
+  fallbackLocation: string | null;
+  loadPlace: string | null;
+  unloadPlace: string | null;
+  loadDateLabel: string;
+  unloadDateLabel: string;
+  waState: "none" | "pending" | "confirmed";
+  waRead: boolean;
+  cases: string[];
+};
