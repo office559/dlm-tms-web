@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Time24Input } from "@/components/Time24Input";
 import { useTimezone } from "@/components/TimezoneProvider";
 import { formatTimeInTz, nowTimeInTz, zonedTimeToDate } from "@/lib/tz";
 import { fmtCountdown, patchVehicle } from "@/lib/planning-helpers";
@@ -159,12 +160,11 @@ export function WeeklyRestControl({
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Ora de început</label>
-                <input
-                  type="time"
+                <Time24Input
                   className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
                   value={startTime}
                   disabled={saving}
-                  onChange={(e) => setStartTime(e.target.value)}
+                  onChange={setStartTime}
                 />
               </div>
               <div className="grid grid-cols-2 gap-2">
