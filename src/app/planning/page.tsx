@@ -7,6 +7,7 @@ import { listTrailers } from "@/lib/trailers";
 import { listCustomers } from "@/lib/customers";
 import { AppShell } from "@/components/AppShell";
 import { formatDateInTz, formatTimeInTz } from "@/lib/tz";
+import { getUserTimezone } from "@/lib/user-prefs";
 import {
   fleetState,
   clearExpiredPauses,
@@ -98,6 +99,7 @@ export default async function PlanningPage({
   const fmtTime = (s: string | Date | null) => formatTimeInTz(s, "UTC");
 
   const params = await searchParams;
+  const userTz = await getUserTimezone(session.user.id);
 
   // Filtre multiple: ?stare=disponibil,alocat
   const selected = new Set(
@@ -146,7 +148,7 @@ export default async function PlanningPage({
 
   const allRows = vehicles
     .map((v) => ({ v, job: jobsByVehicle.get(v.id) ?? null }))
-    .map((x) => ({ ...x, state: fleetState(x.v, x.job) }))
+    .map((x) => ({ ...x, state: fleetState(x.v, x.job, userTz) }))
     .sort((a, b) => {
       // 1) grupat pe stare
       const byState = (STATE_ORDER[a.state] ?? 9) - (STATE_ORDER[b.state] ?? 9);
