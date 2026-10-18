@@ -1,10 +1,9 @@
 import { headers } from "next/headers";
+import { unstable_cache } from "next/cache";
 import { auth } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { listExpiryAlerts } from "@/lib/alerts";
 import { ShellFrame, type NavGroup } from "@/components/ShellFrame";
-import { getUserTimezone } from "@/lib/user-prefs";
-import { DEFAULT_TIMEZONE } from "@/lib/tz";
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -21,7 +20,6 @@ const NAV_GROUPS: NavGroup[] = [
       { key: "drivers", href: "/drivers", label: "Șoferi" },
       { key: "vehicles", href: "/vehicles", label: "Vehicule" },
       { key: "trailers", href: "/trailers", label: "Remorci" },
-      { key: "companies", href: "/companies", label: "Firme" },
       { key: "customers", href: "/customers", label: "Clienți" },
     ],
   },
@@ -33,6 +31,24 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
 ];
+
+/**
+ * Numărul de alerte (ITP / RCA / etc. care expiră) din meniu. Se reține 60 de
+ * secunde, ca să nu interogăm baza de date de fiecare dată când schimbi pagina.
+ */
+const getAlertCount = unstable_cache(
+  async () => {
+    try {
+      const settings = await getSettings();
+      const alerts = await listExpiryAlerts(settings?.alert_days ?? 30);
+      return alerts.length;
+    } catch {
+      return 0;
+    }
+  },
+  ["nav-alert-count"],
+  { revalidate: 60 }
+);
 
 function initialsOf(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -51,7 +67,10 @@ export async function AppShell({
   wide?: boolean;
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const [session, alertCount] = await Promise.all([
+    headers().then((h) => auth.api.getSession({ headers: h })),
+    getAlertCount(),
+  ]);
   const userName = session?.user.name || session?.user.email || "Utilizator";
   const isAdmin = session?.user.role === "admin";
 
@@ -68,24 +87,6 @@ export async function AppShell({
       ]
     : NAV_GROUPS;
 
-  let alertCount = 0;
-  try {
-    const settings = await getSettings();
-    const alerts = await listExpiryAlerts(settings?.alert_days ?? 30);
-    alertCount = alerts.length;
-  } catch {
-    alertCount = 0;
-  }
-
-  let timezone = DEFAULT_TIMEZONE;
-  if (session) {
-    try {
-      timezone = await getUserTimezone(session.user.id);
-    } catch {
-      timezone = DEFAULT_TIMEZONE;
-    }
-  }
-
   return (
     <ShellFrame
       navGroups={groups}
@@ -94,7 +95,6 @@ export async function AppShell({
       userInitials={initialsOf(userName)}
       userName={userName}
       alertCount={alertCount}
-      timezone={timezone}
       wide={wide}
     >
       {children}
