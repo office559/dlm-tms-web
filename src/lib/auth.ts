@@ -23,6 +23,12 @@ export const auth = betterAuth({
   },
   session: {
     expiresIn: 60 * 60 * 24 * 30, // 30 zile
+    // Sesiunea se ține minte 5 minute în cookie, ca să nu interogăm baza de
+    // date la fiecare pagină (pe pagină se verifică de 2 ori: pagina + meniul).
+    cookieCache: {
+      enabled: true,
+      maxAge: 5 * 60,
+    },
   },
   plugins: [admin()],
 });
