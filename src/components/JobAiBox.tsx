@@ -29,6 +29,8 @@ export type AiExtracted = {
   ref?: string;
   loadPlace?: string;
   unloadPlace?: string;
+  loadCountry?: string;
+  unloadCountry?: string;
   startAt?: string;
   endAt?: string;
   miles?: string | number;
