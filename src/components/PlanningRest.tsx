@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Time24Input } from "@/components/Time24Input";
 import { useTimezone } from "@/components/TimezoneProvider";
-import { formatTimeInTz, nowTimeInTz, zonedTimeToDate } from "@/lib/tz";
+import { formatDateInTz, formatTimeInTz, nowTimeInTz, zonedParts, zonedTimeToDate } from "@/lib/tz";
 import { endPauseBody, fmtCountdown, patchVehicle, startPauseBody } from "@/lib/planning-helpers";
 
 // Pauza săptămânală stă în fișierul ei (PlanningWeekly.tsx); se exportă de aici
@@ -22,6 +22,19 @@ function addHoursToTime(time: string, hours: number): string {
     .padStart(2, "0");
   const mm = (normalized % 60).toString().padStart(2, "0");
   return `${hh}:${mm}`;
+}
+
+/** Data „AAAA-LL-ZZ" a unui moment, în fusul ales (pentru câmpul de dată). */
+function dateInputValue(d: Date, tz: string): string {
+  const p = zonedParts(d, tz);
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
+/** Momentul exact pentru ora „HH:MM" din ziua „AAAA-LL-ZZ" (în fusul ales). */
+function startMoment(date: string, time: string, tz: string): Date {
+  const [y, mo, d] = date.split("-").map(Number);
+  // amiază UTC: în orice fus din listă cade în aceeași zi calendaristică
+  return zonedTimeToDate(time, tz, new Date(Date.UTC(y, mo - 1, d, 12, 0, 0)));
 }
 
 /**
@@ -53,6 +66,9 @@ export function ProgramControl({
   const shownEnd = (programEndAt && formatTimeInTz(programEndAt, tz)) || programEnd;
 
   const [start, setStart] = useState(shownStart ?? "");
+  const [startDate, setStartDate] = useState(() =>
+    dateInputValue(programStartAt ? new Date(programStartAt) : new Date(), tz)
+  );
   const [duration, setDuration] = useState<number | "">(() => {
     if (!shownStart || !shownEnd) return "";
     const guess = PROGRAM_DURATIONS.find((d) => addHoursToTime(shownStart, d) === shownEnd);
@@ -61,6 +77,7 @@ export function ProgramControl({
 
   function openEditor() {
     setStart(shownStart ?? "");
+    setStartDate(dateInputValue(programStartAt ? new Date(programStartAt) : new Date(), tz));
     if (shownStart && shownEnd) {
       const guess = PROGRAM_DURATIONS.find((d) => addHoursToTime(shownStart, d) === shownEnd);
       setDuration(guess ?? "");
@@ -69,20 +86,16 @@ export function ProgramControl({
   }
 
   async function save() {
-    if (!start || !duration) {
+    if (!start || !duration || !startDate) {
       setOpen(false);
       return;
     }
     setSaving(true);
-    const end = addHoursToTime(start, Number(duration));
-    const startAt = zonedTimeToDate(start, tz);
-    let endAt = zonedTimeToDate(end, tz);
-    if (endAt.getTime() <= startAt.getTime()) {
-      endAt = new Date(endAt.getTime() + 24 * 60 * 60 * 1000);
-    }
+    const startAt = startMoment(startDate, start, tz);
+    const endAt = new Date(startAt.getTime() + Number(duration) * 60 * 60 * 1000);
     await patchVehicle(vehicleId, {
       programStart: start,
-      programEnd: end,
+      programEnd: formatTimeInTz(endAt, tz),
       programStartAt: startAt.toISOString(),
       programEndAt: endAt.toISOString(),
     });
@@ -104,6 +117,12 @@ export function ProgramControl({
     setOpen(false);
     router.refresh();
   }
+
+  // Previzualizare în fereastră: când se termină programul ales.
+  const previewEnd =
+    start && duration && startDate
+      ? new Date(startMoment(startDate, start, tz).getTime() + Number(duration) * 60 * 60 * 1000)
+      : null;
 
   const startAtDate = programStartAt ? new Date(programStartAt) : null;
   const endAtDate = programEndAt ? new Date(programEndAt) : null;
@@ -169,12 +188,21 @@ export function ProgramControl({
               </button>
             </div>
             <div className="flex flex-col gap-2">
-              <Time24Input
-                className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
-                value={start}
-                disabled={saving}
-                onChange={setStart}
-              />
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                  value={startDate}
+                  disabled={saving}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+                <Time24Input
+                  className="!w-24 shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm disabled:opacity-50"
+                  value={start}
+                  disabled={saving}
+                  onChange={setStart}
+                />
+              </div>
               <select
                 className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
                 value={duration}
@@ -188,9 +216,14 @@ export function ProgramControl({
                   </option>
                 ))}
               </select>
+              {previewEnd && (
+                <div className="rounded-lg bg-green-50 px-2.5 py-1.5 text-xs font-semibold text-green-700">
+                  Se termină: {formatDateInTz(previewEnd, tz)}, {formatTimeInTz(previewEnd, tz)}
+                </div>
+              )}
               <button
                 type="button"
-                disabled={saving || !start || !duration}
+                disabled={saving || !start || !duration || !startDate}
                 onClick={save}
                 className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
               >
