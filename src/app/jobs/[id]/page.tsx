@@ -48,6 +48,8 @@ export default async function EditJobPage({
               ref: job.ref ?? "",
               loadPlace: job.load_place ?? "",
               unloadPlace: job.unload_place ?? "",
+              loadCountry: job.load_country ?? "",
+              unloadCountry: job.unload_country ?? "",
               startAt: toLocalInput(job.start_at),
               endAt: toLocalInput(job.end_at),
               miles: job.miles != null ? String(job.miles) : "",
