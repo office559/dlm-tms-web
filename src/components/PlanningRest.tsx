@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Time24Input } from "@/components/Time24Input";
 import { useTimezone } from "@/components/TimezoneProvider";
 import { formatTimeInTz, nowTimeInTz, zonedTimeToDate } from "@/lib/tz";
 import { endPauseBody, fmtCountdown, patchVehicle, startPauseBody } from "@/lib/planning-helpers";
@@ -168,12 +169,11 @@ export function ProgramControl({
               </button>
             </div>
             <div className="flex flex-col gap-2">
-              <input
-                type="time"
+              <Time24Input
                 className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
                 value={start}
                 disabled={saving}
-                onChange={(e) => setStart(e.target.value)}
+                onChange={setStart}
               />
               <select
                 className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
@@ -327,12 +327,11 @@ export function PauseBadgeControl({
             <div className="flex flex-col gap-2">
               <div className="flex flex-col gap-1">
                 <label className="text-xs text-slate-500">Ora de început a pauzei</label>
-                <input
-                  type="time"
+                <Time24Input
                   className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
                   value={startTime}
                   disabled={saving}
-                  onChange={(e) => setStartTime(e.target.value)}
+                  onChange={setStartTime}
                 />
               </div>
               {PAUSE_DURATIONS.map((d) => (
