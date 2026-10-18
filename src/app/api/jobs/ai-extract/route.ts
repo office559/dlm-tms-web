@@ -44,15 +44,24 @@ const EXTRACT_TOOL = {
         description:
           "Locul de descărcare — aceeași regulă ca la loadPlace: dacă apare un cod scurt de depozit/terminal înaintea orașului, întoarce DOAR codul (ex. \"DNW3 DÜSSELDORF, North Rhine-Westphalia\" → \"DNW3\"). Altfel, orașul (+ țara). Sau string gol.",
       },
+      loadCountry: {
+        type: "string",
+        description:
+          "Țara locului de încărcare, cod ISO din 2 litere majuscule (DE, FR, IT, ES, RO, NL, BE, PL, AT...). Deduce-o din adresa completă, oraș, regiune sau cod poștal (ex. \"Rhineland-Palatinate\" → DE), chiar dacă loadPlace conține doar un cod de depozit. Dacă nu poți determina sigur, string gol.",
+      },
+      unloadCountry: {
+        type: "string",
+        description:
+          "Țara locului de descărcare, cod ISO din 2 litere majuscule, dedusă din adresa completă / oraș / regiune / cod poștal, la fel ca la loadCountry. Dacă nu poți determina sigur, string gol.",
+      },
       startAt: {
         type: "string",
         description:
-          "Data și ora încărcării, format exact YYYY-MM-DDTHH:mm (24h). Copiază ora EXACT așa cum este scrisă în document (ex. \"Thu, Oct 15, 14:00 CEST\" → 2026-10-15T14:00). NU converti în alt fus orar și ignoră abrevierile de fus (CEST, CET, EET, UTC etc.): ora scrisă este ora locului respectiv și se păstrează neschimbată. Dacă nu apare ora, folosește 08:00. Dacă nu apare deloc data, string gol.",
+          "Data și ora încărcării, format exact YYYY-MM-DDTHH:mm (oră locală, 24h). Dacă nu apare ora, folosește 08:00. Dacă nu apare deloc data, string gol.",
       },
       endAt: {
         type: "string",
-        description:
-          "Data și ora descărcării, același format și aceeași regulă ca startAt (ora copiată exact din document, fără conversie de fus orar; ex. \"Fri, Oct 16, 10:00 CEST\" → 2026-10-16T10:00), sau string gol.",
+        description: "Data și ora descărcării, același format ca startAt, sau string gol.",
       },
       miles: {
         type: "string",
@@ -81,6 +90,8 @@ const EXTRACT_TOOL = {
       "ref",
       "loadPlace",
       "unloadPlace",
+      "loadCountry",
+      "unloadCountry",
       "startAt",
       "endAt",
       "miles",
@@ -91,6 +102,12 @@ const EXTRACT_TOOL = {
     ],
   },
 };
+
+/** Cod de țară valid din 2 litere (majuscule) sau string gol. */
+function normalizeCountry(v: string | undefined): string {
+  const c = (v ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(c) ? c : "";
+}
 
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -180,8 +197,8 @@ export async function POST(req: NextRequest) {
           `Ești un asistent care ajută un dispecer de transport rutier din România să introducă o cursă nouă în sistem. ` +
           `Data de azi este ${today}. Primești fie un text (comandă copiată din email sau WhatsApp), fie o poză (comandă pe hârtie, document, CMR, captură de ecran), fie ambele — posibil în română, engleză sau amestecate. ` +
           `Dacă primești o poză, citește cu atenție tot ce e relevant din ea: locul de încărcare, locul de descărcare, data și ora încărcării/descărcării, tariful, distanța (km/mile), referința comenzii. ` +
-          `REGULĂ IMPORTANTĂ PENTRU ORE: copiază orele EXACT așa cum sunt scrise în document (ex. "Thu, Oct 15, 14:00 CEST" → 2026-10-15T14:00). Nu converti niciodată orele în alt fus orar (nici în ora României, nici în UTC) și ignoră abrevierile de fus orar (CEST, CET, EET, UTC etc.). Ora scrisă este ora locală a locului respectiv și trebuie păstrată neschimbată. Nu adăuga și nu scădea ore. ` +
           `Pentru locul de încărcare/descărcare: dacă înaintea orașului apare un cod scurt de depozit/terminal (ex. dintr-un load board: "SCN2 KAISERSLAUTERN, Rhineland-Palatinate" sau "DNW3 DÜSSELDORF, North Rhine-Westphalia"), pune DOAR codul (SCN2, respectiv DNW3) în loadPlace/unloadPlace, nu orașul întreg. ` +
+          `Pentru loadCountry/unloadCountry întoarce codul ISO din 2 litere al țării, dedus din adresa completă, oraș, regiune sau cod poștal (nu doar din codul de depozit). ` +
           `Extrage câmpurile cerute apelând tool-ul extract_job_details. Nu inventa informații care nu apar în text sau în poză.`,
         messages: [{ role: "user", content }],
         tools: [EXTRACT_TOOL],
@@ -229,6 +246,8 @@ export async function POST(req: NextRequest) {
       ref: extracted.ref ?? "",
       loadPlace: extracted.loadPlace ?? "",
       unloadPlace: extracted.unloadPlace ?? "",
+      loadCountry: normalizeCountry(extracted.loadCountry),
+      unloadCountry: normalizeCountry(extracted.unloadCountry),
       startAt: extracted.startAt ?? "",
       endAt: extracted.endAt ?? "",
       miles: extracted.miles ?? "",
