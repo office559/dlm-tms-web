@@ -103,6 +103,25 @@ async function syncVehicleAfterFinish(job: Job | null) {
   );
 }
 
+/**
+ * Când o cursă pornește (devine "activ" / Tranzit), pauza zilnică a mașinii
+ * dispare din tabel. Programul rămâne neschimbat.
+ */
+async function clearPauseOnTransit(job: Job | null) {
+  if (!job || job.status !== "activ" || !job.vehicle_id) return;
+  await pool.query(
+    `update vehicles
+        set pause = false,
+            rest_dur_h = null,
+            rest_start = null,
+            rest_end = null,
+            rest_start_at = null,
+            rest_end_at = null
+      where id = $1 and pause = true`,
+    [job.vehicle_id]
+  );
+}
+
 export async function listJobs() {
   const { rows } = await pool.query<Job>(
     `select * from jobs order by coalesce(start_at, created_at) desc`
@@ -150,7 +169,9 @@ export async function createJob(input: JobInput) {
       countryCode(input.unloadCountry),
     ]
   );
-  return rows[0];
+  const created = rows[0];
+  await clearPauseOnTransit(created ?? null);
+  return created;
 }
 
 export async function updateJob(id: string, input: JobInput) {
@@ -199,6 +220,9 @@ export async function updateJob(id: string, input: JobInput) {
   if (job && job.status === "finalizat" && prevStatus !== "finalizat") {
     await syncVehicleAfterFinish(job);
   }
+  if (job && job.status === "activ" && prevStatus !== "activ") {
+    await clearPauseOnTransit(job);
+  }
   return job;
 }
 
@@ -213,6 +237,7 @@ export async function deleteJob(id: string) {
  * o valoare lipsă (null) nu șterge ce era salvat deja.
  * La "finalizat": locația mașinii = locul de descărcare; mașina trece în "Viitor" dacă mai are
  * o cursă planificată, altfel în "pending".
+ * La "activ" (Tranzit): pauza zilnică a mașinii dispare, programul rămâne.
  */
 export async function patchJobStatus(
   id: string,
@@ -232,6 +257,7 @@ export async function patchJobStatus(
   );
   const job = rows[0] ?? null;
   await syncVehicleAfterFinish(job);
+  await clearPauseOnTransit(job);
   return job;
 }
 
