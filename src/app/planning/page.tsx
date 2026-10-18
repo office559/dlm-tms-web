@@ -9,6 +9,7 @@ import { AppShell } from "@/components/AppShell";
 import { formatDateInTz, formatTimeInTz } from "@/lib/tz";
 import {
   fleetState,
+  clearExpiredPauses,
   currentJobsByVehicle,
   plannedJobsByVehicle,
   lastUnloadPlaceByVehicle,
@@ -105,35 +106,40 @@ export default async function PlanningPage({
       .filter((s) => VALID_STATES.includes(s))
   );
 
-  const [allVehicles, drivers, trailers, customers] = await Promise.all([
-    listVehicles(),
-    listDrivers(),
-    listTrailers(),
-    listCustomers(),
-  ]);
-
-  // Codul (SCAC) fiecărui client, după id-ul clientului.
-  const codeByClient = new Map(customers.map((c) => [c.id, c.code]));
-
+  // Interogările rulează cât mai mult în paralel (mai puține "drumuri" până la
+  // baza de date): întâi se curăță pauzele/programele expirate, apoi se citesc
+  // vehiculele; șoferii, remorcile și clienții se citesc în același timp.
+  const vehiclesP = clearExpiredPauses().then(() => listVehicles());
   // Vehiculele inactive nu apar în Planificare (rămân în lista de Vehicule).
-  const vehicles = allVehicles.filter((v) => v.active);
+  const activeIdsP = vehiclesP.then((all) => all.filter((v) => v.active).map((v) => v.id));
 
-  const trailerById = new Map(trailers.map((t) => [t.id, t]));
-  const vehicleIds = vehicles.map((v) => v.id);
   const [
+    allVehicles,
+    drivers,
+    trailers,
+    customers,
     jobsByVehicle,
     plannedByVehicle,
     lastUnloadByVehicle,
     weeklyRestSuggestion,
     extrasByVehicle,
-  ] =
-    await Promise.all([
-      currentJobsByVehicle(vehicleIds),
-      plannedJobsByVehicle(vehicleIds),
-      lastUnloadPlaceByVehicle(vehicleIds),
-      weeklyRestSuggestionByVehicle(vehicleIds),
-      vehicleExtrasByVehicle(vehicleIds),
-    ]);
+  ] = await Promise.all([
+    vehiclesP,
+    listDrivers(),
+    listTrailers(),
+    listCustomers(),
+    activeIdsP.then((ids) => currentJobsByVehicle(ids, { skipClear: true })),
+    activeIdsP.then((ids) => plannedJobsByVehicle(ids)),
+    activeIdsP.then((ids) => lastUnloadPlaceByVehicle(ids)),
+    activeIdsP.then((ids) => weeklyRestSuggestionByVehicle(ids)),
+    activeIdsP.then((ids) => vehicleExtrasByVehicle(ids)),
+  ]);
+
+  // Codul (SCAC) fiecărui client, după id-ul clientului.
+  const codeByClient = new Map(customers.map((c) => [c.id, c.code]));
+
+  const vehicles = allVehicles.filter((v) => v.active);
+  const trailerById = new Map(trailers.map((t) => [t.id, t]));
 
   const allRows = vehicles
     .map((v) => ({ v, job: jobsByVehicle.get(v.id) ?? null }))
