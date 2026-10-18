@@ -16,6 +16,7 @@ import {
 } from "@/components/PlanningCells";
 import { CrewSelect, NoteControl } from "@/components/PlanningExtras";
 import { RouteCell } from "@/components/PlanningRoute";
+import { CabotageCell } from "@/components/PlanningCabotage";
 import {
   ChevronIcon,
   DragHandleIcon,
@@ -38,6 +39,7 @@ type ColumnKey =
   | "pauza"
   | "pauzaSapt"
   | "locatie"
+  | "cabotaj"
   | "traseu"
   | "cazuri"
   | "whatsapp"
@@ -55,6 +57,7 @@ const DEFAULT_ORDER: ColumnKey[] = [
   "pauza",
   "pauzaSapt",
   "locatie",
+  "cabotaj",
   "traseu",
   "cazuri",
   "whatsapp",
@@ -73,6 +76,7 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   pauza: 200,
   pauzaSapt: 200,
   locatie: 130,
+  cabotaj: 150,
   traseu: 240,
   cazuri: 170,
   whatsapp: 170,
@@ -242,6 +246,11 @@ const COLUMNS: ColumnDef[] = [
     render: (r) => (
       <LocationControl vehicleId={r.vehicleId} value={r.location} fallback={r.fallbackLocation} />
     ),
+  },
+  {
+    key: "cabotaj",
+    label: "Cabotaj",
+    render: (r) => <CabotageCell cabotage={r.cabotage} />,
   },
   {
     key: "traseu",
