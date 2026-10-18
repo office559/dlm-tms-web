@@ -1,4 +1,5 @@
 import type { FleetState } from "@/lib/fleet-labels";
+import type { Cabotage } from "@/lib/cabotage";
 
 /** Un rând din tabelul Planificare (un vehicul + cursa lui curentă). */
 export type PlanningRow = {
@@ -32,6 +33,7 @@ export type PlanningRow = {
   weeklyRestStartAt: string | null;
   weeklyRestEndAt: string | null;
   weeklyRestSuggested: "45" | "24";
+  cabotage: Cabotage | null;
   location: string | null;
   fallbackLocation: string | null;
   loadPlace: string | null;
