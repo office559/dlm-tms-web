@@ -45,7 +45,7 @@ export function fleetState(v: Vehicle, currentJob: Job | null): FleetState {
   return "disponibil";
 }
 
-/** Șterge pauzele scurte expirate și programele terminate (orele), ca vehiculul să apară curat. */
+/** Șterge pauzele (scurte și săptămânale) expirate și programele terminate, ca vehiculul să apară curat. */
 async function clearExpiredPauses() {
   try {
     await pool.query(
@@ -73,6 +73,24 @@ async function clearExpiredPauses() {
               program_end_at = null
         where program_end_at is not null
           and program_end_at <= now()`
+    );
+  } catch {
+    // se încearcă din nou la următoarea încărcare
+  }
+  // Pauza săptămânală s-a terminat → dispare din tabel (rămâne doar în istoric,
+  // de unde aplicația recomandă pauza pentru săptămâna următoare).
+  try {
+    await pool.query(
+      `update vehicles
+          set weekly_rest = false,
+              weekly_rest_type = null,
+              weekly_rest_start = null,
+              weekly_rest_end = null,
+              weekly_rest_start_at = null,
+              weekly_rest_end_at = null
+        where weekly_rest = true
+          and weekly_rest_end_at is not null
+          and weekly_rest_end_at <= now()`
     );
   } catch {
     // se încearcă din nou la următoarea încărcare
