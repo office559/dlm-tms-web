@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DateTime24Input } from "@/components/DateTime24Input";
 import { JobAiBox } from "@/components/JobAiBox";
+import { COUNTRIES } from "@/lib/countries";
 import type { AiExtracted } from "@/components/JobAiBox";
 
 type JobFormValues = {
@@ -11,6 +12,8 @@ type JobFormValues = {
   ref: string;
   loadPlace: string;
   unloadPlace: string;
+  loadCountry: string;
+  unloadCountry: string;
   startAt: string;
   endAt: string;
   miles: string;
@@ -32,6 +35,8 @@ const EMPTY: JobFormValues = {
   ref: "",
   loadPlace: "",
   unloadPlace: "",
+  loadCountry: "",
+  unloadCountry: "",
   startAt: "",
   endAt: "",
   miles: "",
@@ -83,7 +88,6 @@ export function JobForm({
   const [status, setStatus] = useState<"idle" | "loading">("idle");
   const [error, setError] = useState<string | null>(null);
   const isEdit = Boolean(initial?.id);
-
   function set<K extends keyof JobFormValues>(key: K, value: JobFormValues[K]) {
     setValues((v) => ({ ...v, [key]: value }));
   }
@@ -118,6 +122,8 @@ export function JobForm({
       ref: data.ref || v.ref,
       loadPlace: data.loadPlace || v.loadPlace,
       unloadPlace: data.unloadPlace || v.unloadPlace,
+      loadCountry: data.loadCountry || v.loadCountry,
+      unloadCountry: data.unloadCountry || v.unloadCountry,
       startAt: data.startAt || v.startAt,
       endAt: data.endAt || v.endAt,
       miles: data.miles ? String(data.miles) : v.miles,
@@ -137,6 +143,8 @@ export function JobForm({
       ref: values.ref || null,
       loadPlace: values.loadPlace || null,
       unloadPlace: values.unloadPlace || null,
+      loadCountry: values.loadCountry || null,
+      unloadCountry: values.unloadCountry || null,
       startAt: values.startAt || null,
       endAt: values.endAt || null,
       miles: values.miles ? Number(values.miles) : null,
@@ -213,6 +221,38 @@ export function JobForm({
             onChange={(e) => set("unloadPlace", e.target.value)}
             className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
           />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">Țară încărcare</label>
+          <select
+            value={values.loadCountry}
+            onChange={(e) => set("loadCountry", e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand bg-white"
+          >
+            <option value="">—</option>
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} — {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-sm text-slate-600">Țară descărcare</label>
+          <select
+            value={values.unloadCountry}
+            onChange={(e) => set("unloadCountry", e.target.value)}
+            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand bg-white"
+          >
+            <option value="">—</option>
+            {COUNTRIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} — {c.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="space-y-1">
