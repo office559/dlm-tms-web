@@ -3,6 +3,8 @@ import { unstable_cache } from "next/cache";
 import { auth } from "@/lib/auth";
 import { getSettings } from "@/lib/settings";
 import { listExpiryAlerts } from "@/lib/alerts";
+import { getUserTimezone } from "@/lib/user-prefs";
+import { DEFAULT_TIMEZONE } from "@/lib/tz";
 import { ShellFrame, type NavGroup } from "@/components/ShellFrame";
 
 const NAV_GROUPS: NavGroup[] = [
@@ -71,6 +73,17 @@ export async function AppShell({
     headers().then((h) => auth.api.getSession({ headers: h })),
     getAlertCount(),
   ]);
+
+  // Fusul orar ales de utilizator (ex. Germania) — salvat în contul lui.
+  let timezone = DEFAULT_TIMEZONE;
+  if (session) {
+    try {
+      timezone = await getUserTimezone(session.user.id);
+    } catch {
+      timezone = DEFAULT_TIMEZONE;
+    }
+  }
+
   const userName = session?.user.name || session?.user.email || "Utilizator";
   const isAdmin = session?.user.role === "admin";
 
@@ -95,6 +108,7 @@ export async function AppShell({
       userInitials={initialsOf(userName)}
       userName={userName}
       alertCount={alertCount}
+      timezone={timezone}
       wide={wide}
     >
       {children}
