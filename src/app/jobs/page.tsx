@@ -1,4 +1,3 @@
-import { Fragment } from "react";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
@@ -27,22 +26,7 @@ const STATUS_STYLES: Record<string, string> = {
   anulat: "border-red-600 text-red-700",
 };
 
-/** Ziua cursei (după ora salvată, tratată ca oră locală), pentru grupare. */
-function dayKey(d: Date | null): string {
-  return d ? new Date(d).toISOString().slice(0, 10) : "none";
-}
-
-function dayLabel(d: Date | null): string {
-  if (!d) return "Fără dată";
-  const s = new Date(d).toLocaleDateString("ro-RO", {
-    weekday: "long",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+const STATUS_ORDER = ["planificare", "activ", "finalizat", "anulat"];
 
 function fmtStart(d: Date | null): string {
   if (!d) return "—";
@@ -139,16 +123,40 @@ export default async function JobsPage({
     )
   );
 
-  // Cursele grupate pe zile (în ordinea în care apar în listă).
-  const groups: { key: string; label: string; jobs: typeof filteredJobs }[] = [];
+  // Cursele grupate pe client (alfabetic; cursele fără client la sfârșit).
+  // În interiorul clientului rămâne ordinea din listă (cele mai noi primele).
+  type JobRow = (typeof filteredJobs)[number];
+  const groups: { key: string; name: string; jobs: JobRow[] }[] = [];
   for (const j of filteredJobs) {
-    const key = dayKey(j.start_at);
+    const key = j.client_id ?? "none";
     let g = groups.find((x) => x.key === key);
     if (!g) {
-      g = { key, label: dayLabel(j.start_at), jobs: [] };
+      g = {
+        key,
+        name: j.client_id ? customerName.get(j.client_id) ?? "Client necunoscut" : "Fără client",
+        jobs: [],
+      };
       groups.push(g);
     }
     g.jobs.push(j);
+  }
+  groups.sort((a, b) => {
+    if (a.key === "none") return 1;
+    if (b.key === "none") return -1;
+    return a.name.localeCompare(b.name, "ro");
+  });
+
+  /** Totalul tarifelor unui client (fără cursele anulate), pe monede: "3634.71 € · 200 RON". */
+  function groupTotal(list: JobRow[]): string {
+    const byCurrency = new Map<string, number>();
+    for (const j of list) {
+      if (j.status === "anulat" || j.rate == null) continue;
+      const cur = j.currency ?? "";
+      byCurrency.set(cur, (byCurrency.get(cur) ?? 0) + Number(j.rate));
+    }
+    return Array.from(byCurrency.entries())
+      .map(([cur, sum]) => `${sum.toFixed(2)} ${cur}`.trim())
+      .join(" · ");
   }
 
   return (
@@ -182,34 +190,55 @@ export default async function JobsPage({
         )}
       </form>
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <table className="w-full text-[14.5px]">
-          <thead className="bg-orange-50 text-orange-800 text-left">
-            <tr>
-              <th className="px-4 py-3">Traseu</th>
-              <th className="px-4 py-3">Client</th>
-              <th className="px-4 py-3">Șofer</th>
-              <th className="px-4 py-3">Vehicul</th>
-              <th className="px-4 py-3">Start</th>
-              <th className="px-4 py-3">Tarif</th>
-              <th className="px-4 py-3">Status</th>
-              <th className="px-4 py-3">WhatsApp</th>
-              <th className="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {groups.map((g) => (
-              <Fragment key={g.key}>
-                <tr className="bg-[#1e3a5f] text-white">
-                  <td colSpan={9} className="px-4 py-2">
-                    <div className="flex items-center justify-between text-sm font-extrabold">
-                      <span>{g.label}</span>
-                      <span className="font-semibold opacity-80">
-                        {g.jobs.length} {g.jobs.length === 1 ? "cursă" : "curse"}
-                      </span>
-                    </div>
-                  </td>
+      {groups.map((g) => {
+        const total = groupTotal(g.jobs);
+        return (
+          <div key={g.key} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+            <div className="flex items-center justify-between gap-3 bg-[#1e3a5f] px-4 py-3 text-white">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-base font-extrabold">{g.name}</span>
+                {STATUS_ORDER.map((st) => {
+                  const n = g.jobs.filter((j) => j.status === st).length;
+                  if (n === 0) return null;
+                  return (
+                    <span
+                      key={st}
+                      className={`rounded-full border-[1.5px] bg-white px-2 text-[11.5px] font-bold ${STATUS_STYLES[st]}`}
+                    >
+                      {STATUS_LABELS[st]} {n}
+                    </span>
+                  );
+                })}
+              </div>
+              <div className="whitespace-nowrap text-[13px] font-semibold opacity-85">
+                {g.jobs.length} {g.jobs.length === 1 ? "cursă" : "curse"}
+                {total ? ` · total ${total}` : ""}
+              </div>
+            </div>
+            <table className="w-full table-fixed text-[14.5px]">
+              <colgroup>
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "19%" }} />
+              </colgroup>
+              <thead className="bg-orange-50 text-orange-800 text-left">
+                <tr>
+                  <th className="px-4 py-3">Traseu</th>
+                  <th className="px-4 py-3">Șofer</th>
+                  <th className="px-4 py-3">Vehicul</th>
+                  <th className="px-4 py-3">Start</th>
+                  <th className="px-4 py-3">Tarif</th>
+                  <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">WhatsApp</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
+              </thead>
+              <tbody>
                 {g.jobs.map((j) => {
                   const dName = j.driver_id ? driverName.get(j.driver_id) : null;
                   const dPhone = j.driver_id ? driverPhone.get(j.driver_id) : null;
@@ -220,7 +249,6 @@ export default async function JobsPage({
                       <td className="px-4 py-3 font-extrabold">
                         {j.load_place || "—"} → {j.unload_place || "—"}
                       </td>
-                      <td className="px-4 py-3">{cName ?? "—"}</td>
                       <td className="px-4 py-3">{dName ?? "—"}</td>
                       <td className="px-4 py-3">{j.vehicle_id ? vehiclePlate.get(j.vehicle_id) ?? "—" : "—"}</td>
                       <td className="px-4 py-3">{fmtStart(j.start_at)}</td>
@@ -243,7 +271,7 @@ export default async function JobsPage({
                           waConfirmedAt={j.wa_confirmed_at}
                         />
                       </td>
-                      <td className="px-4 py-3 text-right font-bold space-x-3">
+                      <td className="whitespace-nowrap px-4 py-3 text-right font-bold space-x-3">
                         <WhatsAppLink href={waHref} label="Anunță șofer" />
                         <a href={`/jobs/${j.id}`} className="text-sm font-bold text-slate-900 hover:text-brand">
                           Editează
@@ -253,18 +281,17 @@ export default async function JobsPage({
                     </tr>
                   );
                 })}
-              </Fragment>
-            ))}
-            {filteredJobs.length === 0 && (
-              <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-slate-400">
-                  {q ? `Nicio cursă găsită pentru „${q}".` : "Nicio cursă încă. Adaugă prima mai sus."}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+              </tbody>
+            </table>
+          </div>
+        );
+      })}
+
+      {groups.length === 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200 px-4 py-6 text-center text-slate-400">
+          {q ? `Nicio cursă găsită pentru „${q}".` : "Nicio cursă încă. Adaugă prima mai sus."}
+        </div>
+      )}
       </div>
     </AppShell>
   );
