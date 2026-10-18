@@ -1,47 +1,160 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import {
-  getRevenueByCurrency,
-  getCostsByCategory,
-  getCostsByVehicle,
-  getCostsTotal,
-  getBrokerageSummary,
-  getJobsSummary,
-} from "@/lib/reports";
 import { listCompanies } from "@/lib/companies";
 import { AppShell } from "@/components/AppShell";
+import {
+  buildReport,
+  fmtDay,
+  fmtMoney,
+  monthRange,
+  parseReportParams,
+  weekRange,
+} from "@/lib/reports-firms";
+import type { CostRow, FirmReport } from "@/lib/reports-firms";
 
-const pad = (n: number) => String(n).padStart(2, "0");
+const STATUS_LABELS: Record<string, string> = {
+  planificare: "planificate",
+  activ: "active",
+  finalizat: "finalizate",
+  anulat: "anulate",
+};
 
-function fmt(d: Date) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+function CostTable({ title, rows }: { title: string; rows: CostRow[] }) {
+  const max = Math.max(1, ...rows.map((r) => r.total));
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <h3 className="px-5 pb-2 pt-4 text-lg font-semibold text-brand-dark">{title}</h3>
+      {rows.length === 0 ? (
+        <p className="px-5 pb-5 text-base text-slate-500">Nicio cheltuială în perioadă.</p>
+      ) : (
+        <table className="w-full text-base">
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.label} className="border-t border-slate-100">
+                <td className="px-5 py-3">
+                  <div className="font-semibold text-slate-900">{r.label}</div>
+                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div
+                      className="h-full rounded-full bg-red-400"
+                      style={{ width: `${(r.total / max) * 100}%` }}
+                    />
+                  </div>
+                </td>
+                <td className="whitespace-nowrap px-5 py-3 text-right text-lg font-bold text-slate-900">
+                  {fmtMoney(r.total)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
 }
 
-function firstOfMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
-}
+function FirmCard({ firm, qs }: { firm: FirmReport; qs: (firma: string) => string }) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-brand-dark px-5 py-4 text-white">
+        <h2 className="text-xl font-extrabold">{firm.name}</h2>
+        <div className="text-base font-semibold">
+          {firm.jobs} curse
+          {firm.currencies.map((b) => (
+            <span key={b.currency}>
+              {" · "}
+              <b className="text-xl">{fmtMoney(b.total, b.currency)}</b>
+            </span>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <a
+            href={`/api/reports/export?${qs(firm.id)}`}
+            className="rounded-lg border-2 border-white/70 px-3 py-1.5 text-sm font-bold text-white hover:bg-white/10"
+          >
+            ⬇ Excel
+          </a>
+          <a
+            href={`/reports/print?${qs(firm.id)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg border-2 border-white/70 px-3 py-1.5 text-sm font-bold text-white hover:bg-white/10"
+          >
+            ⬇ PDF
+          </a>
+        </div>
+      </div>
 
-function today() {
-  return fmt(new Date());
-}
-
-/** Luni–Duminică pentru săptămâna aflată la `offsetWeeks` față de cea curentă. */
-function weekRange(offsetWeeks: number) {
-  const d = new Date();
-  const dayFromMonday = (d.getDay() + 6) % 7;
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - dayFromMonday + offsetWeeks * 7);
-  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
-  return { from: fmt(start), to: fmt(end) };
-}
-
-/** Prima–ultima zi a lunii aflate la `offsetMonths` față de cea curentă. */
-function monthRange(offsetMonths: number) {
-  const d = new Date();
-  const start = new Date(d.getFullYear(), d.getMonth() + offsetMonths, 1);
-  const end = new Date(d.getFullYear(), d.getMonth() + offsetMonths + 1, 0);
-  return { from: fmt(start), to: fmt(end) };
+      {firm.currencies.length === 0 ? (
+        <p className="px-5 py-6 text-base text-slate-500">Nicio cursă (fără cele anulate) în perioadă.</p>
+      ) : (
+        firm.currencies.map((b) => {
+          const max = Math.max(1, ...b.rows.map((r) => r.total));
+          return (
+            <div key={b.currency}>
+              {firm.currencies.length > 1 && (
+                <div className="border-t border-slate-200 bg-slate-50 px-5 py-2 text-sm font-bold text-slate-600">
+                  Venituri în {b.currency}
+                </div>
+              )}
+              <table className="w-full text-base">
+                <thead>
+                  <tr className="bg-orange-50 text-left text-sm text-orange-800">
+                    <th className="px-5 py-2.5">Vehicul</th>
+                    <th className="px-5 py-2.5">Șofer</th>
+                    <th className="px-5 py-2.5 text-right">Curse</th>
+                    <th className="px-5 py-2.5 text-right">Venit</th>
+                    <th className="px-5 py-2.5 text-right">Medie / cursă</th>
+                    <th className="w-44 px-5 py-2.5">% din firmă</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {b.rows.map((r, i) => {
+                    const pct = b.total > 0 ? (r.total / b.total) * 100 : 0;
+                    return (
+                      <tr key={`${r.plate}-${r.driver}-${i}`} className="border-t border-slate-100">
+                        <td className="px-5 py-3 text-lg font-bold text-slate-900">{r.plate}</td>
+                        <td className="px-5 py-3 text-slate-700">{r.driver}</td>
+                        <td className="px-5 py-3 text-right">{r.jobs}</td>
+                        <td className="whitespace-nowrap px-5 py-3 text-right text-lg font-bold text-slate-900">
+                          {fmtMoney(r.total, b.currency)}
+                        </td>
+                        <td className="whitespace-nowrap px-5 py-3 text-right text-slate-600">
+                          {fmtMoney(r.jobs ? r.total / r.jobs : 0, b.currency)}
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="text-sm font-semibold text-slate-600">{pct.toFixed(0)}%</div>
+                          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full bg-blue-600"
+                              style={{ width: `${(r.total / max) * 100}%` }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  <tr className="border-t-2 border-slate-300 bg-slate-50 font-bold">
+                    <td className="px-5 py-3 text-slate-900" colSpan={2}>
+                      Total {firm.name}
+                    </td>
+                    <td className="px-5 py-3 text-right">{b.jobs}</td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right text-lg text-brand-dark">
+                      {fmtMoney(b.total, b.currency)}
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3 text-right text-slate-600">
+                      {fmtMoney(b.jobs ? b.total / b.jobs : 0, b.currency)}
+                    </td>
+                    <td className="px-5 py-3 text-sm text-slate-600">100%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          );
+        })
+      )}
+    </section>
+  );
 }
 
 export default async function ReportsPage({
@@ -52,29 +165,11 @@ export default async function ReportsPage({
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
-  const params = await searchParams;
-  const from = params.from || firstOfMonth();
-  const to = params.to || today();
-  const firma = params.firma || "";
+  const { from, to, firma } = parseReportParams(await searchParams);
+  const [companies, report] = await Promise.all([listCompanies(), buildReport(from, to, firma)]);
 
-  const companies = await listCompanies();
-  const companyLabel =
-    firma === ""
-      ? "Toate firmele"
-      : firma === "none"
-        ? "Fără firmă"
-        : companies.find((c) => c.id === firma)?.name ?? "Firmă necunoscută";
-
-  const [revenue, costsByCategory, costsByVehicle, costsTotal, brokerage, jobs] = await Promise.all([
-    getRevenueByCurrency(from, to, firma),
-    getCostsByCategory(from, to, firma),
-    getCostsByVehicle(from, to, firma),
-    getCostsTotal(from, to, firma),
-    getBrokerageSummary(from, to),
-    getJobsSummary(from, to, firma),
-  ]);
-
-  const showBrokerage = firma === "";
+  const qs = (f: string) =>
+    new URLSearchParams({ from, to, ...(f ? { firma: f } : {}) }).toString();
 
   const presets = [
     { label: "Săptămâna aceasta", ...weekRange(0) },
@@ -82,211 +177,182 @@ export default async function ReportsPage({
     { label: "Luna aceasta", ...monthRange(0) },
     { label: "Luna trecută", ...monthRange(-1) },
   ];
+  const presetHref = (r: { from: string; to: string }) =>
+    `/reports?${new URLSearchParams({ from: r.from, to: r.to, ...(firma ? { firma } : {}) })}`;
 
-  const presetHref = (p: { from: string; to: string }) => {
-    const qs = new URLSearchParams({ from: p.from, to: p.to });
-    if (firma) qs.set("firma", firma);
-    return `/reports?${qs.toString()}`;
-  };
+  const eur = report.totals.find((t) => t.currency === "EUR");
+  const profitEur = (eur?.total ?? 0) - report.costsTotal;
+  const statusLine = report.statusCounts
+    .filter((s) => s.count > 0)
+    .map((s) => `${s.count} ${STATUS_LABELS[s.status] ?? s.status}`)
+    .join(" · ");
 
   return (
-    <AppShell active="reports" crumb="Rapoarte & Profituri">
-      <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold text-brand-dark">Rapoarte &amp; Profituri</h1>
-        <p className="text-slate-600 mt-1">
-          Situație agregată pentru perioada selectată · <span className="font-medium">{companyLabel}</span>
-        </p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {presets.map((p) => {
-          const active = p.from === from && p.to === to;
-          return (
+    <AppShell active="reports" crumb="Rapoarte & Profituri" wide>
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-3xl font-semibold text-brand-dark">Rapoarte &amp; Profituri</h1>
+            <p className="mt-1 text-base text-slate-600">
+              Situație pentru perioada {fmtDay(from)} – {fmtDay(to)} · {report.companyLabel}
+            </p>
+          </div>
+          <div className="flex gap-2">
             <a
-              key={p.label}
-              href={presetHref(p)}
-              className={
-                active
-                  ? "rounded-full bg-brand px-3 py-1.5 text-sm font-medium text-white"
-                  : "rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:border-brand"
-              }
+              href={`/api/reports/export?${qs(firma)}`}
+              className="rounded-xl border-2 border-brand-dark bg-white px-4 py-2 text-base font-bold text-brand-dark hover:bg-slate-50"
             >
-              {p.label}
+              ⬇ Excel
             </a>
-          );
-        })}
-      </div>
+            <a
+              href={`/reports/print?${qs(firma)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border-2 border-brand-dark bg-white px-4 py-2 text-base font-bold text-brand-dark hover:bg-slate-50"
+            >
+              ⬇ PDF
+            </a>
+          </div>
+        </div>
 
-      <form className="flex flex-wrap items-end gap-4 bg-white rounded-2xl border border-slate-200 p-4">
-        <div className="space-y-1">
-          <label className="text-sm text-slate-600">Firmă</label>
-          <select
-            name="firma"
-            defaultValue={firma}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 outline-none focus:border-brand"
-          >
-            <option value="">Toate firmele</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-            <option value="none">Fără firmă</option>
-          </select>
+        <div className="flex flex-wrap gap-2">
+          {presets.map((p) => {
+            const on = p.from === from && p.to === to;
+            return (
+              <a
+                key={p.label}
+                href={presetHref(p)}
+                className={
+                  on
+                    ? "rounded-full bg-brand px-4 py-1.5 text-sm font-medium text-white"
+                    : "rounded-full border border-slate-200 bg-white px-4 py-1.5 text-sm font-medium text-slate-600 hover:border-brand"
+                }
+              >
+                {p.label}
+              </a>
+            );
+          })}
         </div>
-        <div className="space-y-1">
-          <label className="text-sm text-slate-600">De la</label>
-          <input
-            type="date"
-            name="from"
-            defaultValue={from}
-            className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-sm text-slate-600">Până la</label>
-          <input
-            type="date"
-            name="to"
-            defaultValue={to}
-            className="rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
-          />
-        </div>
-        <button
-          type="submit"
-          className="rounded-lg bg-brand text-white font-medium px-4 py-2 hover:bg-brand-dark transition"
+
+        <form
+          method="get"
+          action="/reports"
+          className="flex flex-wrap items-end gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
         >
-          Filtrează
-        </button>
-      </form>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <p className="text-sm text-slate-500">Curse în perioadă</p>
-          <p className="text-2xl font-semibold text-brand-dark mt-1">{jobs.total}</p>
-          <p className="text-xs text-slate-500 mt-2">
-            {jobs.finalizat} finalizate · {jobs.activ} active · {jobs.planificare} planificate · {jobs.anulat} anulate
-          </p>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <p className="text-sm text-slate-500">Cheltuieli flotă</p>
-          <p className="text-2xl font-semibold text-red-600 mt-1">{costsTotal.toFixed(2)}</p>
-        </div>
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <p className="text-sm text-slate-500">Marjă brokeraj</p>
-          {showBrokerage ? (
-            <>
-              <p className={`text-2xl font-semibold mt-1 ${brokerage.margin < 0 ? "text-red-600" : "text-emerald-700"}`}>
-                {brokerage.margin.toFixed(2)}
-              </p>
-              <p className="text-xs text-slate-500 mt-2">{brokerage.count} înregistrări</p>
-            </>
-          ) : (
-            <>
-              <p className="text-2xl font-semibold mt-1 text-slate-300">—</p>
-              <p className="text-xs text-slate-500 mt-2">
-                Brokerajul nu aparține unei firme. Apare doar la „Toate firmele".
-              </p>
-            </>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100">
-            <h2 className="font-medium text-brand-dark">Venituri curse pe monedă</h2>
-          </div>
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-500 text-left">
-              <tr>
-                <th className="px-4 py-2">Monedă</th>
-                <th className="px-4 py-2">Nr. curse</th>
-                <th className="px-4 py-2">Total (tarif + extra)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {revenue.map((r) => (
-                <tr key={r.currency} className="border-t border-slate-100">
-                  <td className="px-4 py-2 font-medium">{r.currency}</td>
-                  <td className="px-4 py-2">{r.count}</td>
-                  <td className="px-4 py-2">{Number(r.total).toFixed(2)}</td>
-                </tr>
+          <label className="flex flex-col gap-1 text-sm text-slate-600">
+            Firmă
+            <select
+              name="firma"
+              defaultValue={firma}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900"
+            >
+              <option value="">Toate firmele</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
               ))}
-              {revenue.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-slate-400">
-                    Nicio cursă în perioadă.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              <option value="none">Fără firmă</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-slate-600">
+            De la
+            <input
+              type="date"
+              name="from"
+              defaultValue={from}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm text-slate-600">
+            Până la
+            <input
+              type="date"
+              name="to"
+              defaultValue={to}
+              className="rounded-lg border border-slate-300 px-3 py-2 text-base text-slate-900"
+            />
+          </label>
+          <button
+            type="submit"
+            className="rounded-lg bg-brand px-5 py-2.5 text-base font-bold text-white hover:opacity-90"
+          >
+            Filtrează
+          </button>
+        </form>
 
-        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-100">
-            <h2 className="font-medium text-brand-dark">Cheltuieli pe categorie</h2>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-sm text-slate-500">Curse în perioadă</div>
+            <div className="mt-1 text-4xl font-bold text-brand-dark">{report.jobsCount}</div>
+            <div className="mt-1 text-sm text-slate-500">{statusLine || "—"}</div>
           </div>
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-500 text-left">
-              <tr>
-                <th className="px-4 py-2">Categorie</th>
-                <th className="px-4 py-2">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {costsByCategory.map((c) => (
-                <tr key={c.category} className="border-t border-slate-100">
-                  <td className="px-4 py-2 font-medium">{c.category}</td>
-                  <td className="px-4 py-2">{Number(c.total).toFixed(2)}</td>
-                </tr>
-              ))}
-              {costsByCategory.length === 0 && (
-                <tr>
-                  <td colSpan={2} className="px-4 py-6 text-center text-slate-400">
-                    Nicio cheltuială în perioadă.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100">
-          <h2 className="font-medium text-brand-dark">Cheltuieli pe vehicul (top 8)</h2>
-        </div>
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-left">
-            <tr>
-              <th className="px-4 py-2">Vehicul</th>
-              <th className="px-4 py-2">Total cheltuieli</th>
-            </tr>
-          </thead>
-          <tbody>
-            {costsByVehicle.map((v) => (
-              <tr key={v.plate} className="border-t border-slate-100">
-                <td className="px-4 py-2 font-medium">{v.plate}</td>
-                <td className="px-4 py-2">{Number(v.total).toFixed(2)}</td>
-              </tr>
-            ))}
-            {costsByVehicle.length === 0 && (
-              <tr>
-                <td colSpan={2} className="px-4 py-6 text-center text-slate-400">
-                  Nicio cheltuială asociată unui vehicul în perioadă.
-                </td>
-              </tr>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-sm text-slate-500">Venituri curse</div>
+            {report.totals.length === 0 ? (
+              <div className="mt-1 text-4xl font-bold text-brand-dark">0,00</div>
+            ) : (
+              report.totals.map((t) => (
+                <div key={t.currency} className="mt-1 text-3xl font-bold text-brand-dark">
+                  {fmtMoney(t.total, t.currency)}
+                </div>
+              ))
             )}
-          </tbody>
-        </table>
-      </div>
+            <div className="mt-1 text-sm text-slate-500">tarif + extra, fără cele anulate</div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-sm text-slate-500">Cheltuieli flotă</div>
+            <div className="mt-1 text-4xl font-bold text-red-600">{fmtMoney(report.costsTotal)}</div>
+            <div className="mt-1 text-sm text-slate-500">în perioadă</div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-sm text-slate-500">Profit estimat (EUR)</div>
+            <div
+              className={`mt-1 text-4xl font-bold ${profitEur >= 0 ? "text-green-700" : "text-red-600"}`}
+            >
+              {fmtMoney(profitEur, "EUR")}
+            </div>
+            <div className="mt-1 text-sm text-slate-500">venituri EUR − cheltuieli</div>
+          </div>
+        </div>
 
-      <p className="text-xs text-slate-400">
-        Notă: veniturile din curse sunt afișate pe monedă (pot fi în EUR, USD, GBP sau RON), iar cheltuielile și marja de brokeraj sunt în RON — profitul net trebuie calculat manual dacă monedele diferă. Cursele și cheltuielile se leagă de o firmă prin vehiculul lor; cele fără vehicul apar la „Toate firmele" și la „Fără firmă".
-      </p>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="text-xl font-semibold text-brand-dark">Venituri curse pe monedă</h2>
+          {report.totals.length === 0 ? (
+            <p className="mt-2 text-base text-slate-500">Nicio cursă în perioadă.</p>
+          ) : (
+            <div className="mt-3 flex flex-wrap gap-x-12 gap-y-4">
+              {report.totals.map((t) => (
+                <div key={t.currency}>
+                  <div className="text-4xl font-extrabold text-brand-dark">
+                    {fmtMoney(t.total, t.currency)}
+                  </div>
+                  <div className="mt-0.5 text-base text-slate-500">
+                    {t.jobs} curse · {t.currency}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {report.firms.length === 0 ? (
+          <p className="rounded-2xl border border-slate-200 bg-white p-6 text-base text-slate-500">
+            Nicio cursă în perioada aleasă.
+          </p>
+        ) : (
+          report.firms.map((f) => <FirmCard key={f.id} firm={f} qs={qs} />)
+        )}
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CostTable title="Cheltuieli pe categorie" rows={report.costsByCategory} />
+          <CostTable title="Cheltuieli pe vehicul (top 8)" rows={report.costsByVehicle} />
+        </div>
+
+        <p className="text-sm text-slate-500">
+          Venitul unei curse = tarif + extra, la data încărcării. Cursele anulate nu sunt incluse în venituri.
+          Cheltuielile sunt cele din secțiunea Cheltuieli, filtrate după firma vehiculului.
+        </p>
       </div>
     </AppShell>
   );
