@@ -16,6 +16,7 @@ import {
   weeklyRestSuggestionByVehicle,
   vehicleExtrasByVehicle,
 } from "@/lib/fleet";
+import { cabotageByVehicle } from "@/lib/cabotage";
 import { PlanningTable } from "@/components/PlanningTable";
 import type { PlanningRow } from "@/components/PlanningTable";
 
@@ -123,6 +124,7 @@ export default async function PlanningPage({
     lastUnloadByVehicle,
     weeklyRestSuggestion,
     extrasByVehicle,
+    cabotageMap,
   ] = await Promise.all([
     vehiclesP,
     listDrivers(),
@@ -133,6 +135,7 @@ export default async function PlanningPage({
     activeIdsP.then((ids) => lastUnloadPlaceByVehicle(ids)),
     activeIdsP.then((ids) => weeklyRestSuggestionByVehicle(ids)),
     activeIdsP.then((ids) => vehicleExtrasByVehicle(ids)),
+    activeIdsP.then((ids) => cabotageByVehicle(ids)),
   ]);
 
   // Codul (SCAC) fiecărui client, după id-ul clientului.
@@ -197,6 +200,7 @@ export default async function PlanningPage({
       programEnd: v.program_end,
       programStartAt: iso(v.program_start_at),
       programEndAt: iso(v.program_end_at),
+      cabotage: cabotageMap.get(v.id) ?? null,
       pause: v.pause,
       restStart: v.rest_start,
       restEnd: v.rest_end,
