@@ -45,10 +45,21 @@ export function fleetState(v: Vehicle, currentJob: Job | null): FleetState {
   return "disponibil";
 }
 
-/** Șterge pauzele (scurte și săptămânale) expirate și programele terminate, ca vehiculul să apară curat. */
-async function clearExpiredPauses() {
-  try {
-    await pool.query(
+/**
+ * Șterge pauzele (scurte și săptămânale) expirate și programele terminate, ca
+ * vehiculul să apară curat. Cele trei curățări rulează în paralel.
+ */
+export async function clearExpiredPauses() {
+  const run = async (sql: string) => {
+    try {
+      await pool.query(sql);
+    } catch {
+      // se încearcă din nou la următoarea încărcare
+    }
+  };
+  await Promise.all([
+    // pauza scurtă s-a terminat
+    run(
       `update vehicles
           set pause = false,
               rest_dur_h = null,
@@ -59,13 +70,9 @@ async function clearExpiredPauses() {
         where pause = true
           and rest_end_at is not null
           and rest_end_at <= now()`
-    );
-  } catch {
-    // se încearcă din nou la următoarea încărcare
-  }
-  // Programul zilei s-a terminat → dispare din tabel (ora de final a trecut).
-  try {
-    await pool.query(
+    ),
+    // programul zilei s-a terminat → dispare din tabel
+    run(
       `update vehicles
           set program_start = null,
               program_end = null,
@@ -73,14 +80,10 @@ async function clearExpiredPauses() {
               program_end_at = null
         where program_end_at is not null
           and program_end_at <= now()`
-    );
-  } catch {
-    // se încearcă din nou la următoarea încărcare
-  }
-  // Pauza săptămânală s-a terminat → dispare din tabel (rămâne doar în istoric,
-  // de unde aplicația recomandă pauza pentru săptămâna următoare).
-  try {
-    await pool.query(
+    ),
+    // pauza săptămânală s-a terminat → dispare din tabel (rămâne în istoric,
+    // de unde aplicația recomandă pauza pentru săptămâna următoare)
+    run(
       `update vehicles
           set weekly_rest = false,
               weekly_rest_type = null,
@@ -91,15 +94,16 @@ async function clearExpiredPauses() {
         where weekly_rest = true
           and weekly_rest_end_at is not null
           and weekly_rest_end_at <= now()`
-    );
-  } catch {
-    // se încearcă din nou la următoarea încărcare
-  }
+    ),
+  ]);
 }
 
 /** Cursa curentă sau următoare (planificare / activ) pentru fiecare vehicul. */
-export async function currentJobsByVehicle(vehicleIds: string[]): Promise<Map<string, Job>> {
-  await clearExpiredPauses();
+export async function currentJobsByVehicle(
+  vehicleIds: string[],
+  opts?: { skipClear?: boolean }
+): Promise<Map<string, Job>> {
+  if (!opts?.skipClear) await clearExpiredPauses();
   if (vehicleIds.length === 0) return new Map();
   const { rows } = await pool.query<Job>(
     `select distinct on (vehicle_id) *
