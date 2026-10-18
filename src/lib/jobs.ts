@@ -8,6 +8,8 @@ export type Job = {
   ref: string | null;
   load_place: string | null;
   unload_place: string | null;
+  load_country: string | null;
+  unload_country: string | null;
   start_at: Date | null;
   end_at: Date | null;
   dist_unit: string | null;
@@ -39,6 +41,8 @@ export type JobInput = {
   ref?: string | null;
   loadPlace?: string | null;
   unloadPlace?: string | null;
+  loadCountry?: string | null;
+  unloadCountry?: string | null;
   startAt?: string | null;
   endAt?: string | null;
   miles?: number | null;
@@ -63,14 +67,20 @@ function nullify<T>(v: T | "" | undefined): T | null {
   return v === "" || v === undefined ? null : v;
 }
 
+/** Cod de țară din 2 litere (ex. "de" → "DE"); gol / invalid → null. */
+function countryCode(v: string | null | undefined): string | null {
+  const c = (v ?? "").trim().toUpperCase();
+  return /^[A-Z]{2}$/.test(c) ? c : null;
+}
+
 /**
  * Când o cursă devine "finalizat":
  *  - locația mașinii devine locul de descărcare al cursei (dacă e completat);
- *  - dacă mașina mai are o cursă planificată, trece în "Viitor" (cursa
- *    următoare rămâne în Planificare, o pornește dispecerul când vrea);
- *  - altfel mașina trece în starea "pending", până o mută dispecerul în
- *    Disponibil / Pauză / Indisponibil.
- *  O mașină aflată pe "Staționare" rămâne așa.
+ *  - dacă mașina mai are o altă cursă planificată, mașina trece în "Viitor"
+ *    (fără stare forțată), iar cursa următoare rămâne în Planificare până o
+ *    pune dispecerul în Tranzit;
+ *  - altfel mașina trece în "pending", până o mută dispecerul în Disponibil /
+ *    Pauză / Indisponibil. O mașină aflată pe "Staționare" rămâne așa.
  */
 async function syncVehicleAfterFinish(job: Job | null) {
   if (!job || job.status !== "finalizat" || !job.vehicle_id) return;
@@ -111,9 +121,9 @@ export async function createJob(input: JobInput) {
     `insert into jobs (
        id, kind, client_id, ref, load_place, unload_place, start_at, end_at,
        miles, currency, rate, extra, driver_id, vehicle_id, trailer_id,
-       dispatcher_id, status, notes, invoice, paid_at
+       dispatcher_id, status, notes, invoice, paid_at, load_country, unload_country
      )
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
      returning *`,
     [
       id,
@@ -136,6 +146,8 @@ export async function createJob(input: JobInput) {
       nullify(input.notes),
       input.invoice?.trim() || "none",
       nullify(input.paidAt),
+      countryCode(input.loadCountry),
+      countryCode(input.unloadCountry),
     ]
   );
   return rows[0];
@@ -154,7 +166,8 @@ export async function updateJob(id: string, input: JobInput) {
        kind = $2, client_id = $3, ref = $4, load_place = $5, unload_place = $6,
        start_at = $7, end_at = $8, miles = $9, currency = $10, rate = $11, extra = $12,
        driver_id = $13, vehicle_id = $14, trailer_id = $15, dispatcher_id = $16,
-       status = $17, notes = $18, invoice = $19, paid_at = $20
+       status = $17, notes = $18, invoice = $19, paid_at = $20,
+       load_country = $21, unload_country = $22
      where id = $1
      returning *`,
     [
@@ -178,6 +191,8 @@ export async function updateJob(id: string, input: JobInput) {
       nullify(input.notes),
       input.invoice?.trim() || "none",
       nullify(input.paidAt),
+      countryCode(input.loadCountry),
+      countryCode(input.unloadCountry),
     ]
   );
   const job = rows[0] ?? null;
@@ -196,8 +211,8 @@ export async function deleteJob(id: string) {
  * `cancelFee` se salvează doar când statusul devine "anulat".
  * `km` (opțional) salvează kilometrajul de pe bord: start și/sau final;
  * o valoare lipsă (null) nu șterge ce era salvat deja.
- * La "finalizat": locația mașinii = locul de descărcare; mașina trece în "Viitor"
- * (dacă mai are o cursă planificată) sau în "pending".
+ * La "finalizat": locația mașinii = locul de descărcare; mașina trece în "Viitor" dacă mai are
+ * o cursă planificată, altfel în "pending".
  */
 export async function patchJobStatus(
   id: string,
