@@ -122,6 +122,28 @@ async function clearPauseOnTransit(job: Job | null) {
   );
 }
 
+/**
+ * Când o cursă se anulează: dacă mașina nu mai are altă cursă planificată sau
+ * în Tranzit, nu mai rămâne "pending" — dacă e în pauză își continuă pauza, iar
+ * dacă nu, devine Disponibil. (Staționare / Indisponibil setate manual rămân.)
+ */
+async function releaseVehicleAfterCancel(job: Job | null) {
+  if (!job || job.status !== "anulat" || !job.vehicle_id) return;
+  await pool.query(
+    `update vehicles
+        set state_override = null
+      where id = $1
+        and state_override = 'pending'
+        and not exists (
+          select 1 from jobs
+           where vehicle_id = $1
+             and status in ('planificare', 'activ')
+             and id <> $2
+        )`,
+    [job.vehicle_id, job.id]
+  );
+}
+
 export async function listJobs() {
   const { rows } = await pool.query<Job>(
     `select * from jobs order by coalesce(start_at, created_at) desc`
@@ -223,6 +245,9 @@ export async function updateJob(id: string, input: JobInput) {
   if (job && job.status === "activ" && prevStatus !== "activ") {
     await clearPauseOnTransit(job);
   }
+  if (job && job.status === "anulat" && prevStatus !== "anulat") {
+    await releaseVehicleAfterCancel(job);
+  }
   return job;
 }
 
@@ -238,6 +263,7 @@ export async function deleteJob(id: string) {
  * La "finalizat": locația mașinii = locul de descărcare; mașina trece în "Viitor" dacă mai are
  * o cursă planificată, altfel în "pending".
  * La "activ" (Tranzit): pauza zilnică a mașinii dispare, programul rămâne.
+ * La "anulat": mașina iese din "pending"; își continuă pauza sau devine Disponibil.
  */
 export async function patchJobStatus(
   id: string,
@@ -258,6 +284,7 @@ export async function patchJobStatus(
   const job = rows[0] ?? null;
   await syncVehicleAfterFinish(job);
   await clearPauseOnTransit(job);
+  await releaseVehicleAfterCancel(job);
   return job;
 }
 
