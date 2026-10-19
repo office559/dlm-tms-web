@@ -58,7 +58,8 @@ const STATE_TABS: { key: string; label: string }[] = [
 
 /**
  * Cheia de ordonare în cadrul aceleiași stări (milisecunde; mai mic = mai sus).
- *  - Pauză: momentul în care se termină pauza (zilnică sau săptămânală);
+ *  - Pauză: momentul în care se termină pauza (zilnică sau săptămânală) — în
+ *    ordine inversă: mașina care termină pauza ultima apare prima;
  *  - Viitor: momentul încărcării cursei următoare.
  */
 function orderKey(
@@ -155,12 +156,14 @@ export default async function PlanningPage({
       if (byState !== 0) return byState;
       // 2) în cadrul stării: Pauză = în ordinea în care se termină pauza,
       //    Viitor = în ordinea în care încarcă. Fără oră → la sfârșit.
+      //    (Pauză: invers — cea care termină ultima e prima.)
       const ka = orderKey(a.state, a.v, a.job);
       const kb = orderKey(b.state, b.v, b.job);
       if (ka === null && kb === null) return 0;
       if (ka === null) return 1;
       if (kb === null) return -1;
-      return ka - kb;
+      // Pauză: invers (cea care termină ultima e prima). Celelalte: crescător.
+      return a.state === "pauza" ? kb - ka : ka - kb;
     });
 
   const counts: Record<string, number> = { toate: allRows.length };
