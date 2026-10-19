@@ -2,7 +2,6 @@ import { pool } from "@/lib/db";
 import type { Vehicle } from "@/lib/vehicles";
 import type { Job } from "@/lib/jobs";
 import type { FleetState } from "@/lib/fleet-labels";
-import { DEFAULT_TIMEZONE } from "@/lib/tz";
 import { FLEET_STATE_LABELS, FLEET_STATE_STYLES, FLEET_ROW_STYLES } from "@/lib/fleet-labels";
 
 // Reexportate pentru compatibilitate (fișierele client importă din fleet-labels).
@@ -31,64 +30,29 @@ function weeklyRestActive(v: Vehicle): boolean {
   return end > Date.now();
 }
 
-/** Offsetul fusului orar `tz` (în milisecunde) la momentul `instant`. */
-function tzOffsetMs(instant: number, tz: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(new Date(instant));
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
-  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
-  return asUtc - Math.floor(instant / 1000) * 1000;
-}
-
 /**
- * True dacă vehiculul mai are un program în desfășurare și încărcarea cursei
- * cade înainte de sfârșitul lui. Orele cursei se salvează ca oră locală a locului
- * (scrisă ca UTC), iar cele ale programului sunt momente reale — de aceea le
- * comparăm ca „ore de pe ceas" în fusul orar ales de utilizator.
+ * Starea unui vehicul în Planificare, derivată din datele reale.
+ *
+ * Cât timp mașina are o cursă planificată (și nu e în Tranzit / Staționare /
+ * Indisponibil), starea ei e "Viitor" — indiferent dacă era Pending, Disponibil
+ * sau în Pauză. Pauza și programul își văd de drum în coloanele lor; se schimbă
+ * doar starea. Când cursa pornește → Tranzit.
  */
-function jobFitsProgram(v: Vehicle, job: Job, tz: string): boolean {
-  const x = v as unknown as { program_end_at?: string | Date | null };
-  if (!x.program_end_at || !job.start_at) return false;
-  const endMs = new Date(x.program_end_at).getTime();
-  const jobWall = new Date(job.start_at).getTime();
-  if (Number.isNaN(endMs) || Number.isNaN(jobWall) || endMs <= Date.now()) return false;
-  // Încărcarea trebuie să cadă înainte de sfârșitul programului.
-  return jobWall <= endMs + tzOffsetMs(endMs, tz);
-}
-
-/** Starea unui vehicul în Planificare, derivată din datele reale. */
 export function fleetState(
   v: Vehicle,
   currentJob: Job | null,
-  tz: string = DEFAULT_TIMEZONE
+  _tz?: string // păstrat pentru compatibilitate cu apelurile existente
 ): FleetState {
+  void _tz;
   if (!v.active) return "stationare";
   if (v.state_override === "stationare") return "stationare";
   if (currentJob && currentJob.status === "activ") return "tranzit";
+  if (v.state_override === "indisponibil") return "indisponibil";
+  if (currentJob && currentJob.status === "planificare") return "alocat";
   // După finalizarea unei curse, vehiculul rămâne "pending" până îl mută dispecerul.
   if (v.state_override === "pending") return "pending";
-  if (v.state_override === "indisponibil") return "indisponibil";
+  if (v.pause && !pauseEnded(v)) return "pauza";
   if (weeklyRestActive(v)) return "pauza";
-  if (v.pause && !pauseEnded(v)) {
-    // Are pauză, dar mai are program și cursa nouă se încadrează în el → Viitor.
-    if (
-      currentJob &&
-      currentJob.status === "planificare" &&
-      jobFitsProgram(v, currentJob, tz)
-    ) {
-      return "alocat";
-    }
-    return "pauza";
-  }
-  if (currentJob && currentJob.status === "planificare") return "alocat";
   if (!v.driver_id) return "indisponibil";
   return "disponibil";
 }
