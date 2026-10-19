@@ -47,20 +47,20 @@ type ColumnKey =
 
 const DEFAULT_ORDER: ColumnKey[] = [
   "vehicul",
-  "vrid",
   "scac",
+  "cabotaj",
+  "vrid",
   "data",
   "stare",
   "sofer",
-  "echipaj",
   "program",
   "pauza",
-  "pauzaSapt",
   "locatie",
-  "cabotaj",
   "traseu",
-  "cazuri",
   "whatsapp",
+  "echipaj",
+  "pauzaSapt",
+  "cazuri",
   "notita",
 ];
 
@@ -88,32 +88,42 @@ const MIN_WIDTH = 60;
 /** La câte secunde se reîmprospătează automat datele tabelului. */
 const AUTO_REFRESH_SECONDS = 10;
 
-const STORAGE_KEY = "dlm-planning-columns-v2";
+// v3: ordinea standard a coloanelor a fost schimbată pentru toți utilizatorii.
+// Ordinea veche (v2) se ignoră; lățimile alese în v2 se păstrează.
+const STORAGE_KEY = "dlm-planning-columns-v3";
+const OLD_STORAGE_KEY = "dlm-planning-columns-v2";
 
 type StoredState = {
   order: ColumnKey[];
   widths: Partial<Record<ColumnKey, number>>;
 };
 
+function parseWidths(raw: unknown): Partial<Record<ColumnKey, number>> {
+  const widths: Partial<Record<ColumnKey, number>> = {};
+  if (raw && typeof raw === "object") {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if ((DEFAULT_ORDER as string[]).includes(k) && typeof v === "number" && v >= MIN_WIDTH) {
+        widths[k as ColumnKey] = v;
+      }
+    }
+  }
+  return widths;
+}
+
 function loadState(): StoredState {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { order: DEFAULT_ORDER, widths: {} };
+    if (!raw) {
+      // Prima încărcare după schimbare: ordinea standard nouă + lățimile vechi.
+      const old = window.localStorage.getItem(OLD_STORAGE_KEY);
+      const oldParsed = old ? (JSON.parse(old) as { widths?: unknown }) : null;
+      return { order: DEFAULT_ORDER, widths: parseWidths(oldParsed?.widths) };
+    }
     const parsed = JSON.parse(raw) as { order?: unknown; widths?: unknown };
     const rawOrder = Array.isArray(parsed.order) ? (parsed.order as string[]) : [];
     const valid = rawOrder.filter((k): k is ColumnKey => (DEFAULT_ORDER as string[]).includes(k));
     const missing = DEFAULT_ORDER.filter((k) => !valid.includes(k));
-    const order = [...valid, ...missing];
-
-    const widths: Partial<Record<ColumnKey, number>> = {};
-    if (parsed.widths && typeof parsed.widths === "object") {
-      for (const [k, v] of Object.entries(parsed.widths as Record<string, unknown>)) {
-        if ((DEFAULT_ORDER as string[]).includes(k) && typeof v === "number" && v >= MIN_WIDTH) {
-          widths[k as ColumnKey] = v;
-        }
-      }
-    }
-    return { order, widths };
+    return { order: [...valid, ...missing], widths: parseWidths(parsed.widths) };
   } catch {
     return { order: DEFAULT_ORDER, widths: {} };
   }
