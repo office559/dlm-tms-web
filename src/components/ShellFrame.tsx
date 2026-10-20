@@ -119,6 +119,17 @@ function ReportsIcon() {
   );
 }
 
+/** Volan — Pontaj tahograf. */
+function TachoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="2.5" />
+      <path d="M12 14.5V21M9.6 11.2 3.3 9.5M14.4 11.2l6.3-1.7" />
+    </svg>
+  );
+}
+
 /** Servietă — Brokeraj. */
 function BrokerageIcon() {
   return (
@@ -216,6 +227,7 @@ const NAV_ICONS: Record<string, () => ReactElement> = {
   companies: CompaniesIcon,
   customers: CustomersIcon,
   reports: ReportsIcon,
+  tacho: TachoIcon,
   brokerage: BrokerageIcon,
   costs: CostsIcon,
   payments: PaymentsIcon,
