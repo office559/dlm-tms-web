@@ -29,6 +29,7 @@ const NAV_GROUPS: NavGroup[] = [
     title: "Business",
     items: [
       { key: "reports", href: "/reports", label: "Rapoarte & Profituri" },
+      { key: "tacho", href: "/tacho", label: "Pontaj tahograf" },
       { key: "brokerage", href: "/brokerage", label: "Brokeraj" },
     ],
   },
