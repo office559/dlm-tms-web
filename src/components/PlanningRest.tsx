@@ -253,6 +253,8 @@ const PAUSE_DURATIONS = [9, 11, 24];
  * Pauză vehicul: dacă nu e activă, arată „— [+]"; dacă e activă, arată o
  * pastilă roșu (start) / verde (final) cu creion de editare, și dedesubt
  * „Mai are Xh Ym" calculat din ora exactă de final a pauzei.
+ * Fereastra de editare e ca la Program: data + ora de început (24h) și
+ * numărul de ore (9h / 11h / 24h sau personalizat).
  */
 export function PauseBadgeControl({
   vehicleId,
@@ -273,21 +275,59 @@ export function PauseBadgeControl({
   const tz = useTimezone();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [custom, setCustom] = useState("");
   const [startTime, setStartTime] = useState(() => nowTimeInTz(tz));
+  const [startDate, setStartDate] = useState(() => dateInputValue(new Date(), tz));
+  const [duration, setDuration] = useState<number | "">("");
+  const [custom, setCustom] = useState("");
 
   // Orele afișate, în fusul orar ales (cu rezervă pe textul salvat).
   const shownRestStart = (restStartAt && formatTimeInTz(restStartAt, tz)) || restStart;
   const shownRestEnd = (restEndAt && formatTimeInTz(restEndAt, tz)) || restEnd;
 
   function openEditor() {
-    setStartTime(nowTimeInTz(tz));
+    if (pause && restStartAt && restEndAt) {
+      // Editare: pornim de la pauza existentă (dată, oră, număr de ore).
+      const s = new Date(restStartAt);
+      const e = new Date(restEndAt);
+      setStartTime(formatTimeInTz(s, tz));
+      setStartDate(dateInputValue(s, tz));
+      const hours = Math.round((e.getTime() - s.getTime()) / (60 * 60 * 1000));
+      if (PAUSE_DURATIONS.includes(hours)) {
+        setDuration(hours);
+        setCustom("");
+      } else {
+        setDuration("");
+        setCustom(hours > 0 ? String(hours) : "");
+      }
+    } else {
+      setStartTime(nowTimeInTz(tz));
+      setStartDate(dateInputValue(new Date(), tz));
+      setDuration("");
+      setCustom("");
+    }
     setOpen(true);
   }
 
-  async function start(hours: number) {
+  // Numărul de ore ales: cel personalizat, dacă e completat, altfel din listă.
+  const hours = custom ? Number(custom) : duration === "" ? 0 : duration;
+  const canSave = Boolean(startTime && startDate && hours > 0);
+
+  const previewEnd = canSave
+    ? new Date(startMoment(startDate, startTime, tz).getTime() + hours * 60 * 60 * 1000)
+    : null;
+
+  async function save() {
+    if (!canSave) return;
     setSaving(true);
-    await patchVehicle(vehicleId, startPauseBody(hours, tz, startTime));
+    const startAt = startMoment(startDate, startTime, tz);
+    const endAt = new Date(startAt.getTime() + hours * 60 * 60 * 1000);
+    await patchVehicle(vehicleId, {
+      ...startPauseBody(hours, tz, startTime),
+      restStart: startTime,
+      restEnd: formatTimeInTz(endAt, tz),
+      restStartAt: startAt.toISOString(),
+      restEndAt: endAt.toISOString(),
+    });
     setSaving(false);
     setOpen(false);
     router.refresh();
@@ -302,11 +342,17 @@ export function PauseBadgeControl({
   }
 
   const endAtDate = restEndAt ? new Date(restEndAt) : null;
+  const startAtDate = restStartAt ? new Date(restStartAt) : null;
   const now = Date.now();
   let subText: string | null = null;
   if (pause && endAtDate) {
-    subText =
-      now < endAtDate.getTime() ? `Mai are ${fmtCountdown(endAtDate.getTime() - now)}` : "Pauză încheiată";
+    if (startAtDate && now < startAtDate.getTime()) {
+      subText = `începe în ${fmtCountdown(startAtDate.getTime() - now)}`;
+    } else if (now < endAtDate.getTime()) {
+      subText = `Mai are ${fmtCountdown(endAtDate.getTime() - now)}`;
+    } else {
+      subText = "Pauză încheiată";
+    }
   }
 
   return (
@@ -358,45 +404,62 @@ export function PauseBadgeControl({
               </button>
             </div>
             <div className="flex flex-col gap-2">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-500">Ora de început a pauzei</label>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                  value={startDate}
+                  disabled={saving}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
                 <Time24Input
-                  className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                  className="!w-24 shrink-0 rounded-lg border border-slate-200 px-2 py-1 text-center text-sm disabled:opacity-50"
                   value={startTime}
                   disabled={saving}
                   onChange={setStartTime}
                 />
               </div>
-              {PAUSE_DURATIONS.map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  disabled={saving}
-                  onClick={() => start(d)}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-left text-sm hover:border-brand hover:bg-slate-50 transition disabled:opacity-50"
-                >
-                  {d}h
-                </button>
-              ))}
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  placeholder="ore personalizat"
-                  className="w-full rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
-                  value={custom}
-                  disabled={saving}
-                  onChange={(e) => setCustom(e.target.value)}
-                />
-                <button
-                  type="button"
-                  disabled={saving || !custom}
-                  onClick={() => start(Number(custom))}
-                  className="shrink-0 rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
-                >
-                  OK
-                </button>
-              </div>
+              <select
+                className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                value={custom ? "" : duration}
+                disabled={saving}
+                onChange={(e) => {
+                  setDuration(e.target.value ? Number(e.target.value) : "");
+                  setCustom("");
+                }}
+              >
+                <option value="">— ore</option>
+                {PAUSE_DURATIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}h
+                  </option>
+                ))}
+              </select>
+              <input
+                type="number"
+                min={1}
+                placeholder="sau ore personalizat"
+                className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                value={custom}
+                disabled={saving}
+                onChange={(e) => {
+                  setCustom(e.target.value);
+                  if (e.target.value) setDuration("");
+                }}
+              />
+              {previewEnd && (
+                <div className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700">
+                  Se termină: {formatDateInTz(previewEnd, tz)}, {formatTimeInTz(previewEnd, tz)}
+                </div>
+              )}
+              <button
+                type="button"
+                disabled={saving || !canSave}
+                onClick={save}
+                className="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-dark disabled:opacity-50 transition"
+              >
+                Salvează
+              </button>
               {pause && (
                 <button
                   type="button"
