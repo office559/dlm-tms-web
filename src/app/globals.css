@@ -155,9 +155,22 @@ html[data-theme="glass"] thead.bg-gradient-to-r {
   background: transparent !important;
   color: #fff !important;
 }
+/* bara cu titlurile coloanelor: bandă proprie, bine delimitată */
 html[data-theme="glass"] thead.bg-gradient-to-r th {
-  border-left-color: rgba(255, 255, 255, 0.22) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+  background-color: rgba(38, 34, 104, 0.78);
+  border-left-color: rgba(255, 255, 255, 0.18) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.38);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.38);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+html[data-theme="glass"] thead.bg-gradient-to-r th:first-child {
+  border-left: 1px solid rgba(255, 255, 255, 0.38) !important;
+  border-radius: 12px 0 0 12px;
+}
+html[data-theme="glass"] thead.bg-gradient-to-r th:last-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 0 12px 12px 0;
 }
 html[data-theme="glass"] div.bg-white:has(> table > thead.bg-gradient-to-r) tbody tr > td {
   background-color: inherit;
