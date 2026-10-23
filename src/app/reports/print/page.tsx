@@ -30,7 +30,7 @@ export default async function ReportPrintPage({
 
       <div className="mb-5 flex flex-wrap gap-x-10 gap-y-2 rounded-lg border border-slate-300 p-3">
         <div>
-          <div className="text-xs text-slate-500">Curse (fără anulate)</div>
+          <div className="text-xs text-slate-500">Curse (inclusiv anulate)</div>
           <div className="text-xl font-bold">{r.totals.reduce((s, t) => s + t.jobs, 0)}</div>
         </div>
         {r.totals.map((t) => (
@@ -72,7 +72,10 @@ export default async function ReportPrintPage({
                   <tr key={i} className="border-t border-slate-200">
                     <td className="p-2 font-bold">{x.plate}</td>
                     <td className="p-2">{x.driver}</td>
-                    <td className="p-2 text-right">{x.jobs}</td>
+                    <td className="p-2 text-right">
+                      {x.jobs}
+                      {x.cancelled > 0 ? ` (${x.cancelled} anulate)` : ""}
+                    </td>
                     <td className="p-2 text-right font-semibold">{fmtMoney(x.total, b.currency)}</td>
                     <td className="p-2 text-right">{fmtMoney(x.jobs ? x.total / x.jobs : 0, b.currency)}</td>
                     <td className="p-2 text-right">{b.total > 0 ? ((x.total / b.total) * 100).toFixed(0) : 0}%</td>
@@ -108,7 +111,7 @@ export default async function ReportPrintPage({
                 {f.jobList.map((j, i) => (
                   <tr
                     key={i}
-                    className={`border-t border-slate-200 ${j.status === "anulat" ? "text-slate-400 line-through" : ""}`}
+                    className={`border-t border-slate-200 ${j.status === "anulat" ? "text-slate-500 italic" : ""}`}
                   >
                     <td className="whitespace-nowrap p-1.5">
                       {j.startAt ? `${formatDateInTz(j.startAt, "UTC")} ${formatTimeInTz(j.startAt, "UTC")}` : "—"}
