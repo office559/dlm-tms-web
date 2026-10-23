@@ -78,13 +78,20 @@ html[data-theme="glass"] aside .text-slate-400 {
   color: rgba(255, 255, 255, 0.6) !important;
 }
 
-/* ---------- bara de sus ---------- */
+/* ---------- bara de sus: bandă rotunjită, aceeași culoare ca antetul tabelului ---------- */
 html[data-theme="glass"] header {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(255, 255, 255, 0.22) !important;
+  background: rgba(38, 34, 104, 0.78) !important;
+  border: 1px solid rgba(255, 255, 255, 0.38) !important;
+  border-radius: 20px;
+  margin: 10px 10px 0 10px;
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   color: #fff;
+}
+@media (min-width: 768px) {
+  html[data-theme="glass"] header {
+    margin: 14px 14px 0 14px;
+  }
 }
 html[data-theme="glass"] header .text-slate-500,
 html[data-theme="glass"] header .text-slate-600,
