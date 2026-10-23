@@ -383,11 +383,11 @@ export function ShellFrame({
           </button>
 
           <div className="p-3.5 pb-2">
-            <div className={`bg-white border border-slate-200 rounded-lg px-4 py-2.5 ${hideWhenCollapsed}`}>
+            <div className={`tms-logo-box bg-white border border-slate-200 rounded-lg px-4 py-2.5 ${hideWhenCollapsed}`}>
               <TmsLogo />
             </div>
             {collapsed && (
-              <div className="hidden md:grid h-10 w-full place-items-center rounded-lg border border-slate-200 bg-white">
+              <div className="tms-logo-box hidden md:grid h-10 w-full place-items-center rounded-lg border border-slate-200 bg-white">
                 <TmsMark />
               </div>
             )}
