@@ -54,6 +54,17 @@ html[data-theme="glass"] aside.bg-white {
 html[data-theme="glass"] aside .bg-white {
   background: #fff !important;
 }
+/* logo TMS: direct pe gradient, fără cutie albă, text alb */
+html[data-theme="glass"] aside .tms-logo-box {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+html[data-theme="glass"] .tms-t1 {
+  fill: #ffffff !important;
+}
+html[data-theme="glass"] .tms-t2 {
+  fill: rgba(255, 255, 255, 0.78) !important;
+}
 html[data-theme="glass"] aside h4 {
   color: rgba(255, 255, 255, 0.6) !important;
 }
@@ -78,7 +89,7 @@ html[data-theme="glass"] aside .text-slate-400 {
   color: rgba(255, 255, 255, 0.6) !important;
 }
 
-/* ---------- bara de sus: bandă rotunjită, aceeași culoare ca antetul tabelului ---------- */
+/* ---------- bara de sus ---------- */
 html[data-theme="glass"] header {
   background: rgba(38, 34, 104, 0.78) !important;
   border: 1px solid rgba(255, 255, 255, 0.38) !important;
@@ -122,7 +133,6 @@ html[data-theme="glass"] header button.border {
 html[data-theme="glass"] header div.bg-brand {
   background: rgba(255, 255, 255, 0.26) !important;
 }
-
 /* selectorul de fus orar (și orice alt câmp alb din bara de sus): text închis pe fundal deschis */
 html[data-theme="glass"] header select,
 html[data-theme="glass"] header [class*="bg-white"],
