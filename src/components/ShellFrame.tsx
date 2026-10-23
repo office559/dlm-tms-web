@@ -6,6 +6,7 @@ import { useEffect, useState, type ReactElement } from "react";
 import { signOut } from "@/lib/auth-client";
 import { DEFAULT_TIMEZONE, TIMEZONES, zonedParts } from "@/lib/tz";
 import { TimezoneProvider } from "@/components/TimezoneProvider";
+import { TmsLogo, TmsMark } from "@/components/TmsLogo";
 
 export type NavItem = { key: string; href: string; label: string };
 export type NavGroup = { title: string; items: NavItem[] };
@@ -383,12 +384,11 @@ export function ShellFrame({
 
           <div className="p-3.5 pb-2">
             <div className={`bg-white border border-slate-200 rounded-lg px-4 py-2.5 ${hideWhenCollapsed}`}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png" alt="DLM" className="w-full h-auto block" />
+              <TmsLogo />
             </div>
             {collapsed && (
-              <div className="hidden md:grid h-10 w-full place-items-center rounded-lg border border-slate-200 bg-white text-[12px] font-extrabold tracking-tight text-brand-dark">
-                DLM
+              <div className="hidden md:grid h-10 w-full place-items-center rounded-lg border border-slate-200 bg-white">
+                <TmsMark />
               </div>
             )}
           </div>
@@ -440,7 +440,7 @@ export function ShellFrame({
             </button>
           </div>
           <div className={`px-3.5 py-2 border-t border-slate-200 text-[11px] text-slate-500 ${hideWhenCollapsed}`}>
-            DLM Trans
+            TMS
           </div>
         </aside>
 
@@ -455,7 +455,7 @@ export function ShellFrame({
               ☰
             </button>
             <div className="text-xs text-slate-500 whitespace-nowrap hidden sm:block">
-              DLM &rsaquo; <b className="text-slate-800">{crumb}</b>
+              TMS &rsaquo; <b className="text-slate-800">{crumb}</b>
             </div>
             <form action="/jobs" method="GET" className="hidden md:block flex-1 max-w-xs">
               <input
