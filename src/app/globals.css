@@ -8,8 +8,167 @@ body {
 }
 
 body {
-  /* Valoarea de după virgulă e folosită doar dacă --page-bg nu e setată
-     (vezi src/app/layout.tsx, care o injectează din Setări). */
-  background: var(--page-bg, #f4f6fb);
+  background: #f4f6fb;
   color: #0e1a2b;
+}
+
+/* ================================================================
+   TEMA "GLASS" — se activează doar când <html data-theme="glass">.
+   Tema clasică nu este atinsă: fără atributul acela, nimic de mai jos
+   nu se aplică.
+   ================================================================ */
+
+html[data-theme="glass"] body {
+  background:
+    radial-gradient(circle at 12% 8%, #6d5dfc 0, transparent 42%),
+    radial-gradient(circle at 92% 15%, #22d3ee 0, transparent 38%),
+    radial-gradient(circle at 55% 105%, #f472b6 0, transparent 45%),
+    #1b1f4b;
+  background-attachment: fixed;
+  color: #0e1a2b;
+}
+
+/* cadrul aplicației: lăsăm fundalul cu gradient să se vadă */
+html[data-theme="glass"] .h-screen.bg-slate-100 {
+  background: transparent !important;
+}
+
+/* ---------- meniul din stânga ---------- */
+html[data-theme="glass"] aside,
+html[data-theme="glass"] aside.bg-white {
+  background: rgba(34, 30, 92, 0.96) !important;
+  border-color: rgba(255, 255, 255, 0.25) !important;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+@media (min-width: 768px) {
+  html[data-theme="glass"] aside,
+  html[data-theme="glass"] aside.bg-white {
+    background: rgba(255, 255, 255, 0.13) !important;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 20px;
+    margin: 14px 0 14px 14px;
+    height: calc(100% - 28px);
+  }
+}
+html[data-theme="glass"] aside .bg-white {
+  background: #fff !important;
+}
+html[data-theme="glass"] aside h4 {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+html[data-theme="glass"] aside nav a {
+  color: rgba(255, 255, 255, 0.9) !important;
+  border-left-color: transparent !important;
+  border-radius: 12px;
+}
+html[data-theme="glass"] aside nav a:hover {
+  background: rgba(255, 255, 255, 0.14) !important;
+  color: #fff !important;
+}
+html[data-theme="glass"] aside nav a.bg-orange-50 {
+  background: rgba(255, 255, 255, 0.26) !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+html[data-theme="glass"] aside .border-t {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+html[data-theme="glass"] aside .text-slate-400 {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* ---------- bara de sus ---------- */
+html[data-theme="glass"] header {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: #fff;
+}
+html[data-theme="glass"] header .text-slate-500,
+html[data-theme="glass"] header .text-slate-600,
+html[data-theme="glass"] header .text-slate-800 {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+html[data-theme="glass"] header b {
+  color: #fff !important;
+}
+html[data-theme="glass"] header input {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #fff !important;
+}
+html[data-theme="glass"] header input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+html[data-theme="glass"] header a.bg-brand {
+  background: #fff !important;
+  color: #4338ca !important;
+  font-weight: 700;
+}
+html[data-theme="glass"] header a.border,
+html[data-theme="glass"] header button.border {
+  border-color: rgba(255, 255, 255, 0.32) !important;
+  color: #fff !important;
+}
+html[data-theme="glass"] header div.bg-brand {
+  background: rgba(255, 255, 255, 0.26) !important;
+}
+
+/* ---------- titlurile paginilor (așezate direct pe gradient) ---------- */
+html[data-theme="glass"] h1:not(.bg-white *) {
+  color: #fff !important;
+}
+html[data-theme="glass"] p.text-slate-600.mt-1:not(.bg-white *),
+html[data-theme="glass"] p.text-slate-500.mt-1:not(.bg-white *) {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+/* ---------- carduri albe: rămân lizibile, dar mai „plutitoare” ---------- */
+html[data-theme="glass"] .bg-white {
+  background-color: rgba(255, 255, 255, 0.95);
+}
+html[data-theme="glass"] .rounded-2xl.bg-white {
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 10px 30px rgba(10, 10, 50, 0.28);
+}
+
+/* ---------- tabelul Planificare: panou de sticlă, rânduri colorate pe stări ---------- */
+html[data-theme="glass"] div.bg-white:has(> table > thead.bg-gradient-to-r) {
+  background: rgba(255, 255, 255, 0.13) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
+  border-radius: 20px;
+  padding: 8px;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+html[data-theme="glass"] div.bg-white:has(> table > thead.bg-gradient-to-r) > div button {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+html[data-theme="glass"] div.bg-white:has(> table > thead.bg-gradient-to-r) > table {
+  border-collapse: separate;
+  border-spacing: 0 4px;
+}
+html[data-theme="glass"] thead.bg-gradient-to-r {
+  background: transparent !important;
+  color: #fff !important;
+}
+html[data-theme="glass"] thead.bg-gradient-to-r th {
+  border-left-color: rgba(255, 255, 255, 0.22) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
+}
+html[data-theme="glass"] div.bg-white:has(> table > thead.bg-gradient-to-r) tbody tr > td {
+  background-color: inherit;
+}
+html[data-theme="glass"] div.bg-white:has(> table > thead.bg-gradient-to-r) tbody tr > td:first-child {
+  border-radius: 12px 0 0 12px;
+}
+html[data-theme="glass"] div.bg-white:has(> table > thead.bg-gradient-to-r) tbody tr > td:last-child {
+  border-radius: 0 12px 12px 0;
+}
+/* rândurile fără culoare de stare (ex. Indisponibil, Staționar) primesc fundal alb translucid */
+html[data-theme="glass"] div.bg-white:has(> table > thead.bg-gradient-to-r) tbody tr:not([class*=" bg-"]) > td {
+  background-color: rgba(255, 255, 255, 0.93);
 }
