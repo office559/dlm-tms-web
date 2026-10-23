@@ -116,6 +116,25 @@ html[data-theme="glass"] header div.bg-brand {
   background: rgba(255, 255, 255, 0.26) !important;
 }
 
+/* selectorul de fus orar (și orice alt câmp alb din bara de sus): text închis pe fundal deschis */
+html[data-theme="glass"] header select,
+html[data-theme="glass"] header [class*="bg-white"],
+html[data-theme="glass"] header [class*="bg-white"] *,
+html[data-theme="glass"] header [class*="bg-slate-50"]:not(input),
+html[data-theme="glass"] header [class*="bg-slate-50"]:not(input) *,
+html[data-theme="glass"] header [class*="bg-slate-100"],
+html[data-theme="glass"] header [class*="bg-slate-100"] * {
+  color: #1f2937 !important;
+}
+html[data-theme="glass"] header select {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(255, 255, 255, 0.5) !important;
+}
+html[data-theme="glass"] header select option {
+  color: #1f2937;
+  background: #fff;
+}
+
 /* ---------- titlurile paginilor (așezate direct pe gradient) ---------- */
 html[data-theme="glass"] h1:not(.bg-white *) {
   color: #fff !important;
