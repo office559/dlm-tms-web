@@ -21,6 +21,7 @@ export function TmsLogo() {
         fontSize="54"
         letterSpacing="-1.5"
         fill="#0f172a"
+        className="tms-t1"
       >
         TMS
       </text>
@@ -32,6 +33,7 @@ export function TmsLogo() {
         fontSize="11"
         letterSpacing="2.4"
         fill="#64748b"
+        className="tms-t2"
       >
         TRANSPORT MANAGEMENT
       </text>
