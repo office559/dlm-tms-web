@@ -146,13 +146,15 @@ export default async function JobsPage({
     return a.name.localeCompare(b.name, "ro");
   });
 
-  /** Totalul tarifelor unui client (fără cursele anulate), pe monede: "3634.71 € · 200 RON". */
+  /** Totalul unui client, pe monede: "3634.71 € · 200 RON". Cursele anulate intră cu taxa de anulare. */
   function groupTotal(list: JobRow[]): string {
     const byCurrency = new Map<string, number>();
     for (const j of list) {
-      if (j.status === "anulat" || j.rate == null) continue;
-      const cur = j.currency ?? "";
-      byCurrency.set(cur, (byCurrency.get(cur) ?? 0) + Number(j.rate));
+      const cancelled = j.status === "anulat";
+      if (!cancelled && j.rate == null) continue;
+      const cur = j.currency ?? (cancelled ? "€" : "");
+      const amount = cancelled ? Number(j.cancel_fee ?? 0) : Number(j.rate);
+      byCurrency.set(cur, (byCurrency.get(cur) ?? 0) + amount);
     }
     return Array.from(byCurrency.entries())
       .map(([cur, sum]) => `${sum.toFixed(2)} ${cur}`.trim())
@@ -253,7 +255,11 @@ export default async function JobsPage({
                       <td className="px-4 py-3">{j.vehicle_id ? vehiclePlate.get(j.vehicle_id) ?? "—" : "—"}</td>
                       <td className="px-4 py-3">{fmtStart(j.start_at)}</td>
                       <td className="px-4 py-3 font-extrabold">
-                        {j.rate != null ? `${j.rate} ${j.currency ?? ""}` : "—"}
+                        {j.status === "anulat"
+                          ? `${Number(j.cancel_fee ?? 0)} ${j.currency ?? "€"}`
+                          : j.rate != null
+                            ? `${j.rate} ${j.currency ?? ""}`
+                            : "—"}
                       </td>
                       <td className="px-4 py-3">
                         <span
