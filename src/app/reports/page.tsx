@@ -86,7 +86,7 @@ function FirmCard({ firm, qs }: { firm: FirmReport; qs: (firma: string) => strin
       </div>
 
       {firm.currencies.length === 0 ? (
-        <p className="px-5 py-6 text-base text-slate-500">Nicio cursă (fără cele anulate) în perioadă.</p>
+        <p className="px-5 py-6 text-base text-slate-500">Nicio cursă în perioadă.</p>
       ) : (
         firm.currencies.map((b) => {
           const max = Math.max(1, ...b.rows.map((r) => r.total));
@@ -115,7 +115,12 @@ function FirmCard({ firm, qs }: { firm: FirmReport; qs: (firma: string) => strin
                       <tr key={`${r.plate}-${r.driver}-${i}`} className="border-t border-slate-100">
                         <td className="px-5 py-3 text-lg font-bold text-slate-900">{r.plate}</td>
                         <td className="px-5 py-3 text-slate-700">{r.driver}</td>
-                        <td className="px-5 py-3 text-right">{r.jobs}</td>
+                        <td className="px-5 py-3 text-right">
+                          {r.jobs}
+                          {r.cancelled > 0 && (
+                            <div className="text-xs font-semibold text-red-600">din care {r.cancelled} anulate</div>
+                          )}
+                        </td>
                         <td className="whitespace-nowrap px-5 py-3 text-right text-lg font-bold text-slate-900">
                           {fmtMoney(r.total, b.currency)}
                         </td>
@@ -298,7 +303,7 @@ export default async function ReportsPage({
                 </div>
               ))
             )}
-            <div className="mt-1 text-sm text-slate-500">tarif + extra, fără cele anulate</div>
+            <div className="mt-1 text-sm text-slate-500">tarif + extra; anulatele = taxa de anulare</div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="text-sm text-slate-500">Cheltuieli flotă</div>
@@ -350,7 +355,8 @@ export default async function ReportsPage({
         </div>
 
         <p className="text-sm text-slate-500">
-          Venitul unei curse = tarif + extra, la data încărcării. Cursele anulate nu sunt incluse în venituri.
+          Venitul unei curse = tarif + extra, la data încărcării. Cursele anulate apar cu taxa de anulare aleasă
+          (220 €, 320 € sau altă sumă; 0 dacă au fost anulate fără plată).
           Cheltuielile sunt cele din secțiunea Cheltuieli, filtrate după firma vehiculului.
         </p>
       </div>
