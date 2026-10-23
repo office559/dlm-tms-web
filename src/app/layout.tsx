@@ -3,8 +3,8 @@ import "./globals.css";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 
 export const metadata: Metadata = {
-  title: "DLM TMS",
-  description: "Aplicație de management transport – DLM Trans",
+  title: "TMS",
+  description: "Aplicație de management transport (TMS)",
 };
 
 // Se rulează înainte de afișarea paginii, ca să nu „clipească” tema.
