@@ -12,6 +12,26 @@ body {
   color: #0e1a2b;
 }
 
+/* ---------- rubrica „Restricții circulație” (alb în Clasic, sticlă în Glass) ---------- */
+.tb-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+.tb-text { color: #0f172a; }
+.tb-muted { color: #475569; }
+.tb-title { color: #123258; }
+.tb-link { color: #1e4d8b; }
+.tb-warn { color: #c2410c; }
+.tb-active { background: #1e293b; color: #fff; }
+.tb-hover:hover { background: rgba(100, 116, 139, 0.15); }
+.tb-ring { box-shadow: 0 0 0 2px #1e293b; }
+/* iconița „Restricții circulație” din meniu: roșie */
+aside nav a[href="/restrictions"] svg {
+  color: #ef4444 !important;
+}
+
 /* ================================================================
    TEMA "GLASS" — se activează doar când <html data-theme="glass">.
    Tema clasică nu este atinsă: fără atributul acela, nimic de mai jos
@@ -221,3 +241,20 @@ html[data-theme="glass"] div.bg-white:has(> table > thead.bg-gradient-to-r) tbod
 html[data-theme="glass"] div.bg-white:has(> table > thead.bg-gradient-to-r) tbody tr:not([class*=" bg-"]) > td {
   background-color: rgba(255, 255, 255, 0.93);
 }
+
+/* ---------- rubrica „Restricții circulație”: panouri de sticlă, ca în machetă ---------- */
+html[data-theme="glass"] .tb-panel {
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: none;
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+html[data-theme="glass"] .tb-text { color: #fff; }
+html[data-theme="glass"] .tb-muted { color: rgba(255, 255, 255, 0.82); }
+html[data-theme="glass"] .tb-title { color: #fff; }
+html[data-theme="glass"] .tb-link { color: #bae6fd; }
+html[data-theme="glass"] .tb-warn { color: #fdba74; }
+html[data-theme="glass"] .tb-active { background: #fff; color: #3730a3; }
+html[data-theme="glass"] .tb-hover:hover { background: rgba(255, 255, 255, 0.18); }
+html[data-theme="glass"] .tb-ring { box-shadow: 0 0 0 2px #fff; }
