@@ -208,6 +208,16 @@ function SettingsIcon() {
   );
 }
 
+/** Semn de interzis — Restricții circulație. */
+function RestrictionsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M5.6 5.6l12.8 12.8" />
+    </svg>
+  );
+}
+
 /** Săgeată stânga/dreapta — butonul de strâns/extins meniul. */
 function CollapseChevron({ collapsed }: { collapsed: boolean }) {
   return (
@@ -235,6 +245,7 @@ const NAV_ICONS: Record<string, () => ReactElement> = {
   alerts: AlertsIcon,
   dispatchers: DispatchersIcon,
   settings: SettingsIcon,
+  restrictions: RestrictionsIcon,
 };
 
 function NavIcon({ navKey }: { navKey: string }) {
