@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { DateTime24Input } from "@/components/DateTime24Input";
 import { JobAiBox } from "@/components/JobAiBox";
+import { SearchSelect } from "@/components/SearchSelect";
 import { COUNTRIES } from "@/lib/countries";
 import type { AiExtracted } from "@/components/JobAiBox";
 
@@ -322,21 +323,13 @@ export function JobForm({
 
         <div className="space-y-1">
           <label className="text-sm text-slate-600">Vehicul</label>
-          <select
+          <SearchSelect
             value={values.vehicleId}
-            onChange={(e) => selectVehicle(e.target.value)}
-            className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
-          >
-            <option value="">— Niciunul —</option>
-            {vehicles.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.plate}
-              </option>
-            ))}
-          </select>
+            onChange={selectVehicle}
+            options={vehicles.map((v) => ({ id: v.id, label: v.plate }))}
+          />
           <p className="text-xs text-slate-400">
-            Selectând vehiculul, șoferul și remorca alocate se completează automat — poți totuși
-            să le schimbi.
+            Scrie o parte din număr (ex. 901) ca să cauți. Selectând vehiculul, șoferul și remorca alocate se completează automat — poți totuși să le schimbi.
           </p>
         </div>
 
