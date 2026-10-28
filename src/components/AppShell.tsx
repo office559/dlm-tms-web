@@ -15,6 +15,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: "dashboard", href: "/dashboard", label: "Dashboard" },
       { key: "jobs", href: "/jobs", label: "Curse" },
       { key: "planning", href: "/planning", label: "Planificare" },
+      { key: "dispecerat", href: "/dispecerat", label: "Dispecerat" },
       { key: "restrictions", href: "/restrictions", label: "Restricții circulație" },
     ],
   },
