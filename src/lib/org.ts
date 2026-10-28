@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { pool } from "@/lib/db";
 
@@ -91,7 +92,16 @@ async function loadContext(): Promise<OrgContext | null> {
     }
   }
 
-  if (!organizationId) return null;
+  if (!organizationId) {
+    // membru al unei firme dezactivate: pagină cu mesaj, nu eroare
+    const off = await pool.query(
+      `select 1 from memberships m join organizations o on o.id = m.organization_id
+        where m.user_id = $1 and not o.active limit 1`,
+      [userId]
+    );
+    if (off.rows.length) redirect("/firma-dezactivata");
+    return null;
+  }
 
   return {
     userId,
