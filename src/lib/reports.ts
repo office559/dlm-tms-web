@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 
 export type CurrencyRevenue = {
   currency: string;
@@ -48,11 +49,12 @@ export async function getRevenueByCurrency(from: string, to: string, company = "
        coalesce(sum(coalesce(j.rate,0) + coalesce(j.extra,0)), 0)::float as total
      from jobs j
      left join vehicles v on v.id = j.vehicle_id
-     where coalesce(j.start_at::date, j.created_at::date) between $1 and $2
+     where j.organization_id = $4
+       and coalesce(j.start_at::date, j.created_at::date) between $1 and $2
        and ${COMPANY_FILTER}
      group by j.currency
      order by total desc`,
-    [from, to, company]
+    [from, to, company, await orgId()]
   );
   return rows;
 }
@@ -62,11 +64,12 @@ export async function getCostsByCategory(from: string, to: string, company = "")
     `select c.category as category, coalesce(sum(c.amount), 0)::float as total
      from costs c
      left join vehicles v on v.id = c.vehicle_id
-     where c.date between $1 and $2
+     where c.organization_id = $4
+       and c.date between $1 and $2
        and ${COMPANY_FILTER}
      group by c.category
      order by total desc`,
-    [from, to, company]
+    [from, to, company, await orgId()]
   );
   return rows;
 }
@@ -76,12 +79,13 @@ export async function getCostsByVehicle(from: string, to: string, company = "") 
     `select v.plate as plate, coalesce(sum(c.amount), 0)::float as total
      from costs c
      join vehicles v on v.id = c.vehicle_id
-     where c.date between $1 and $2
+     where c.organization_id = $4
+       and c.date between $1 and $2
        and ${COMPANY_FILTER}
      group by v.plate
      order by total desc
      limit 8`,
-    [from, to, company]
+    [from, to, company, await orgId()]
   );
   return rows;
 }
@@ -91,9 +95,10 @@ export async function getCostsTotal(from: string, to: string, company = "") {
     `select coalesce(sum(c.amount), 0)::float as total
      from costs c
      left join vehicles v on v.id = c.vehicle_id
-     where c.date between $1 and $2
+     where c.organization_id = $4
+       and c.date between $1 and $2
        and ${COMPANY_FILTER}`,
-    [from, to, company]
+    [from, to, company, await orgId()]
   );
   return rows[0]?.total ?? 0;
 }
@@ -107,8 +112,9 @@ export async function getBrokerageSummary(from: string, to: string) {
        coalesce(sum(coalesce(sub_price,0)), 0)::float as sub_total,
        coalesce(sum(coalesce(client_price,0) - coalesce(sub_price,0)), 0)::float as margin
      from brokerage
-     where coalesce(collect_date, created_at::date) between $1 and $2`,
-    [from, to]
+     where organization_id = $3
+       and coalesce(collect_date, created_at::date) between $1 and $2`,
+    [from, to, await orgId()]
   );
   return rows[0];
 }
@@ -118,10 +124,11 @@ export async function getJobsSummary(from: string, to: string, company = "") {
     `select j.status as status, count(*)::int as count
      from jobs j
      left join vehicles v on v.id = j.vehicle_id
-     where coalesce(j.start_at::date, j.created_at::date) between $1 and $2
+     where j.organization_id = $4
+       and coalesce(j.start_at::date, j.created_at::date) between $1 and $2
        and ${COMPANY_FILTER}
      group by j.status`,
-    [from, to, company]
+    [from, to, company, await orgId()]
   );
   const summary: JobsSummary = { total: 0, finalizat: 0, activ: 0, planificare: 0, anulat: 0 };
   for (const r of rows) {
