@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 
 export type Settings = {
   id: boolean;
@@ -31,15 +32,18 @@ function nullify<T>(v: T | "" | undefined): T | null {
 }
 
 export async function getSettings() {
-  const { rows } = await pool.query<Settings>(`select * from settings where id = true limit 1`);
+  const { rows } = await pool.query<Settings>(
+    `select * from settings where organization_id = $1 limit 1`,
+    [await orgId()]
+  );
   return rows[0] ?? null;
 }
 
 export async function updateSettings(input: SettingsInput) {
   const { rows } = await pool.query<Settings>(
-    `insert into settings (id, company, depot, currency, cpm, alert_days, wa_country, theme_color, bg_color, sidebar_color, updated_at)
-     values (true, $1, $2, $3, $4, $5, $6, $7, $8, $9, now())
-     on conflict (id) do update set
+    `insert into settings (id, organization_id, company, depot, currency, cpm, alert_days, wa_country, theme_color, bg_color, sidebar_color, updated_at)
+     values (true, $10, $1, $2, $3, $4, $5, $6, $7, $8, $9, now())
+     on conflict (organization_id) do update set
        company = excluded.company,
        depot = excluded.depot,
        currency = excluded.currency,
@@ -61,6 +65,7 @@ export async function updateSettings(input: SettingsInput) {
       nullify(input.themeColor),
       nullify(input.bgColor),
       nullify(input.sidebarColor),
+      await orgId(),
     ]
   );
   return rows[0];
