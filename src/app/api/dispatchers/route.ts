@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 async function allowed() {
+  // doar proprietarul platformei (contul de administrator)
   const ctx = await getOrgContext();
-  if (!ctx) return false;
-  return ctx.isPlatformAdmin || ctx.orgRole !== "viewer";
+  return !!ctx?.isPlatformAdmin;
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
