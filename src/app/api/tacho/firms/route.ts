@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getOrgContext } from "@/lib/org";
 import { listTachoCompanies, updateTachoCompany } from "@/lib/tacho/pontaj";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,7 @@ export async function GET() {
 export async function PUT(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
-  if (session.user.role !== "admin") {
+  if (!(await getOrgContext())?.isOrgAdmin) {
     return NextResponse.json({ error: "Doar administratorul poate schimba setările de pontaj." }, { status: 403 });
   }
   const body = await req.json();
