@@ -94,18 +94,22 @@ export async function AppShell({
   const userName = session?.user.name || session?.user.email || "Utilizator";
   const isAdmin = ctx?.isOrgAdmin ?? false;
 
-  const groups: NavGroup[] = isAdmin
-    ? [
-        ...NAV_GROUPS,
-        {
-          title: "Administrare",
-          items: [
-            { key: "dispatchers", href: "/dispatchers", label: "Gestionează dispecerii" },
-            { key: "settings", href: "/settings", label: "Setări" },
-          ],
-        },
-      ]
-    : NAV_GROUPS;
+  const groups: NavGroup[] = [...NAV_GROUPS];
+  if (isAdmin) {
+    groups.push({
+      title: "Administrare",
+      items: [
+        { key: "dispatchers", href: "/dispatchers", label: "Gestionează dispecerii" },
+        { key: "settings", href: "/settings", label: "Setări" },
+      ],
+    });
+  }
+  if (ctx?.isPlatformAdmin) {
+    groups.push({
+      title: "Platformă",
+      items: [{ key: "platform", href: "/platform", label: "Firme clienți" }],
+    });
+  }
 
   return (
     <ShellFrame
@@ -117,6 +121,8 @@ export async function AppShell({
       alertCount={alertCount}
       timezone={timezone}
       wide={wide}
+      orgName={ctx?.organizationName}
+      showOrgPill={ctx?.isPlatformAdmin ?? false}
     >
       {children}
     </ShellFrame>
