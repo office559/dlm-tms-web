@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 import type { Vehicle } from "@/lib/vehicles";
 import type { Job } from "@/lib/jobs";
 import type { FleetState } from "@/lib/fleet-labels";
@@ -120,10 +121,11 @@ export async function currentJobsByVehicle(
   const { rows } = await pool.query<Job>(
     `select distinct on (vehicle_id) *
        from jobs
-      where vehicle_id = any($1)
+      where organization_id = $2
+        and vehicle_id = any($1)
         and status in ('planificare', 'activ')
       order by vehicle_id, (status = 'activ') desc, start_at asc nulls last`,
-    [vehicleIds]
+    [vehicleIds, await orgId()]
   );
   const map = new Map<string, Job>();
   rows.forEach((j) => {
@@ -139,10 +141,11 @@ export async function plannedJobsByVehicle(vehicleIds: string[]): Promise<Map<st
   const { rows } = await pool.query<Job>(
     `select *
        from jobs
-      where vehicle_id = any($1)
+      where organization_id = $2
+        and vehicle_id = any($1)
         and status = 'planificare'
       order by vehicle_id, start_at asc nulls last, created_at asc`,
-    [vehicleIds]
+    [vehicleIds, await orgId()]
   );
   rows.forEach((j) => {
     if (!j.vehicle_id) return;
@@ -159,11 +162,12 @@ export async function lastUnloadPlaceByVehicle(vehicleIds: string[]): Promise<Ma
   const { rows } = await pool.query<{ vehicle_id: string; unload_place: string | null }>(
     `select distinct on (vehicle_id) vehicle_id, unload_place
        from jobs
-      where vehicle_id = any($1)
+      where organization_id = $2
+        and vehicle_id = any($1)
         and status = 'finalizat'
         and unload_place is not null
       order by vehicle_id, coalesce(end_at, start_at, created_at) desc`,
-    [vehicleIds]
+    [vehicleIds, await orgId()]
   );
   const map = new Map<string, string>();
   rows.forEach((r) => {
@@ -178,12 +182,16 @@ export async function vehicleExtrasByVehicle(
 ): Promise<Map<string, { note: string | null; crewType: string | null }>> {
   const map = new Map<string, { note: string | null; crewType: string | null }>();
   if (vehicleIds.length === 0) return map;
+  const org = await orgId();
   try {
     const { rows } = await pool.query<{
       id: string;
       note: string | null;
       crew_type: string | null;
-    }>(`select id, note, crew_type from vehicles where id = any($1)`, [vehicleIds]);
+    }>(
+      `select id, note, crew_type from vehicles where organization_id = $2 and id = any($1)`,
+      [vehicleIds, org]
+    );
     rows.forEach((r) => map.set(r.id, { note: r.note, crewType: r.crew_type }));
   } catch {
     // coloanele note / crew_type nu există încă
@@ -197,9 +205,10 @@ async function lastWeeklyRestTypeByVehicle(vehicleIds: string[]): Promise<Map<st
   const { rows } = await pool.query<{ vehicle_id: string; type: string }>(
     `select distinct on (vehicle_id) vehicle_id, type
        from vehicle_weekly_rest_log
-      where vehicle_id = any($1)
+      where organization_id = $2
+        and vehicle_id = any($1)
       order by vehicle_id, start_at desc`,
-    [vehicleIds]
+    [vehicleIds, await orgId()]
   );
   const map = new Map<string, string>();
   rows.forEach((r) => map.set(r.vehicle_id, r.type));
@@ -227,9 +236,11 @@ async function logWeeklyRestStart(
   endAt: string
 ) {
   await pool.query(
-    `insert into vehicle_weekly_rest_log (vehicle_id, type, start_at, end_at)
-     values ($1, $2, $3, $4)`,
-    [vehicleId, type, startAt, endAt]
+    `insert into vehicle_weekly_rest_log (vehicle_id, type, start_at, end_at, organization_id)
+     select v.id, $2, $3::timestamptz, $4::timestamptz, v.organization_id
+       from vehicles v
+      where v.id = $1 and v.organization_id = $5`,
+    [vehicleId, type, startAt, endAt, await orgId()]
   );
 }
 
@@ -405,5 +416,9 @@ export async function patchVehicleQuick(
   }
 
   if (sets.length === 0) return;
-  await pool.query(`update vehicles set ${sets.join(", ")} where id = $1`, vals);
+  vals.push(await orgId());
+  await pool.query(
+    `update vehicles set ${sets.join(", ")} where id = $1 and organization_id = $${vals.length}`,
+    vals
+  );
 }
