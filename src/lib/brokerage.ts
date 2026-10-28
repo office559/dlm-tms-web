@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 
 export type Brokerage = {
   id: string;
@@ -41,13 +42,17 @@ function nullify<T>(v: T | "" | undefined): T | null {
 
 export async function listBrokerage() {
   const { rows } = await pool.query<Brokerage>(
-    `select * from brokerage order by coalesce(collect_date, created_at::date) desc, created_at desc`
+    `select * from brokerage where organization_id = $1 order by coalesce(collect_date, created_at::date) desc, created_at desc`,
+    [await orgId()]
   );
   return rows;
 }
 
 export async function getBrokerage(id: string) {
-  const { rows } = await pool.query<Brokerage>(`select * from brokerage where id = $1`, [id]);
+  const { rows } = await pool.query<Brokerage>(
+    `select * from brokerage where id = $1 and organization_id = $2`,
+    [id, await orgId()]
+  );
   return rows[0] ?? null;
 }
 
@@ -56,9 +61,9 @@ export async function createBrokerage(input: BrokerageInput) {
   const { rows } = await pool.query<Brokerage>(
     `insert into brokerage (
        id, client, ref, route, collect_date, deliver_date,
-       client_price, sub, sub_price, status, paid_client, paid_sub
+       client_price, sub, sub_price, status, paid_client, paid_sub, organization_id
      )
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
      returning *`,
     [
       id,
@@ -73,6 +78,7 @@ export async function createBrokerage(input: BrokerageInput) {
       input.status?.trim() || "În curs",
       input.paidClient ?? false,
       input.paidSub ?? false,
+      await orgId(),
     ]
   );
   return rows[0];
@@ -84,7 +90,7 @@ export async function updateBrokerage(id: string, input: BrokerageInput) {
        client = $2, ref = $3, route = $4, collect_date = $5, deliver_date = $6,
        client_price = $7, sub = $8, sub_price = $9, status = $10,
        paid_client = $11, paid_sub = $12
-     where id = $1
+     where id = $1 and organization_id = $13
      returning *`,
     [
       id,
@@ -99,11 +105,12 @@ export async function updateBrokerage(id: string, input: BrokerageInput) {
       input.status?.trim() || "În curs",
       input.paidClient ?? false,
       input.paidSub ?? false,
+      await orgId(),
     ]
   );
   return rows[0] ?? null;
 }
 
 export async function deleteBrokerage(id: string) {
-  await pool.query(`delete from brokerage where id = $1`, [id]);
+  await pool.query(`delete from brokerage where id = $1 and organization_id = $2`, [id, await orgId()]);
 }
