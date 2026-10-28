@@ -6,6 +6,7 @@ import {
   markInviteUsed,
   createDispatcherRecord,
 } from "@/lib/db";
+import { isOrganizationActive } from "@/lib/platform";
 
 // POST /api/dispatchers/accept   { token, password }
 // Validează invitația, creează contul Better Auth și înregistrarea din tabelul
@@ -32,6 +33,10 @@ export async function POST(req: NextRequest) {
   }
   if (invite.expires_at.getTime() < Date.now()) {
     return NextResponse.json({ error: "Invitația a expirat" }, { status: 410 });
+  }
+
+  if (!(await isOrganizationActive(invite.organization_id))) {
+    return NextResponse.json({ error: "Firma este dezactivată. Contactează furnizorul platformei." }, { status: 403 });
   }
 
   const created = await auth.api.createUser({
