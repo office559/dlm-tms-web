@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 
 export type Trailer = {
   id: string;
@@ -31,20 +32,26 @@ function nullify<T>(v: T | "" | undefined): T | null {
 }
 
 export async function listTrailers() {
-  const { rows } = await pool.query<Trailer>(`select * from trailers order by plate asc`);
+  const { rows } = await pool.query<Trailer>(
+    `select * from trailers where organization_id = $1 order by plate asc`,
+    [await orgId()]
+  );
   return rows;
 }
 
 export async function getTrailer(id: string) {
-  const { rows } = await pool.query<Trailer>(`select * from trailers where id = $1`, [id]);
+  const { rows } = await pool.query<Trailer>(
+    `select * from trailers where id = $1 and organization_id = $2`,
+    [id, await orgId()]
+  );
   return rows[0] ?? null;
 }
 
 export async function createTrailer(input: TrailerInput) {
   const id = genTrailerId();
   const { rows } = await pool.query<Trailer>(
-    `insert into trailers (id, plate, type, itp_exp, rca_exp, casco_exp, active)
-     values ($1,$2,$3,$4,$5,$6,$7)
+    `insert into trailers (id, plate, type, itp_exp, rca_exp, casco_exp, active, organization_id)
+     values ($1,$2,$3,$4,$5,$6,$7,$8)
      returning *`,
     [
       id,
@@ -54,6 +61,7 @@ export async function createTrailer(input: TrailerInput) {
       nullify(input.rcaExp),
       nullify(input.cascoExp),
       input.active ?? true,
+      await orgId(),
     ]
   );
   return rows[0];
@@ -63,7 +71,7 @@ export async function updateTrailer(id: string, input: TrailerInput) {
   const { rows } = await pool.query<Trailer>(
     `update trailers set
        plate = $2, type = $3, itp_exp = $4, rca_exp = $5, casco_exp = $6, active = $7
-     where id = $1
+     where id = $1 and organization_id = $8
      returning *`,
     [
       id,
@@ -73,11 +81,12 @@ export async function updateTrailer(id: string, input: TrailerInput) {
       nullify(input.rcaExp),
       nullify(input.cascoExp),
       input.active ?? true,
+      await orgId(),
     ]
   );
   return rows[0] ?? null;
 }
 
 export async function deleteTrailer(id: string) {
-  await pool.query(`delete from trailers where id = $1`, [id]);
+  await pool.query(`delete from trailers where id = $1 and organization_id = $2`, [id, await orgId()]);
 }
