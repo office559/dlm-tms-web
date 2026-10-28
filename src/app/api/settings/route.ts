@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getOrgContext } from "@/lib/org";
 import { updateSettings } from "@/lib/settings";
 
 export async function PATCH(req: NextRequest) {
@@ -8,7 +9,7 @@ export async function PATCH(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
   }
-  if (session.user.role !== "admin") {
+  if (!(await getOrgContext())?.isOrgAdmin) {
     return NextResponse.json({ error: "Doar administratorii pot modifica setările" }, { status: 403 });
   }
 
