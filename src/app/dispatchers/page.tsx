@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getOrgContext } from "@/lib/org";
 import { listDispatchers } from "@/lib/db";
 import { InviteDispatcherForm } from "@/components/InviteDispatcherForm";
 import { DeleteDispatcherButton } from "@/components/DeleteDispatcherButton";
@@ -130,7 +131,7 @@ export default async function DispatchersPage({
 }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
-  if (session.user.role !== "admin") redirect("/dashboard");
+  if (!(await getOrgContext())?.isOrgAdmin) redirect("/dashboard");
 
   const params = await searchParams;
 
