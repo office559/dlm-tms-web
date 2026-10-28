@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 
 /** Câte curse interne are voie să facă un camion într-o țară străină. */
 export const CABOTAGE_MAX = 3;
@@ -96,16 +97,18 @@ export function computeCabotage(jobs: CabotageJob[], now: number = Date.now()): 
 export async function cabotageByVehicle(vehicleIds: string[]): Promise<Map<string, Cabotage>> {
   const result = new Map<string, Cabotage>();
   if (vehicleIds.length === 0) return result;
+  const org = await orgId();
   try {
     const { rows } = await pool.query<CabotageJob>(
       `select vehicle_id, status, load_country, unload_country, start_at, end_at, created_at
          from jobs
-        where vehicle_id = any($1)
+        where organization_id = $2
+          and vehicle_id = any($1)
           and status in ('finalizat', 'activ', 'planificare')
           and load_country is not null
           and unload_country is not null
           and coalesce(start_at, end_at, created_at) >= now() - interval '45 days'`,
-      [vehicleIds]
+      [vehicleIds, org]
     );
     const byVehicle = new Map<string, CabotageJob[]>();
     rows.forEach((r) => {
