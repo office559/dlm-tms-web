@@ -10,10 +10,16 @@ const btnPrimary =
   "rounded-lg bg-brand text-white font-medium px-4 py-2 text-sm hover:bg-brand-dark transition disabled:opacity-60";
 const btnGhost =
   "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-brand hover:border-brand transition disabled:opacity-60";
+const btnGhostSoft =
+  "rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-600 hover:border-slate-400 transition disabled:opacity-60";
+const btnDanger =
+  "rounded-lg bg-red-700 text-white font-medium px-3 py-1.5 text-sm hover:bg-red-800 transition disabled:opacity-50";
 const inputCls =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand bg-white";
 
-function StatusBadge({ status }: { status: OrgCard["status"] }) {
+function StatusBadge({ status, active }: { status: OrgCard["status"]; active: boolean }) {
+  if (!active)
+    return <span className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">Dezactivată</span>;
   if (status === "activa")
     return <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">Activă</span>;
   if (status === "asteapta")
@@ -46,6 +52,60 @@ export function PlatformOrgs({ cards, activeOrgId }: { cards: OrgCard[]; activeO
   const [inviteFor, setInviteFor] = useState<string | null>(null);
   const [invName, setInvName] = useState("");
   const [invEmail, setInvEmail] = useState("");
+
+  // „Gestionează": panoul deschis, acțiunea în curs de confirmare și numele tastat pentru ștergere
+  const [manageFor, setManageFor] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<{ orgId: string; kind: "off" | "del" } | null>(null);
+  const [delName, setDelName] = useState("");
+
+  function closeManage() {
+    setManageFor(null);
+    setConfirm(null);
+    setDelName("");
+  }
+
+  async function setActive(c: OrgCard, active: boolean) {
+    setBusy(`active:${c.id}`);
+    setError(null);
+    setNotice(null);
+    const res = await fetch(`/api/platform/organizations/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    setBusy(null);
+    if (!res.ok) {
+      setError({ orgId: c.id, text: data.error ?? "Nu am putut schimba starea firmei." });
+      return;
+    }
+    closeManage();
+    setNotice({
+      orgId: c.id,
+      text: active ? `Firma ${c.name} a fost reactivată.` : `Firma ${c.name} a fost dezactivată. Datele ei sunt păstrate.`,
+    });
+    router.refresh();
+  }
+
+  async function removeOrg(c: OrgCard) {
+    setBusy(`del:${c.id}`);
+    setError(null);
+    setNotice(null);
+    const res = await fetch(`/api/platform/organizations/${c.id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmName: delName }),
+    });
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    setBusy(null);
+    if (!res.ok) {
+      setError({ orgId: c.id, text: data.error ?? "Firma nu a putut fi ștearsă." });
+      return;
+    }
+    closeManage();
+    setNotice({ orgId: null, text: `Firma ${c.name} a fost ștearsă definitiv.` });
+    router.refresh();
+  }
 
   async function enter(orgId: string) {
     setBusy(`enter:${orgId}`);
@@ -163,7 +223,7 @@ export function PlatformOrgs({ cards, activeOrgId }: { cards: OrgCard[]; activeO
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {cards.map((c) => (
-          <div key={c.id} className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div key={c.id} className={`rounded-2xl border border-slate-200 bg-white p-5 ${c.active ? "" : "opacity-75"}`}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="truncate text-base font-semibold text-brand-dark">{c.name}</div>
@@ -173,7 +233,7 @@ export function PlatformOrgs({ cards, activeOrgId }: { cards: OrgCard[]; activeO
                   </span>
                 )}
               </div>
-              <StatusBadge status={c.status} />
+              <StatusBadge status={c.status} active={c.active} />
             </div>
 
             <div className="mt-1 truncate text-sm text-slate-500">
@@ -190,7 +250,11 @@ export function PlatformOrgs({ cards, activeOrgId }: { cards: OrgCard[]; activeO
               <button type="button" className={btnGhost} disabled={busy !== null} onClick={() => enter(c.id)}>
                 {busy === `enter:${c.id}` ? "Se deschide..." : "Intră în firmă"}
               </button>
-              {c.status === "asteapta" && c.pendingEmail ? (
+              {!c.active ? (
+                <button type="button" className={btnGhost} disabled={busy !== null} onClick={() => setActive(c, true)}>
+                  {busy === `active:${c.id}` ? "Se reactivează..." : "Reactivează"}
+                </button>
+              ) : c.status === "asteapta" && c.pendingEmail ? (
                 <button
                   type="button"
                   className={btnGhost}
@@ -212,6 +276,21 @@ export function PlatformOrgs({ cards, activeOrgId }: { cards: OrgCard[]; activeO
                   Invită admin
                 </button>
               )}
+              <button
+                type="button"
+                className={btnGhostSoft}
+                disabled={busy !== null}
+                onClick={() => {
+                  if (manageFor === c.id) closeManage();
+                  else {
+                    closeManage();
+                    setManageFor(c.id);
+                    setError(null);
+                  }
+                }}
+              >
+                Gestionează {manageFor === c.id ? "▴" : "▾"}
+              </button>
             </div>
 
             {inviteFor === c.id && (
@@ -228,6 +307,96 @@ export function PlatformOrgs({ cards, activeOrgId }: { cards: OrgCard[]; activeO
                   {busy === `invite:${c.id}` ? "Se trimite..." : "Trimite invitația"}
                 </button>
               </form>
+            )}
+
+            {manageFor === c.id && (
+              <div className="mt-3 space-y-3 rounded-xl bg-slate-50 p-3">
+                {c.protectedOrg ? (
+                  <div className="text-sm text-slate-600">
+                    Aceasta este firma ta (conține contul proprietarului platformei): nu poate fi dezactivată sau ștearsă.
+                  </div>
+                ) : (
+                  <>
+                    {c.active && (
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-800">Dezactivează firma</div>
+                          <div className="text-xs text-slate-500">
+                            Blochează accesul utilizatorilor, păstrează datele. Reversibil.
+                          </div>
+                        </div>
+                        {confirm?.orgId === c.id && confirm.kind === "off" ? (
+                          <div className="flex shrink-0 gap-2">
+                            <button type="button" className={btnGhostSoft} onClick={() => setConfirm(null)}>
+                              Anulează
+                            </button>
+                            <button type="button" className={btnPrimary} disabled={busy !== null} onClick={() => setActive(c, false)}>
+                              {busy === `active:${c.id}` ? "Se dezactivează..." : "Da, dezactivează"}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className={`${btnGhostSoft} shrink-0`}
+                            disabled={busy !== null}
+                            onClick={() => setConfirm({ orgId: c.id, kind: "off" })}
+                          >
+                            Dezactivează
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-semibold text-red-700">Zonă periculoasă – Șterge definitiv</div>
+                          <div className="text-xs text-red-900/80">Șterge firma și toate datele ei. Nu se poate anula.</div>
+                        </div>
+                        {!(confirm?.orgId === c.id && confirm.kind === "del") && (
+                          <button
+                            type="button"
+                            className={`${btnDanger} shrink-0`}
+                            disabled={busy !== null}
+                            onClick={() => {
+                              setConfirm({ orgId: c.id, kind: "del" });
+                              setDelName("");
+                            }}
+                          >
+                            Șterge…
+                          </button>
+                        )}
+                      </div>
+                      {confirm?.orgId === c.id && confirm.kind === "del" && (
+                        <div className="mt-3 space-y-2">
+                          <div className="text-sm text-red-900">
+                            Se șterg definitiv: {c.users} {c.users === 1 ? "utilizator" : "utilizatori"}, {c.vehicles}{" "}
+                            {c.vehicles === 1 ? "vehicul" : "vehicule"}, {c.jobs} {c.jobs === 1 ? "cursă" : "curse"}, plus
+                            șoferi, clienți, documente și restul datelor firmei.
+                          </div>
+                          <label className="block text-xs font-semibold text-slate-700">
+                            Scrie numele firmei pentru confirmare: <span className="font-bold">{c.name}</span>
+                          </label>
+                          <input className={inputCls} value={delName} onChange={(e) => setDelName(e.target.value)} placeholder={c.name} />
+                          <div className="flex gap-2">
+                            <button type="button" className={btnGhostSoft} onClick={() => { setConfirm(null); setDelName(""); }}>
+                              Anulează
+                            </button>
+                            <button
+                              type="button"
+                              className={btnDanger}
+                              disabled={busy !== null || delName.trim().toLowerCase() !== c.name.trim().toLowerCase()}
+                              onClick={() => removeOrg(c)}
+                            >
+                              {busy === `del:${c.id}` ? "Se șterge..." : "Șterge definitiv"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
             )}
 
             <NoticeBox orgId={c.id} />
