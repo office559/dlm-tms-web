@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 import { normalizeSegments, parseDdd } from "./ddd";
 import type { Segment } from "./ddd";
 import {
@@ -34,7 +35,9 @@ export async function listTachoCompanies(): Promise<TachoCompany[]> {
             diurna_ro::float8 as diurna_ro,
             diurna_currency
        from companies
-      order by name asc`
+      where organization_id = $1
+      order by name asc`,
+    [await orgId()]
   );
   return rows as TachoCompany[];
 }
@@ -49,9 +52,9 @@ export async function updateTachoCompany(
             diurna_abroad   = coalesce($3, diurna_abroad),
             diurna_ro       = coalesce($4, diurna_ro),
             diurna_currency = coalesce($5, diurna_currency)
-      where id = $1
+      where id = $1 and organization_id = $6
       returning id`,
-    [id, f.enabled ?? null, f.abroad ?? null, f.ro ?? null, f.currency?.trim().toUpperCase() || null]
+    [id, f.enabled ?? null, f.abroad ?? null, f.ro ?? null, f.currency?.trim().toUpperCase() || null, await orgId()]
   );
   return rows.length > 0;
 }
@@ -83,7 +86,11 @@ function covered(segs: Segment[]) {
 
 export async function saveDddFile(buf: Buffer, fileName: string, uploadedBy: string, source = "upload"): Promise<UploadResult> {
   const sha = createHash("sha256").update(buf).digest("hex");
-  const existing = await pool.query(`select kind, plate, holder_name, days_count, first_day, last_day from tacho_files where sha256 = $1`, [sha]);
+  const org = await orgId();
+  const existing = await pool.query(
+    `select kind, plate, holder_name, days_count, first_day, last_day from tacho_files where sha256 = $1 and organization_id = $2`,
+    [sha, org]
+  );
   if (existing.rows.length) {
     const r = existing.rows[0];
     return {
@@ -120,8 +127,8 @@ export async function saveDddFile(buf: Buffer, fileName: string, uploadedBy: str
     await client.query("begin");
     const f = await client.query(
       `insert into tacho_files (sha256, file_name, kind, generation, plate, card_number, holder_name,
-                                first_day, last_day, days_count, warnings, source, data, uploaded_by)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+                                first_day, last_day, days_count, warnings, source, data, uploaded_by, organization_id)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
        returning id`,
       [
         sha,
@@ -138,17 +145,18 @@ export async function saveDddFile(buf: Buffer, fileName: string, uploadedBy: str
         source,
         buf,
         uploadedBy,
+        org,
       ]
     );
     const fileId = f.rows[0].id;
 
     for (const h of parsed.holders) {
       await client.query(
-        `insert into tacho_cards (card_number, surname, first_names)
-         values ($1, $2, $3)
-         on conflict (card_number) do update
+        `insert into tacho_cards (card_number, surname, first_names, organization_id)
+         values ($1, $2, $3, $4)
+         on conflict (organization_id, card_number) do update
            set surname = excluded.surname, first_names = excluded.first_names, updated_at = now()`,
-        [h.number, h.surname, h.firstNames]
+        [h.number, h.surname, h.firstNames, org]
       );
     }
 
@@ -156,9 +164,9 @@ export async function saveDddFile(buf: Buffer, fileName: string, uploadedBy: str
       const src = parsed.kind === "card" ? "card" : `vu:${parsed.plate || "?"}`;
       // o zi descărcată mai târziu e mai completă → înlocuim doar dacă acoperă cel puțin la fel de mult
       await client.query(
-        `insert into tacho_days (card_number, day, source, segments, vehicles, covered, file_id)
-         select * from unnest($1::text[], $2::date[], $3::text[], $4::jsonb[], $5::jsonb[], $6::int[], $7::bigint[])
-         on conflict (card_number, day, source) do update
+        `insert into tacho_days (card_number, day, source, segments, vehicles, covered, file_id, organization_id)
+         select u.*, $8::uuid from unnest($1::text[], $2::date[], $3::text[], $4::jsonb[], $5::jsonb[], $6::int[], $7::bigint[]) as u
+         on conflict (organization_id, card_number, day, source) do update
            set segments = excluded.segments,
                vehicles = excluded.vehicles,
                covered  = excluded.covered,
@@ -173,14 +181,15 @@ export async function saveDddFile(buf: Buffer, fileName: string, uploadedBy: str
           parsed.days.map((d) => JSON.stringify(d.vehicles)),
           parsed.days.map((d) => covered(d.segments)),
           parsed.days.map(() => fileId),
+          org,
         ]
       );
     }
 
     if (parsed.countries.length) {
       await client.query(
-        `insert into tacho_countries (card_number, at, kind, country, from_country)
-         select * from unnest($1::text[], $2::timestamptz[], $3::text[], $4::text[], $5::text[])
+        `insert into tacho_countries (card_number, at, kind, country, from_country, organization_id)
+         select u.*, $6::uuid from unnest($1::text[], $2::timestamptz[], $3::text[], $4::text[], $5::text[]) as u
          on conflict do nothing`,
         [
           parsed.countries.map((c) => c.cardNumber),
@@ -188,6 +197,7 @@ export async function saveDddFile(buf: Buffer, fileName: string, uploadedBy: str
           parsed.countries.map((c) => c.kind),
           parsed.countries.map((c) => c.country),
           parsed.countries.map((c) => c.from ?? null),
+          org,
         ]
       );
     }
@@ -235,9 +245,13 @@ function nameKey(s: string) {
  * de la șofer), apoi după nume (în orice ordine, fără diacritice).
  */
 export async function linkCardsToDrivers() {
+  const org = await orgId();
   const [cards, drivers] = await Promise.all([
-    pool.query(`select card_number, surname, first_names from tacho_cards where driver_id is null`),
-    pool.query(`select id, name, card from drivers`),
+    pool.query(
+      `select card_number, surname, first_names from tacho_cards where driver_id is null and organization_id = $1`,
+      [org]
+    ),
+    pool.query(`select id, name, card from drivers where organization_id = $1`, [org]),
   ]);
   if (!cards.rows.length) return;
   const byCard = new Map<string, string>();
@@ -251,7 +265,12 @@ export async function linkCardsToDrivers() {
     let id = byCard.get(n);
     if (!id) for (const [k, v] of byCard) if (k.length >= 8 && (n.includes(k) || k.includes(n.slice(0, 14)))) id = v;
     if (!id) id = byName.get(nameKey(`${c.surname} ${c.first_names}`));
-    if (id) await pool.query(`update tacho_cards set driver_id = $2, updated_at = now() where card_number = $1`, [n, id]);
+    if (id) {
+      await pool.query(
+        `update tacho_cards set driver_id = $2, updated_at = now() where card_number = $1 and organization_id = $3`,
+        [n, id, org]
+      );
+    }
   }
 }
 
@@ -265,13 +284,14 @@ export async function listFirmDrivers(companyId: string, from: string, to: strin
   const { rows } = await pool.query(
     `with plates as (
        select upper(regexp_replace(plate, '[^A-Za-z0-9]', '', 'g')) as p, driver_id, driver2_id
-         from vehicles where company_id = $1
+         from vehicles where company_id = $1 and organization_id = $4
      ),
      by_vehicle as (
        select td.card_number, v.p
          from tacho_days td
          cross join lateral jsonb_array_elements_text(td.vehicles) as v(p)
-        where td.day between $2::date and $3::date
+        where td.organization_id = $4
+          and td.day between $2::date and $3::date
           and v.p in (select p from plates)
           and td.covered > 0
      ),
@@ -280,16 +300,17 @@ export async function listFirmDrivers(companyId: string, from: string, to: strin
        union
        select tc.card_number from tacho_cards tc
          join plates pl on tc.driver_id is not null and tc.driver_id in (pl.driver_id, pl.driver2_id)
+        where tc.organization_id = $4
      )
      select c.card_number,
             coalesce(d.name, trim(coalesce(tc.surname, '') || ' ' || coalesce(tc.first_names, '')), c.card_number) as name,
             tc.driver_id,
             coalesce((select array_agg(distinct bv.p) from by_vehicle bv where bv.card_number = c.card_number), '{}') as plates
        from cards c
-       left join tacho_cards tc on tc.card_number = c.card_number
+       left join tacho_cards tc on tc.card_number = c.card_number and tc.organization_id = $4
        left join drivers d on d.id = tc.driver_id
       order by 2 asc`,
-    [companyId, from, to]
+    [companyId, from, to, await orgId()]
   );
   return rows.map((r) => ({ ...r, plates: r.plates ?? [] })) as FirmDriver[];
 }
@@ -302,21 +323,23 @@ export async function getDriverMonth(cardNumber: string, year: number, month: nu
   const days = monthDays(year, month);
   const from = days[0];
   const to = days[days.length - 1];
+  const org = await orgId();
   const [act, ctry] = await Promise.all([
     pool.query(
       `select to_char(day, 'YYYY-MM-DD') as day, source, segments, vehicles
          from tacho_days
-        where card_number = $1 and day between $2::date and $3::date`,
-      [cardNumber, from, to]
+        where organization_id = $4 and card_number = $1 and day between $2::date and $3::date`,
+      [cardNumber, from, to, org]
     ),
     pool.query(
       `select extract(epoch from at) * 1000 as at, country
          from tacho_countries
-        where card_number = $1
+        where organization_id = $4
+          and card_number = $1
           and at < ($3::date + 1)
           and at >= ($2::date - 120)
         order by at asc`,
-      [cardNumber, from, to]
+      [cardNumber, from, to, org]
     ),
   ]);
   const byDay = new Map<string, DaySource[]>();
@@ -372,9 +395,10 @@ export async function listRecentFiles(limit = 15): Promise<TachoFileRow[]> {
             to_char(last_day, 'YYYY-MM-DD') as last_day,
             days_count, warnings, uploaded_at
        from tacho_files
+      where organization_id = $2
       order by uploaded_at desc
       limit $1`,
-    [limit]
+    [limit, await orgId()]
   );
   return rows as TachoFileRow[];
 }
