@@ -3,9 +3,13 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { DispatchYear, DispatchVehicle, DispatchPeriod } from "@/lib/dispatch";
+import type { DispatchMonth, DispatchVehicle, DispatchPeriod } from "@/lib/dispatch";
 
-const MONTHS_SHORT = ["Ian", "Feb", "Mar", "Apr", "Mai", "Iun", "Iul", "Aug", "Sep", "Oct", "Noi", "Dec"];
+const MONTHS = [
+  "Ianuarie", "Februarie", "Martie", "Aprilie", "Mai", "Iunie",
+  "Iulie", "August", "Septembrie", "Octombrie", "Noiembrie", "Decembrie",
+];
+const MONTHS_SHORT = ["ian", "feb", "mar", "apr", "mai", "iun", "iul", "aug", "sep", "oct", "noi", "dec"];
 
 const inputCls = "w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm outline-none focus:border-brand bg-white";
 const btnPrimary =
@@ -13,9 +17,19 @@ const btnPrimary =
 const btnGhost =
   "rounded-lg border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-brand hover:border-brand transition disabled:opacity-50";
 
-function fmt(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  return `${d}.${m}.${y}`;
+function fmtShort(iso: string): string {
+  const [, m, d] = iso.split("-").map(Number);
+  return `${String(d).padStart(2, "0")} ${MONTHS_SHORT[m - 1]}`;
+}
+
+function shiftMonth(month: string, delta: number): string {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function money(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(2);
 }
 
 function dayNum(iso: string): number {
@@ -31,11 +45,7 @@ function pluralZile(n: number): string {
   return n === 1 ? "1 zi" : `${n} zile`;
 }
 
-function pluralMasini(n: number): string {
-  return n === 1 ? "1 mașină" : `${n} mașini`;
-}
-
-async function call(method: "POST" | "PATCH" | "DELETE", body?: unknown, query = ""): Promise<string | null> {
+async function call(method: "POST" | "PATCH" | "DELETE" | "PUT", body?: unknown, query = ""): Promise<string | null> {
   try {
     const res = await fetch(`/api/dispatch${query}`, {
       method,
@@ -44,13 +54,13 @@ async function call(method: "POST" | "PATCH" | "DELETE", body?: unknown, query =
     });
     if (res.ok) return null;
     const j = await res.json().catch(() => null);
-    return (j && typeof j.error === "string" && j.error) || "Nu s-a putut salva. Încearcă din nou.";
+    return (j && typeof j.error === "string" && j.error) || `Nu s-a putut salva (cod ${res.status}). Încearcă din nou.`;
   } catch {
     return "Nu s-a putut salva. Verifică conexiunea și încearcă din nou.";
   }
 }
 
-export function DispeceratView({ data }: { data: DispatchYear }) {
+export function DispeceratView({ data }: { data: DispatchMonth }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [vehicleId, setVehicleId] = useState("");
@@ -65,8 +75,9 @@ export function DispeceratView({ data }: { data: DispatchYear }) {
 
   const all = data.firms.flatMap((f) => f.vehicles.map((v) => ({ v, firm: f.name })));
   const selected: DispatchVehicle | null = all.find((x) => x.v.id === vehicleId)?.v ?? null;
-  const totalVehicles = all.length;
-  const totalDays = data.firms.reduce((a, f) => a + f.total, 0);
+  const [y, mo] = data.month.split("-").map(Number);
+  const monthLabel = `${MONTHS[mo - 1]} ${y}`;
+  const [priceError, setPriceError] = useState<string | null>(null);
 
   function resetForm() {
     setEdits({});
@@ -117,9 +128,8 @@ export function DispeceratView({ data }: { data: DispatchYear }) {
       () => {
         setNewStart("");
         setNewEnd("");
-        const endYear = end ? Number(end.slice(0, 4)) : data.year;
-        if (Number(start.slice(0, 4)) > data.year || endYear < data.year) {
-          setNotice(`Perioada a fost salvată, dar nu atinge anul ${data.year}.`);
+        if (start.slice(0, 7) > data.month || (end && end.slice(0, 7) < data.month)) {
+          setNotice(`Perioada a fost salvată, dar nu atinge luna ${monthLabel}. O vezi când schimbi luna.`);
         }
       }
     );
@@ -148,6 +158,24 @@ export function DispeceratView({ data }: { data: DispatchYear }) {
     );
   }
 
+  async function savePrice(v: DispatchVehicle, text: string) {
+    const t = text.trim().replace(",", ".");
+    const next = t === "" ? null : Number(t);
+    if (next !== null && (!Number.isFinite(next) || next < 0)) {
+      setPriceError(`Prețul pentru ${v.plate} nu este valid.`);
+      router.refresh();
+      return;
+    }
+    if (next === v.price) {
+      setPriceError(null);
+      return;
+    }
+    setPriceError(null);
+    const err = await call("PUT", { vehicleId: v.id, month: data.month, amount: next });
+    if (err) setPriceError(err);
+    router.refresh();
+  }
+
   function setEdit(p: DispatchPeriod, patch: Partial<{ start: string; end: string }>) {
     setEdits((prev) => {
       const cur = prev[p.id] ?? { start: p.start, end: p.end ?? "" };
@@ -161,23 +189,23 @@ export function DispeceratView({ data }: { data: DispatchYear }) {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Dispecerat</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Zilele lucrate de fiecare mașină, pe luni. Introduci data venirii și data plecării, iar aplicația numără zilele.
+            Perioadele mașinilor la dispecerat, pe firme, cu zile și preț. Prețul îl scrii tu, pe lună.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center rounded-lg border border-slate-300 bg-white">
             <Link
-              href={`/dispecerat?y=${data.year - 1}`}
+              href={`/dispecerat?m=${shiftMonth(data.month, -1)}`}
               className="px-2.5 py-1.5 text-sm text-slate-600 hover:text-brand"
-              aria-label="Anul precedent"
+              aria-label="Luna precedentă"
             >
               ◀
             </Link>
-            <span className="px-2 text-sm font-semibold text-slate-900 tabular-nums">{data.year}</span>
+            <span className="px-2 min-w-[130px] text-center text-sm font-semibold text-slate-900">{monthLabel}</span>
             <Link
-              href={`/dispecerat?y=${data.year + 1}`}
+              href={`/dispecerat?m=${shiftMonth(data.month, 1)}`}
               className="px-2.5 py-1.5 text-sm text-slate-600 hover:text-brand"
-              aria-label="Anul următor"
+              aria-label="Luna următoare"
             >
               ▶
             </Link>
@@ -188,66 +216,103 @@ export function DispeceratView({ data }: { data: DispatchYear }) {
         </div>
       </div>
 
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <div className="text-xs font-semibold text-slate-500">TOTAL EURO {MONTHS[mo - 1]}</div>
+          <div className="text-2xl font-bold text-brand-dark tabular-nums">{money(data.totalEuro)} €</div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <div className="text-xs font-semibold text-slate-500">Mașini la dispecerat</div>
+          <div className="text-2xl font-bold text-brand-dark tabular-nums">{data.vehiclesWorking}</div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <div className="text-xs font-semibold text-slate-500">Zile lucrate</div>
+          <div className="text-2xl font-bold text-brand-dark tabular-nums">{data.totalDays}</div>
+        </div>
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+          <div className="text-xs font-semibold text-slate-500">În curs acum</div>
+          <div className="text-2xl font-bold text-brand-dark tabular-nums">{data.openCount}</div>
+        </div>
+      </div>
+
+      {priceError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{priceError}</div>
+      )}
+
       {data.firms.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
           Nu există mașini. Adaugă mai întâi mașinile în secțiunea Mașini.
         </div>
       )}
 
-      {data.firms.length > 0 && (
-        <p className="text-xs text-slate-500">
-          Total {data.year}: {pluralMasini(totalVehicles)} · {pluralZile(totalDays)} lucrate
-        </p>
-      )}
-
-      {data.firms.map((firm) => (
-        <section key={firm.id ?? "none"} className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-3 border-b border-slate-200 bg-slate-50">
-            <h2 className="font-semibold text-slate-900">{firm.name}</h2>
-            <span className="text-xs text-slate-500">
-              {pluralMasini(firm.vehicles.length)} · {firm.total} zile lucrate în {data.year}
-            </span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[760px]">
+      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 items-start">
+        {data.firms.map((firm) => (
+          <section key={firm.id ?? "none"} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+            <div className="bg-brand text-white px-4 py-2.5 font-semibold text-sm">{firm.name}</div>
+            <table className="w-full text-xs">
               <thead>
-                <tr className="text-[11px] uppercase tracking-wide text-slate-500">
-                  <th className="text-left font-semibold px-4 py-2">Mașină</th>
-                  {MONTHS_SHORT.map((m) => (
-                    <th key={m} className="text-center font-semibold px-1 py-2 w-[52px]">
-                      {m}
-                    </th>
-                  ))}
-                  <th className="text-right font-semibold px-4 py-2 w-[72px]">Total</th>
+                <tr className="bg-slate-50 text-[10.5px] uppercase tracking-wide text-slate-500">
+                  <th className="text-left font-semibold px-3 py-1.5">Mașină</th>
+                  <th className="text-left font-semibold px-2 py-1.5">In</th>
+                  <th className="text-left font-semibold px-2 py-1.5">Out</th>
+                  <th className="text-right font-semibold px-2 py-1.5">Zile</th>
+                  <th className="text-right font-semibold px-3 py-1.5">Preț €</th>
                 </tr>
               </thead>
               <tbody>
-                {firm.vehicles.map((v) => (
-                  <tr
-                    key={v.id}
-                    onClick={() => openPanel(v.id)}
-                    className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer"
-                  >
-                    <td className="px-4 py-2 font-medium text-slate-900 whitespace-nowrap">{v.plate}</td>
-                    {v.months.map((n, i) => (
-                      <td key={i} className="px-1 py-2 text-center">
-                        {n > 0 ? (
-                          <span className="inline-block min-w-[30px] rounded-md bg-[#34a56f]/15 px-1.5 py-0.5 text-xs font-semibold text-[#1f7a4d] tabular-nums whitespace-nowrap">
-                            {n}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">–</span>
+                {firm.vehicles.map((v) => {
+                  const rows = v.periods.length > 0 ? v.periods : [null];
+                  return rows.map((p, i) => (
+                    <tr
+                      key={`${v.id}-${p ? p.id : "x"}`}
+                      onClick={() => openPanel(v.id)}
+                      className={`${i === 0 ? "border-t border-slate-100" : ""} hover:bg-slate-50 cursor-pointer`}
+                    >
+                      <td className="px-3 py-1.5 font-semibold text-slate-900 whitespace-nowrap">{i === 0 ? v.plate : ""}</td>
+                      <td className="px-2 py-1.5 text-slate-700 whitespace-nowrap">{p ? fmtShort(p.start) : ""}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">
+                        {p ? (
+                          p.end ? (
+                            <span className="text-slate-700">{fmtShort(p.end)}</span>
+                          ) : (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-bold text-amber-800">
+                              în curs
+                            </span>
+                          )
+                        ) : null}
+                      </td>
+                      <td className="px-2 py-1.5 text-right tabular-nums text-slate-700">{p ? p.days : ""}</td>
+                      <td className="px-3 py-1 text-right" onClick={(e) => e.stopPropagation()}>
+                        {i === 0 && (
+                          <input
+                            key={`${v.id}-${data.month}-${v.price ?? ""}`}
+                            type="text"
+                            inputMode="decimal"
+                            defaultValue={v.price === null ? "" : money(v.price)}
+                            placeholder="–"
+                            aria-label={`Preț ${v.plate}`}
+                            className="w-[68px] rounded-md border border-transparent hover:border-slate-300 focus:border-brand bg-transparent px-1.5 py-0.5 text-right text-xs tabular-nums outline-none"
+                            onBlur={(e) => savePrice(v, e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                            }}
+                          />
                         )}
                       </td>
-                    ))}
-                    <td className="px-4 py-2 text-right font-semibold text-slate-900 tabular-nums">{v.total}</td>
-                  </tr>
-                ))}
+                    </tr>
+                  ));
+                })}
               </tbody>
             </table>
-          </div>
-        </section>
-      ))}
+            <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
+              <span>
+                {pluralZile(firm.days)} · TOTAL:
+              </span>
+              <b className="text-sm text-brand-dark tabular-nums">{money(firm.total)} €</b>
+            </div>
+          </section>
+        ))}
+      </div>
 
       {open && (
         <div className="fixed inset-0 z-50 flex justify-end">
@@ -286,9 +351,9 @@ export function DispeceratView({ data }: { data: DispatchYear }) {
 
               {selected && (
                 <div>
-                  <div className="text-xs font-semibold text-slate-600 mb-2">Perioade în {data.year}</div>
+                  <div className="text-xs font-semibold text-slate-600 mb-2">Perioade în {monthLabel}</div>
                   {selected.periods.length === 0 && (
-                    <p className="text-sm text-slate-500">Nu există nicio perioadă în {data.year}.</p>
+                    <p className="text-sm text-slate-500">Nu există nicio perioadă în {monthLabel}.</p>
                   )}
                   <div className="space-y-3">
                     {selected.periods.map((p) => {
