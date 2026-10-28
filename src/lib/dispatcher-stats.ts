@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 
 export type DispatcherCounts = {
   dispatcherId: string | null;
@@ -17,7 +18,8 @@ export type DispatcherPricePerKm = {
   jobs: number;
 };
 
-const DATE_FILTER = `coalesce(j.start_at, j.created_at) >= $1::date
+const DATE_FILTER = `j.organization_id = $3
+  and coalesce(j.start_at, j.created_at) >= $1::date
   and coalesce(j.start_at, j.created_at) < ($2::date + 1)`;
 
 /** Câte curse a luat fiecare dispecer în perioadă (după data de start a cursei). */
@@ -39,7 +41,7 @@ export async function getDispatcherCounts(from: string, to: string): Promise<Dis
        from jobs j
       where ${DATE_FILTER}
       group by j.dispatcher_id::text`,
-    [from, to]
+    [from, to, await orgId()]
   );
   return rows.map((r) => ({
     dispatcherId: r.dispatcher_id,
@@ -92,7 +94,7 @@ async function queryPricePerKm(kmExpr: string, from: string, to: string) {
         and k.km > 0
         and ${DATE_FILTER}
       group by j.dispatcher_id::text, coalesce(nullif(j.currency, ''), 'EUR')`,
-    [from, to]
+    [from, to, await orgId()]
   );
   return rows.map((r) => ({
     dispatcherId: r.dispatcher_id,
