@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getOrgContext } from "@/lib/org";
 import { AppShell } from "@/components/AppShell";
 import { TachoFirmSettings, TachoPrint, TachoUpload } from "@/components/TachoTools";
 import {
@@ -168,7 +169,7 @@ function DayTable({ days, cur }: { days: PontajDay[]; cur: string }) {
 export default async function TachoPage({ searchParams }: { searchParams: Promise<SP> }) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
-  const isAdmin = session.user.role === "admin";
+  const isAdmin = (await getOrgContext())?.isOrgAdmin ?? false;
 
   const sp = await searchParams;
   const { year, month } = parseMonth(sp.luna);
