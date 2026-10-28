@@ -218,6 +218,18 @@ function RestrictionsIcon() {
   );
 }
 
+/** Clădiri cu săgeată — Firme clienți (panoul de platformă). */
+function PlatformIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <path d="M14 17.5h7M18 14l3 3.5-3 3.5" />
+    </svg>
+  );
+}
+
 /** Săgeată stânga/dreapta — butonul de strâns/extins meniul. */
 function CollapseChevron({ collapsed }: { collapsed: boolean }) {
   return (
@@ -246,6 +258,7 @@ const NAV_ICONS: Record<string, () => ReactElement> = {
   dispatchers: DispatchersIcon,
   settings: SettingsIcon,
   restrictions: RestrictionsIcon,
+  platform: PlatformIcon,
 };
 
 function NavIcon({ navKey }: { navKey: string }) {
@@ -284,6 +297,8 @@ export function ShellFrame({
   alertCount,
   timezone,
   wide,
+  orgName,
+  showOrgPill,
   children,
 }: {
   navGroups: NavGroup[];
@@ -294,6 +309,9 @@ export function ShellFrame({
   alertCount: number;
   timezone?: string;
   wide?: boolean;
+  /** Firma în care lucrează utilizatorul acum (se arată doar proprietarului platformei). */
+  orgName?: string;
+  showOrgPill?: boolean;
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -483,6 +501,15 @@ export function ShellFrame({
             >
               ✦ Creează cursă
             </Link>
+            {showOrgPill && orgName && (
+              <Link
+                href="/platform"
+                title="Schimbă firma în care lucrezi"
+                className="hidden sm:inline-flex max-w-[260px] items-center gap-1 truncate rounded-full border border-slate-300 bg-white px-3 py-1 text-xs font-semibold text-brand hover:border-brand transition whitespace-nowrap"
+              >
+                Lucrezi în: {orgName} ▾
+              </Link>
+            )}
             {tzError && (
               <span className="hidden md:inline text-xs text-red-600 whitespace-nowrap">
                 Nu s-a salvat
