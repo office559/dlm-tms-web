@@ -19,6 +19,10 @@ export type OrgCard = {
   vehicles: number;
   jobs: number;
   status: OrgStatus;
+  /** false = firma este dezactivată (utilizatorii ei nu mai pot intra). */
+  active: boolean;
+  /** true = firma conține contul proprietarului platformei: nu poate fi dezactivată sau ștearsă. */
+  protectedOrg: boolean;
 };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -34,8 +38,12 @@ export async function listOrganizationCards(): Promise<OrgCard[]> {
     users: number;
     vehicles: number;
     jobs: number;
+    active: boolean;
+    protected_org: boolean;
   }>(
-    `select o.id, o.name, o.created_at,
+    `select o.id, o.name, o.created_at, o.active,
+            exists (select 1 from memberships m join "user" u on u.id = m.user_id
+                     where m.organization_id = o.id and u.role = 'admin') as protected_org,
             (select u.email
                from memberships m join "user" u on u.id = m.user_id
               where m.organization_id = o.id and m.org_role = 'admin'
@@ -65,6 +73,8 @@ export async function listOrganizationCards(): Promise<OrgCard[]> {
     vehicles: Number(r.vehicles) || 0,
     jobs: Number(r.jobs) || 0,
     status: r.admin_email ? "activa" : r.pending_email ? "asteapta" : "fara_admin",
+    active: r.active !== false,
+    protectedOrg: !!r.protected_org,
   }));
 }
 
@@ -161,4 +171,111 @@ export async function createOrganization(input: {
     orgRole: "admin",
   });
   return { ok: true, organizationId, invite, organizationName: name };
+}
+
+export async function isOrganizationActive(id: string): Promise<boolean> {
+  const { rows } = await pool.query<{ active: boolean }>(`select active from organizations where id = $1`, [id]);
+  return rows[0]?.active !== false && rows.length > 0;
+}
+
+/** Firma care conține contul proprietarului platformei nu se atinge. */
+async function isProtectedOrganization(id: string): Promise<boolean> {
+  const { rows } = await pool.query(
+    `select 1 from memberships m join "user" u on u.id = m.user_id
+      where m.organization_id = $1 and u.role = 'admin' limit 1`,
+    [id]
+  );
+  return rows.length > 0;
+}
+
+/** Dezactivează / reactivează o firmă. Datele rămân; doar utilizatorii ei nu mai pot intra. */
+export async function setOrganizationActive(id: string, active: boolean): Promise<{ ok: true } | Fail> {
+  if (!(await organizationExists(id))) return { ok: false, error: "Firma nu există." };
+  if (!active && (await isProtectedOrganization(id))) {
+    return { ok: false, error: "Firma ta (cea care conține contul proprietarului platformei) nu poate fi dezactivată." };
+  }
+  await pool.query(`update organizations set active = $2 where id = $1`, [id, active]);
+  return { ok: true };
+}
+
+/**
+ * Șterge DEFINITIV o firmă: toate datele ei, utilizatorii și invitațiile. Nu se poate anula.
+ * Numele firmei trebuie tastat exact (confirmare). Tot sau nimic (tranzacție).
+ */
+export async function deleteOrganization(id: string, confirmName: string): Promise<{ ok: true; name: string } | Fail> {
+  const name = await getOrganizationName(id);
+  if (!name) return { ok: false, error: "Firma nu există." };
+  if (confirmName.trim().replace(/\s+/g, " ").toLowerCase() !== name.trim().replace(/\s+/g, " ").toLowerCase()) {
+    return { ok: false, error: "Numele tastat nu coincide cu numele firmei." };
+  }
+  if (await isProtectedOrganization(id)) {
+    return { ok: false, error: "Firma ta (cea care conține contul proprietarului platformei) nu poate fi ștearsă." };
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("begin");
+
+    const members = await client.query<{ user_id: string }>(
+      `select user_id from memberships where organization_id = $1`,
+      [id]
+    );
+    const userIds = members.rows.map((m) => m.user_id);
+
+    // toate tabelele de date ale firmei (au coloana organization_id), în afară de organizations / memberships
+    const tabs = await client.query<{ table_name: string }>(
+      `select c.table_name
+         from information_schema.columns c
+         join information_schema.tables t
+           on t.table_schema = c.table_schema and t.table_name = c.table_name and t.table_type = 'BASE TABLE'
+        where c.table_schema = 'public' and c.column_name = 'organization_id'
+          and c.table_name not in ('organizations', 'memberships')`
+    );
+    let remaining = tabs.rows.map((r) => r.table_name);
+
+    // legăturile dintre tabele pot cere o anumită ordine: reîncercăm ce a eșuat după restul
+    for (let pass = 0; remaining.length > 0 && pass <= tabs.rows.length; pass++) {
+      const failed: string[] = [];
+      let lastError: unknown = null;
+      for (const t of remaining) {
+        await client.query("savepoint del_t");
+        try {
+          await client.query(`delete from "${t.replace(/"/g, '""')}" where organization_id = $1`, [id]);
+          await client.query("release savepoint del_t");
+        } catch (e) {
+          await client.query("rollback to savepoint del_t");
+          failed.push(t);
+          lastError = e;
+        }
+      }
+      if (failed.length === remaining.length) throw lastError;
+      remaining = failed;
+    }
+
+    await client.query(`delete from memberships where organization_id = $1`, [id]);
+
+    if (userIds.length) {
+      // conturile Better Auth ale utilizatorilor firmei (sesiunile și conturile se șterg odată cu ele)
+      for (const tbl of ["session", "account"]) {
+        await client.query("savepoint del_aux");
+        try {
+          await client.query(`delete from "${tbl}" where "userId" = any($1::text[])`, [userIds]);
+          await client.query("release savepoint del_aux");
+        } catch {
+          await client.query("rollback to savepoint del_aux");
+        }
+      }
+      await client.query(`delete from "user" where id = any($1::text[])`, [userIds]);
+    }
+
+    await client.query(`delete from organizations where id = $1`, [id]);
+    await client.query("commit");
+  } catch (e) {
+    await client.query("rollback").catch(() => {});
+    console.error("Ștergerea firmei a eșuat:", e);
+    return { ok: false, error: "Firma nu a putut fi ștearsă (datele ei sunt legate de alte înregistrări). Nu s-a șters nimic." };
+  } finally {
+    client.release();
+  }
+  return { ok: true, name };
 }
