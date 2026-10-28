@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { createDispatcherInvite } from "@/lib/db";
+import { getOrgContext } from "@/lib/org";
 import { sendDispatcherInviteEmail } from "@/lib/email";
 
 // POST /api/dispatchers/invite   { name, email }
-// Doar un admin autentificat poate trimite invitații de dispecer.
+// Doar un administrator autentificat (al firmei sau al platformei) poate trimite invitații
+// de dispecer, iar invitația aparține organizației lui.
 export async function POST(req: NextRequest) {
   const session = await auth.api.getSession({ headers: req.headers });
-  if (!session || session.user.role !== "admin") {
+  const ctx = session ? await getOrgContext() : null;
+  if (!session || !ctx?.isOrgAdmin) {
     return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
   }
 
@@ -19,7 +22,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Nume și email valide sunt obligatorii" }, { status: 400 });
   }
 
-  const invite = await createDispatcherInvite({ name, email });
+  const invite = await createDispatcherInvite({
+    name,
+    email,
+    organizationId: ctx.organizationId,
+    orgRole: "dispatcher",
+  });
   const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/accept-invite/${invite.token}`;
 
   await sendDispatcherInviteEmail({ to: email, name, inviteUrl });
