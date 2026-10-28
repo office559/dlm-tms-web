@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { unstable_cache } from "next/cache";
 import { auth } from "@/lib/auth";
+import { getOrgContext, runWithOrg } from "@/lib/org";
 import { getSettings } from "@/lib/settings";
 import { listExpiryAlerts } from "@/lib/alerts";
 import { getUserTimezone } from "@/lib/user-prefs";
@@ -41,11 +42,14 @@ const NAV_GROUPS: NavGroup[] = [
  * secunde, ca să nu interogăm baza de date de fiecare dată când schimbi pagina.
  */
 const getAlertCount = unstable_cache(
-  async () => {
+  async (organizationId: string) => {
     try {
-      const settings = await getSettings();
-      const alerts = await listExpiryAlerts(settings?.alert_days ?? 30);
-      return alerts.length;
+      // în interiorul cache-ului nu avem acces la cookie-uri: organizația vine ca argument
+      return await runWithOrg(organizationId, async () => {
+        const settings = await getSettings();
+        const alerts = await listExpiryAlerts(settings?.alert_days ?? 30);
+        return alerts.length;
+      });
     } catch {
       return 0;
     }
@@ -71,10 +75,11 @@ export async function AppShell({
   wide?: boolean;
   children: React.ReactNode;
 }) {
-  const [session, alertCount] = await Promise.all([
+  const [session, ctx] = await Promise.all([
     headers().then((h) => auth.api.getSession({ headers: h })),
-    getAlertCount(),
+    getOrgContext(),
   ]);
+  const alertCount = ctx ? await getAlertCount(ctx.organizationId) : 0;
 
   // Fusul orar ales de utilizator (ex. Germania) — salvat în contul lui.
   let timezone = DEFAULT_TIMEZONE;
@@ -87,7 +92,7 @@ export async function AppShell({
   }
 
   const userName = session?.user.name || session?.user.email || "Utilizator";
-  const isAdmin = session?.user.role === "admin";
+  const isAdmin = ctx?.isOrgAdmin ?? false;
 
   const groups: NavGroup[] = isAdmin
     ? [
