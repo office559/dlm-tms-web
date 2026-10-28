@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import {
+  addMembership,
   getDispatcherInviteByToken,
   markInviteUsed,
   createDispatcherRecord,
 } from "@/lib/db";
 
 // POST /api/dispatchers/accept   { token, password }
-// Validează invitația, creează contul Better Auth (rol "dispatcher") și
-// înregistrarea din tabelul "dispatchers", apoi marchează invitația folosită.
+// Validează invitația, creează contul Better Auth și înregistrarea din tabelul
+// "dispatchers", leagă contul de organizația invitației (cu rolul din invitație),
+// apoi marchează invitația folosită.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const token = typeof body?.token === "string" ? body.token : "";
@@ -32,19 +34,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invitația a expirat" }, { status: 410 });
   }
 
-const created = await auth.api.createUser({
+  const created = await auth.api.createUser({
     body: {
       email: invite.email,
       password,
       name: invite.name,
     },
-  }); 
-  
+  });
+
   await createDispatcherRecord({
     userId: created.user.id,
     name: invite.name,
     email: invite.email,
+    organizationId: invite.organization_id,
   });
+  await addMembership(created.user.id, invite.organization_id, invite.org_role || "dispatcher");
   await markInviteUsed(invite.id);
 
   return NextResponse.json({ ok: true });
