@@ -230,6 +230,17 @@ function PlatformIcon() {
   );
 }
 
+/** Clipboard cu bifă — Dispecerat (pontaj vehicule). */
+function DispecerateIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4h6v3H9z" />
+      <path d="M9 14l2 2 4-4" />
+    </svg>
+  );
+}
+
 /** Săgeată stânga/dreapta — butonul de strâns/extins meniul. */
 function CollapseChevron({ collapsed }: { collapsed: boolean }) {
   return (
@@ -244,6 +255,7 @@ const NAV_ICONS: Record<string, () => ReactElement> = {
   dashboard: DashboardIcon,
   jobs: CurseIcon,
   planning: PlanningIcon,
+  dispecerat: DispecerateIcon,
   drivers: DriversIcon,
   vehicles: VehiclesIcon,
   trailers: TrailersIcon,
