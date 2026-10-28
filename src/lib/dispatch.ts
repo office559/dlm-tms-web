@@ -12,30 +12,45 @@ import { orgId } from "@/lib/org";
  * Datele sunt text ISO „AAAA-LL-ZZ" (zile calendaristice, fără oră).
  */
 
-export type DispatchPeriod = { id: string; start: string; end: string | null };
+export type DispatchPeriod = {
+  id: string;
+  start: string;
+  end: string | null;
+  /** Zilele acestei perioade care cad în luna afișată (ambele capete incluse). */
+  days: number;
+};
 
 export type DispatchVehicle = {
   id: string;
   plate: string;
-  /** Zilele lucrate în fiecare lună a anului (12 valori, ian–dec). */
-  months: number[];
-  total: number;
-  /** Perioadele care ating anul ales. */
+  /** Zilele lucrate în luna afișată. */
+  days: number;
+  /** Prețul (euro) introdus pentru această mașină în luna afișată, sau null. */
+  price: number | null;
+  /** Perioadele care ating luna afișată. */
   periods: DispatchPeriod[];
 };
 
 export type DispatchFirm = {
   id: string | null;
   name: string;
+  days: number;
   total: number;
   vehicles: DispatchVehicle[];
 };
 
-export type DispatchYear = {
-  year: number;
+export type DispatchMonth = {
+  /** „AAAA-LL" */
+  month: string;
   /** Ziua de azi (AAAA-LL-ZZ), în fusul orar al utilizatorului. */
   today: string;
   firms: DispatchFirm[];
+  totalEuro: number;
+  totalDays: number;
+  /** Mașini cu cel puțin o perioadă în lună. */
+  vehiclesWorking: number;
+  /** Perioade fără dată de plecare („în curs"). */
+  openCount: number;
 };
 
 const DAY_MS = 86400000;
@@ -55,8 +70,8 @@ export function isIsoDate(s: unknown): s is string {
   return fromDayNum(toDayNum(s)) === s;
 }
 
-export function isYear(s: unknown): s is string {
-  return typeof s === "string" && /^20\d{2}$/.test(s);
+export function isMonth(s: unknown): s is string {
+  return typeof s === "string" && /^20\d{2}-(0[1-9]|1[0-2])$/.test(s);
 }
 
 /** Ziua de azi („AAAA-LL-ZZ") în fusul orar ales. */
@@ -64,8 +79,15 @@ export function todayIso(tz: string, now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
-export function currentYear(tz: string, now: Date = new Date()): number {
-  return Number(todayIso(tz, now).slice(0, 4));
+export function currentMonth(tz: string, now: Date = new Date()): string {
+  return todayIso(tz, now).slice(0, 7);
+}
+
+/** Prima și ultima zi a lunii „AAAA-LL". */
+export function monthRange(month: string): { from: string; to: string } {
+  const [y, m] = month.split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
 }
 
 /** Zilele (ambele capete incluse) dintre două date. */
@@ -103,13 +125,19 @@ export function countByMonth(periods: { start: string; end: string | null }[], y
   return months;
 }
 
-export async function getDispatchYear(year: number, tz: string): Promise<DispatchYear> {
+/** Zilele dintr-o perioadă care cad în [from, to]; „în curs" se numără până la `today`. */
+export function daysWithin(start: string, end: string | null, from: string, to: string, today: string): number {
+  const s = Math.max(toDayNum(start), toDayNum(from));
+  const e = Math.min(toDayNum(end ?? today), toDayNum(to));
+  return Math.max(0, e - s + 1);
+}
+
+export async function getDispatchMonth(month: string, tz: string): Promise<DispatchMonth> {
   const org = await orgId();
   const today = todayIso(tz);
-  const from = `${year}-01-01`;
-  const to = `${year}-12-31`;
+  const { from, to } = monthRange(month);
 
-  const [vehRes, perRes] = await Promise.all([
+  const [vehRes, perRes, priceRes] = await Promise.all([
     pool.query<{ id: string; plate: string; active: boolean; company_id: string | null; company_name: string | null }>(
       `select v.id, v.plate, v.active, v.company_id, c.name as company_name
          from vehicles v
@@ -127,35 +155,57 @@ export async function getDispatchYear(year: number, tz: string): Promise<Dispatc
         order by start_date`,
       [org, from, to]
     ),
+    pool.query<{ vehicle_id: string; amount: string }>(
+      `select vehicle_id, amount::text as amount from dispatch_prices where organization_id = $1 and month = $2`,
+      [org, month]
+    ),
   ]);
 
   const periodsBy = new Map<string, DispatchPeriod[]>();
   for (const p of perRes.rows) {
     const list = periodsBy.get(p.vehicle_id) ?? [];
-    list.push({ id: p.id, start: p.s, end: p.e });
+    list.push({ id: p.id, start: p.s, end: p.e, days: daysWithin(p.s, p.e, from, to, today) });
     periodsBy.set(p.vehicle_id, list);
   }
+  const priceBy = new Map<string, number>();
+  for (const r of priceRes.rows) priceBy.set(r.vehicle_id, Number(r.amount));
 
   const firmsMap = new Map<string, DispatchFirm>();
+  let totalEuro = 0;
+  let totalDays = 0;
+  let vehiclesWorking = 0;
+  let openCount = 0;
   for (const v of vehRes.rows) {
     const periods = periodsBy.get(v.id) ?? [];
-    if (!v.active && periods.length === 0) continue; // vehicul scos din uz, fără perioade în an
-    const months = countByMonth(periods, year, today);
-    const total = months.reduce((a, b) => a + b, 0);
+    const price = priceBy.get(v.id) ?? null;
+    if (!v.active && periods.length === 0 && price === null) continue; // scos din uz, fără nimic în lună
+    // zilele mașinii: uniunea perioadelor (dacă ar exista suprapuneri vechi, nu se dublează)
+    const merged = mergeIntervals(
+      periods.map((p) => ({ s: Math.max(toDayNum(p.start), toDayNum(from)), e: Math.min(toDayNum(p.end ?? today), toDayNum(to)) }))
+    );
+    const days = merged.reduce((a, i) => a + (i.e - i.s + 1), 0);
     const key = v.company_id && v.company_name ? v.company_id : "";
     let firm = firmsMap.get(key);
     if (!firm) {
-      firm = { id: key || null, name: key ? (v.company_name as string) : "Fără firmă", total: 0, vehicles: [] };
+      firm = { id: key || null, name: key ? (v.company_name as string) : "Fără firmă", days: 0, total: 0, vehicles: [] };
       firmsMap.set(key, firm);
     }
-    firm.vehicles.push({ id: v.id, plate: v.plate, months, total, periods });
-    firm.total += total;
+    firm.vehicles.push({ id: v.id, plate: v.plate, days, price, periods });
+    firm.days += days;
+    firm.total += price ?? 0;
+    totalDays += days;
+    totalEuro += price ?? 0;
+    if (periods.length > 0) vehiclesWorking++;
+    openCount += periods.filter((p) => p.end === null).length;
   }
 
   const firms = [...firmsMap.values()];
-  for (const f of firms) f.vehicles.sort((x, y) => x.plate.localeCompare(y.plate, "ro", { numeric: true }));
+  for (const f of firms) {
+    f.vehicles.sort((x, y) => x.plate.localeCompare(y.plate, "ro", { numeric: true }));
+    f.total = Math.round(f.total * 100) / 100;
+  }
   firms.sort((x, y) => (x.id === null ? 1 : y.id === null ? -1 : x.name.localeCompare(y.name, "ro")));
-  return { year, today, firms };
+  return { month, today, firms, totalEuro: Math.round(totalEuro * 100) / 100, totalDays, vehiclesWorking, openCount };
 }
 
 type Fail = { ok: false; error: string };
@@ -238,4 +288,30 @@ export async function deletePeriod(id: string): Promise<Ok | Fail> {
   const org = await orgId();
   const res = await pool.query(`delete from dispatch_stints where id = $1 and organization_id = $2 returning id`, [id, org]);
   return res.rows.length ? { ok: true } : { ok: false, error: "Perioada nu există." };
+}
+
+/** Prețul (euro) al unei mașini pentru o lună; `amount` null = șterge prețul. */
+export async function setPrice(input: { vehicleId: string; month: string; amount: number | null }): Promise<Ok | Fail> {
+  const org = await orgId();
+  if (!isMonth(input.month)) return { ok: false, error: "Luna nu este validă." };
+  if (!(await vehicleInOrg(input.vehicleId, org))) return { ok: false, error: "Alege o mașină." };
+  if (input.amount === null) {
+    await pool.query(`delete from dispatch_prices where organization_id = $1 and vehicle_id = $2 and month = $3`, [
+      org,
+      input.vehicleId,
+      input.month,
+    ]);
+    return { ok: true };
+  }
+  if (typeof input.amount !== "number" || !Number.isFinite(input.amount) || input.amount < 0 || input.amount > 10000000) {
+    return { ok: false, error: "Prețul nu este valid." };
+  }
+  const amount = Math.round(input.amount * 100) / 100;
+  await pool.query(
+    `insert into dispatch_prices (organization_id, vehicle_id, month, amount)
+     values ($1, $2, $3, $4)
+     on conflict (vehicle_id, month) do update set amount = excluded.amount`,
+    [org, input.vehicleId, input.month, amount]
+  );
+  return { ok: true };
 }
