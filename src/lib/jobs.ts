@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 
 export type Job = {
   id: string;
@@ -93,13 +94,14 @@ async function syncVehicleAfterFinish(job: Job | null) {
               when exists (
                 select 1 from jobs
                  where vehicle_id = $1
+                   and organization_id = $4
                    and status = 'planificare'
                    and id <> $3
               ) then null
               else 'pending'
             end
-      where id = $1`,
-    [job.vehicle_id, place, job.id]
+      where id = $1 and organization_id = $4`,
+    [job.vehicle_id, place, job.id, await orgId()]
   );
 }
 
@@ -117,8 +119,8 @@ async function clearPauseOnTransit(job: Job | null) {
             rest_end = null,
             rest_start_at = null,
             rest_end_at = null
-      where id = $1 and pause = true`,
-    [job.vehicle_id]
+      where id = $1 and organization_id = $2 and pause = true`,
+    [job.vehicle_id, await orgId()]
   );
 }
 
@@ -133,26 +135,32 @@ async function releaseVehicleAfterCancel(job: Job | null) {
     `update vehicles
         set state_override = null
       where id = $1
+        and organization_id = $3
         and state_override = 'pending'
         and not exists (
           select 1 from jobs
            where vehicle_id = $1
+             and organization_id = $3
              and status in ('planificare', 'activ')
              and id <> $2
         )`,
-    [job.vehicle_id, job.id]
+    [job.vehicle_id, job.id, await orgId()]
   );
 }
 
 export async function listJobs() {
   const { rows } = await pool.query<Job>(
-    `select * from jobs order by coalesce(start_at, created_at) desc`
+    `select * from jobs where organization_id = $1 order by coalesce(start_at, created_at) desc`,
+    [await orgId()]
   );
   return rows;
 }
 
 export async function getJob(id: string) {
-  const { rows } = await pool.query<Job>(`select * from jobs where id = $1`, [id]);
+  const { rows } = await pool.query<Job>(
+    `select * from jobs where id = $1 and organization_id = $2`,
+    [id, await orgId()]
+  );
   return rows[0] ?? null;
 }
 
@@ -162,9 +170,9 @@ export async function createJob(input: JobInput) {
     `insert into jobs (
        id, kind, client_id, ref, load_place, unload_place, start_at, end_at,
        miles, currency, rate, extra, driver_id, vehicle_id, trailer_id,
-       dispatcher_id, status, notes, invoice, paid_at, load_country, unload_country
+       dispatcher_id, status, notes, invoice, paid_at, load_country, unload_country, organization_id
      )
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
      returning *`,
     [
       id,
@@ -189,6 +197,7 @@ export async function createJob(input: JobInput) {
       nullify(input.paidAt),
       countryCode(input.loadCountry),
       countryCode(input.unloadCountry),
+      await orgId(),
     ]
   );
   const created = rows[0];
@@ -198,9 +207,10 @@ export async function createJob(input: JobInput) {
 
 export async function updateJob(id: string, input: JobInput) {
   // statusul de dinainte: mașina se schimbă doar la trecerea în "finalizat"
+  const org = await orgId();
   const prev = await pool.query<{ status: string }>(
-    `select status from jobs where id = $1`,
-    [id]
+    `select status from jobs where id = $1 and organization_id = $2`,
+    [id, org]
   );
   const prevStatus = prev.rows[0]?.status ?? null;
 
@@ -211,7 +221,7 @@ export async function updateJob(id: string, input: JobInput) {
        driver_id = $13, vehicle_id = $14, trailer_id = $15, dispatcher_id = $16,
        status = $17, notes = $18, invoice = $19, paid_at = $20,
        load_country = $21, unload_country = $22
-     where id = $1
+     where id = $1 and organization_id = $23
      returning *`,
     [
       id,
@@ -236,6 +246,7 @@ export async function updateJob(id: string, input: JobInput) {
       nullify(input.paidAt),
       countryCode(input.loadCountry),
       countryCode(input.unloadCountry),
+      org,
     ]
   );
   const job = rows[0] ?? null;
@@ -252,7 +263,7 @@ export async function updateJob(id: string, input: JobInput) {
 }
 
 export async function deleteJob(id: string) {
-  await pool.query(`delete from jobs where id = $1`, [id]);
+  await pool.query(`delete from jobs where id = $1 and organization_id = $2`, [id, await orgId()]);
 }
 
 /**
@@ -277,9 +288,9 @@ export async function patchJobStatus(
        cancel_fee = case when $2 = 'anulat' then $3 else cancel_fee end,
        km_start = coalesce($4::numeric, km_start),
        km_end = coalesce($5::numeric, km_end)
-     where id = $1
+     where id = $1 and organization_id = $6
      returning *`,
-    [id, status, cancelFee ?? null, km?.start ?? null, km?.end ?? null]
+    [id, status, cancelFee ?? null, km?.start ?? null, km?.end ?? null, await orgId()]
   );
   const job = rows[0] ?? null;
   await syncVehicleAfterFinish(job);
@@ -293,12 +304,15 @@ export async function setJobWhatsAppSent(id: string, messageSid: string) {
   await pool.query(
     `update jobs
        set wa_message_sid = $2, wa_sent_at = now(), wa_read_at = null, wa_confirmed_at = null
-     where id = $1`,
-    [id, messageSid]
+     where id = $1 and organization_id = $3`,
+    [id, messageSid, await orgId()]
   );
 }
 
-/** Marchează mesajul cu acest SID ca citit (nu suprascrie o citire existentă). */
+/**
+ * Marchează mesajul cu acest SID ca citit (nu suprascrie o citire existentă).
+ * Apelată din webhook (fără sesiune): SID-ul mesajului e unic, deci nu filtrează pe organizație.
+ */
 export async function markWhatsAppReadBySid(messageSid: string) {
   await pool.query(
     `update jobs set wa_read_at = now() where wa_message_sid = $1 and wa_read_at is null`,
@@ -306,7 +320,10 @@ export async function markWhatsAppReadBySid(messageSid: string) {
   );
 }
 
-/** Cea mai recentă cursă a unui șofer cu mesaj WhatsApp trimis și neconfirmată încă. */
+/**
+ * Cea mai recentă cursă a unui șofer cu mesaj WhatsApp trimis și neconfirmată încă.
+ * Apelată din webhook (fără sesiune): id-ul șoferului e unic, deci nu filtrează pe organizație.
+ */
 export async function findLatestPendingJobForDriver(driverId: string) {
   const { rows } = await pool.query<Job>(
     `select * from jobs
@@ -320,7 +337,7 @@ export async function findLatestPendingJobForDriver(driverId: string) {
   return rows[0] ?? null;
 }
 
-/** Marchează o cursă ca fiind confirmată de șofer prin WhatsApp. */
+/** Marchează o cursă ca fiind confirmată de șofer prin WhatsApp (apelată din webhook, după id-ul cursei). */
 export async function markJobConfirmed(jobId: string) {
   await pool.query(`update jobs set wa_confirmed_at = now() where id = $1`, [jobId]);
 }
