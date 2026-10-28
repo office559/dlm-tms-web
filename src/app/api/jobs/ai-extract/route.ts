@@ -215,7 +215,8 @@ export async function POST(req: NextRequest) {
           system: systemPrompt,
           messages: [{ role: "user", content }],
           tools: [EXTRACT_TOOL],
-          tool_choice: { type: "tool", name: "extract_job_details" },
+          // Modelele noi nu acceptă tool_choice forțat ("tool"/"any"); "auto" + instrucțiunea din prompt e suficient.
+          tool_choice: { type: "auto" },
         }),
       });
       if (r.ok) {
