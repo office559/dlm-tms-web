@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 import { listCompanies } from "@/lib/companies";
 import { listCustomers } from "@/lib/customers";
 import { DEFAULT_TIMEZONE } from "@/lib/tz";
@@ -129,10 +130,10 @@ function driverLabel(name: string | null, fictive: string | null): string {
   return fictive ? `${name} / ${fictive}` : name;
 }
 
-async function loadCosts(from: string, to: string, company: string) {
-  const args = [from, to, company];
+async function loadCosts(from: string, to: string, company: string, org: string) {
+  const args = [from, to, company, org];
   const base = `from costs c left join vehicles v on v.id = c.vehicle_id
-    where c.date between $1::date and $2::date and ${COMPANY_FILTER}`;
+    where c.organization_id = $4 and c.date between $1::date and $2::date and ${COMPANY_FILTER}`;
   try {
     const [cat, veh, tot] = await Promise.all([
       pool.query(
@@ -158,8 +159,9 @@ async function loadCosts(from: string, to: string, company: string) {
 }
 
 export async function buildReport(from: string, to: string, company: string): Promise<Report> {
-  const args = [from, to, company];
-  const where = `where ${DATE_EXPR} between $1::date and $2::date and ${COMPANY_FILTER}`;
+  const org = await orgId();
+  const args = [from, to, company, org];
+  const where = `where j.organization_id = $4 and ${DATE_EXPR} between $1::date and $2::date and ${COMPANY_FILTER}`;
 
   const [companies, customers, breakdown, jobsRes, statusRes, costs] = await Promise.all([
     listCompanies(),
@@ -199,7 +201,7 @@ export async function buildReport(from: string, to: string, company: string): Pr
        ${where} group by j.status`,
       args
     ),
-    loadCosts(from, to, company),
+    loadCosts(from, to, company, org),
   ]);
 
   const companyName = new Map<string, string>(companies.map((c) => [c.id, c.name]));
