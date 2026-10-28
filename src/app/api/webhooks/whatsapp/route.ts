@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
-import { listDrivers } from "@/lib/drivers";
-import { getSettings } from "@/lib/settings";
-import { formatWaPhone } from "@/lib/whatsapp";
-import {
-  findLatestPendingJobForDriver,
-  markJobConfirmed,
-  markWhatsAppReadBySid,
-} from "@/lib/jobs";
+import { markWhatsAppReadBySid } from "@/lib/jobs";
+import { confirmJobFromWhatsAppNumber } from "@/lib/wa-inbound";
 
 /**
  * Webhook WhatsApp Cloud API (Meta). URL-ul public al acestei rute se
@@ -88,20 +82,7 @@ function isConfirmation(m: InboundMessage) {
 }
 
 async function handleConfirmation(from: string) {
-  const settings = await getSettings();
-  const waCountry = settings?.wa_country ?? null;
-  const fromDigits = formatWaPhone(`+${from.replace(/\D/g, "")}`, waCountry);
-  if (!fromDigits) return;
-
-  const drivers = await listDrivers();
-  const driver = drivers.find((d) => formatWaPhone(d.phone, waCountry) === fromDigits);
-  if (!driver) {
-    console.warn("Confirmare WhatsApp primită de la un număr necunoscut:", from);
-    return;
-  }
-
-  const job = await findLatestPendingJobForDriver(driver.id);
-  if (job) await markJobConfirmed(job.id);
+  await confirmJobFromWhatsAppNumber(from);
 }
 
 export async function POST(req: NextRequest) {
