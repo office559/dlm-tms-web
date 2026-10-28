@@ -15,7 +15,6 @@ const NAV_GROUPS: NavGroup[] = [
       { key: "dashboard", href: "/dashboard", label: "Dashboard" },
       { key: "jobs", href: "/jobs", label: "Curse" },
       { key: "planning", href: "/planning", label: "Planificare" },
-      { key: "dispecerat", href: "/dispecerat", label: "Dispecerat" },
       { key: "restrictions", href: "/restrictions", label: "Restricții circulație" },
     ],
   },
@@ -95,22 +94,25 @@ export async function AppShell({
   const userName = session?.user.name || session?.user.email || "Utilizator";
   const isAdmin = ctx?.isOrgAdmin ?? false;
 
-  const groups: NavGroup[] = [...NAV_GROUPS];
+  const groups: NavGroup[] = NAV_GROUPS.map((g) => ({ ...g, items: [...g.items] }));
+
+  // Dispecerat (pontaj vehicule): doar proprietarul platformei, în grupul Business, după Pontaj tahograf
+  if (ctx?.isPlatformAdmin) {
+    const business = groups.find((g) => g.title === "Business");
+    const at = business ? business.items.findIndex((i) => i.key === "tacho") : -1;
+    if (business) business.items.splice(at >= 0 ? at + 1 : business.items.length, 0, { key: "dispecerat", href: "/dispecerat", label: "Dispecerat" });
+  }
+
+  // Administrare: dispeceri + setări (administratorul firmei), Firme clienți (doar proprietarul platformei)
+  const adminItems: NavGroup["items"] = [];
   if (isAdmin) {
-    groups.push({
-      title: "Administrare",
-      items: [
-        { key: "dispatchers", href: "/dispatchers", label: "Gestionează dispecerii" },
-        { key: "settings", href: "/settings", label: "Setări" },
-      ],
-    });
+    adminItems.push({ key: "dispatchers", href: "/dispatchers", label: "Gestionează dispecerii" });
+    adminItems.push({ key: "settings", href: "/settings", label: "Setări" });
   }
   if (ctx?.isPlatformAdmin) {
-    groups.push({
-      title: "Platformă",
-      items: [{ key: "platform", href: "/platform", label: "Firme clienți" }],
-    });
+    adminItems.push({ key: "platform", href: "/platform", label: "Firme clienți" });
   }
+  if (adminItems.length > 0) groups.push({ title: "Administrare", items: adminItems });
 
   return (
     <ShellFrame
