@@ -1,25 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getDispatcherById } from "@/lib/db";
+import { deleteDispatcherAccount, getDispatcherById } from "@/lib/db";
+import { getOrgContext } from "@/lib/org";
 
 // DELETE /api/dispatchers/:id
-// Doar un admin poate șterge un dispecer. Se șterge contul Better Auth
-// asociat (auth.api.removeUser) — asta șterge automat și sesiunile/contul
-// lui de autentificare, iar rândul din tabelul "dispatchers" dispare
-// automat după el (foreign key ON DELETE CASCADE către "user", vezi
-// migrations/001_dispatchers.sql). După ștergere, dispecerul nu se mai
-// poate loga.
+// Doar un administrator (al firmei sau al platformei) poate șterge un dispecer din organizația
+// lui. Se șterge contul asociat (iar sesiunile, contul de autentificare și rândul din tabelul
+// "dispatchers" dispar prin ON DELETE CASCADE, vezi migrations/001_dispatchers.sql), împreună cu
+// apartenența lui la organizație. După ștergere, dispecerul nu se mai poate loga.
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth.api.getSession({ headers: req.headers });
-  if (!session || session.user.role !== "admin") {
+  const ctx = session ? await getOrgContext() : null;
+  if (!session || !ctx?.isOrgAdmin) {
     return NextResponse.json({ error: "Neautorizat" }, { status: 401 });
   }
 
   const { id } = await params;
-  const dispatcher = await getDispatcherById(id);
+  const dispatcher = await getDispatcherById(id, ctx.organizationId);
   if (!dispatcher) {
     return NextResponse.json({ error: "Dispecer inexistent" }, { status: 404 });
   }
@@ -31,10 +31,16 @@ export async function DELETE(
     );
   }
 
-  await auth.api.removeUser({
-    body: { userId: dispatcher.user_id },
-    headers: req.headers,
-  });
+  const result = await deleteDispatcherAccount(id, ctx.organizationId);
+  if (result === "protected") {
+    return NextResponse.json(
+      { error: "Acest cont nu poate fi șters de aici." },
+      { status: 403 }
+    );
+  }
+  if (result === "not_found") {
+    return NextResponse.json({ error: "Dispecer inexistent" }, { status: 404 });
+  }
 
   return NextResponse.json({ ok: true });
 }
