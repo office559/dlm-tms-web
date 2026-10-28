@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 
 export type Customer = {
   id: string;
@@ -32,20 +33,26 @@ function nullify<T>(v: T | "" | undefined): T | null {
 }
 
 export async function listCustomers() {
-  const { rows } = await pool.query<Customer>(`select * from customers order by name asc`);
+  const { rows } = await pool.query<Customer>(
+    `select * from customers where organization_id = $1 order by name asc`,
+    [await orgId()]
+  );
   return rows;
 }
 
 export async function getCustomer(id: string) {
-  const { rows } = await pool.query<Customer>(`select * from customers where id = $1`, [id]);
+  const { rows } = await pool.query<Customer>(
+    `select * from customers where id = $1 and organization_id = $2`,
+    [id, await orgId()]
+  );
   return rows[0] ?? null;
 }
 
 export async function createCustomer(input: CustomerInput) {
   const id = genCustomerId();
   const { rows } = await pool.query<Customer>(
-    `insert into customers (id, name, type, code, term_days, commission, terms, email)
-     values ($1,$2,$3,$4,$5,$6,$7,$8)
+    `insert into customers (id, name, type, code, term_days, commission, terms, email, organization_id)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
      returning *`,
     [
       id,
@@ -56,6 +63,7 @@ export async function createCustomer(input: CustomerInput) {
       input.commission ?? null,
       nullify(input.terms),
       nullify(input.email),
+      await orgId(),
     ]
   );
   return rows[0];
@@ -65,7 +73,7 @@ export async function updateCustomer(id: string, input: CustomerInput) {
   const { rows } = await pool.query<Customer>(
     `update customers set
        name = $2, type = $3, code = $4, term_days = $5, commission = $6, terms = $7, email = $8
-     where id = $1
+     where id = $1 and organization_id = $9
      returning *`,
     [
       id,
@@ -76,11 +84,12 @@ export async function updateCustomer(id: string, input: CustomerInput) {
       input.commission ?? null,
       nullify(input.terms),
       nullify(input.email),
+      await orgId(),
     ]
   );
   return rows[0] ?? null;
 }
 
 export async function deleteCustomer(id: string) {
-  await pool.query(`delete from customers where id = $1`, [id]);
+  await pool.query(`delete from customers where id = $1 and organization_id = $2`, [id, await orgId()]);
 }
