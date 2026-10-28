@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 
 export type Driver = {
   id: string;
@@ -42,20 +43,26 @@ function nullify<T>(v: T | "" | undefined): T | null {
 }
 
 export async function listDrivers() {
-  const { rows } = await pool.query<Driver>(`select * from drivers order by name asc`);
+  const { rows } = await pool.query<Driver>(
+    `select * from drivers where organization_id = $1 order by name asc`,
+    [await orgId()]
+  );
   return rows;
 }
 
 export async function getDriver(id: string) {
-  const { rows } = await pool.query<Driver>(`select * from drivers where id = $1`, [id]);
+  const { rows } = await pool.query<Driver>(
+    `select * from drivers where id = $1 and organization_id = $2`,
+    [id, await orgId()]
+  );
   return rows[0] ?? null;
 }
 
 export async function createDriver(input: DriverInput) {
   const id = genId("d");
   const { rows } = await pool.query<Driver>(
-    `insert into drivers (id, name, fictive_name, salary, tm, card, permis_exp, cpc_exp, card_exp, medical_exp, phone, active)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+    `insert into drivers (id, name, fictive_name, salary, tm, card, permis_exp, cpc_exp, card_exp, medical_exp, phone, active, organization_id)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
      returning *`,
     [
       id,
@@ -70,6 +77,7 @@ export async function createDriver(input: DriverInput) {
       nullify(input.medicalExp),
       nullify(input.phone),
       input.active ?? true,
+      await orgId(),
     ]
   );
   return rows[0];
@@ -81,7 +89,7 @@ export async function updateDriver(id: string, input: DriverInput) {
        name = $2, fictive_name = $3, salary = $4, tm = $5, card = $6,
        permis_exp = $7, cpc_exp = $8, card_exp = $9, medical_exp = $10,
        phone = $11, active = $12
-     where id = $1
+     where id = $1 and organization_id = $13
      returning *`,
     [
       id,
@@ -96,11 +104,12 @@ export async function updateDriver(id: string, input: DriverInput) {
       nullify(input.medicalExp),
       nullify(input.phone),
       input.active ?? true,
+      await orgId(),
     ]
   );
   return rows[0] ?? null;
 }
 
 export async function deleteDriver(id: string) {
-  await pool.query(`delete from drivers where id = $1`, [id]);
+  await pool.query(`delete from drivers where id = $1 and organization_id = $2`, [id, await orgId()]);
 }
