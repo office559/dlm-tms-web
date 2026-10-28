@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getOrgContext } from "@/lib/org";
 import { getSettings } from "@/lib/settings";
 import { SettingsForm } from "@/components/SettingsForm";
 import { AppShell } from "@/components/AppShell";
@@ -8,7 +9,7 @@ import { AppShell } from "@/components/AppShell";
 export default async function SettingsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
-  if (session.user.role !== "admin") redirect("/dashboard");
+  if (!(await getOrgContext())?.isOrgAdmin) redirect("/dashboard");
 
   const settings = await getSettings();
 
