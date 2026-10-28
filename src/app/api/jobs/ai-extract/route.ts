@@ -12,7 +12,14 @@ import { auth } from "@/lib/auth";
  * prin /api/jobs).
  */
 
-const MODEL = "claude-sonnet-5";
+// Se încearcă pe rând; dacă un model nu există / nu e disponibil (404), trece la următorul.
+// Poți forța un model din Vercel cu variabila ANTHROPIC_MODEL.
+const MODELS = [
+  process.env.ANTHROPIC_MODEL,
+  "claude-sonnet-5-5",
+  "claude-sonnet-5",
+  "claude-sonnet-4-5",
+].filter((m, i, a): m is string => !!m && a.indexOf(m) === i);
 const MAX_INPUT_LENGTH = 6000;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 // ~5MB în base64 (imaginea originală e ceva mai mică decât atât).
@@ -182,35 +189,62 @@ export async function POST(req: NextRequest) {
     text: text || "Extrage detaliile cursei din poza atașată.",
   });
 
-  try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1024,
-        system:
-          `Ești un asistent care ajută un dispecer de transport rutier din România să introducă o cursă nouă în sistem. ` +
-          `Data de azi este ${today}. Primești fie un text (comandă copiată din email sau WhatsApp), fie o poză (comandă pe hârtie, document, CMR, captură de ecran), fie ambele — posibil în română, engleză sau amestecate. ` +
-          `Dacă primești o poză, citește cu atenție tot ce e relevant din ea: locul de încărcare, locul de descărcare, data și ora încărcării/descărcării, tariful, distanța (km/mile), referința comenzii. ` +
-          `Pentru locul de încărcare/descărcare: dacă înaintea orașului apare un cod scurt de depozit/terminal (ex. dintr-un load board: "SCN2 KAISERSLAUTERN, Rhineland-Palatinate" sau "DNW3 DÜSSELDORF, North Rhine-Westphalia"), pune DOAR codul (SCN2, respectiv DNW3) în loadPlace/unloadPlace, nu orașul întreg. ` +
-          `Pentru loadCountry/unloadCountry întoarce codul ISO din 2 litere al țării, dedus din adresa completă, oraș, regiune sau cod poștal (nu doar din codul de depozit). ` +
-          `Extrage câmpurile cerute apelând tool-ul extract_job_details. Nu inventa informații care nu apar în text sau în poză.`,
-        messages: [{ role: "user", content }],
-        tools: [EXTRACT_TOOL],
-        tool_choice: { type: "tool", name: "extract_job_details" },
-      }),
-    });
+  const systemPrompt =
+    `Ești un asistent care ajută un dispecer de transport rutier din România să introducă o cursă nouă în sistem. ` +
+    `Data de azi este ${today}. Primești fie un text (comandă copiată din email sau WhatsApp), fie o poză (comandă pe hârtie, document, CMR, captură de ecran), fie ambele — posibil în română, engleză sau amestecate. ` +
+    `Dacă primești o poză, citește cu atenție tot ce e relevant din ea: locul de încărcare, locul de descărcare, data și ora încărcării/descărcării, tariful, distanța (km/mile), referința comenzii. ` +
+    `Pentru locul de încărcare/descărcare: dacă înaintea orașului apare un cod scurt de depozit/terminal (ex. dintr-un load board: "SCN2 KAISERSLAUTERN, Rhineland-Palatinate" sau "DNW3 DÜSSELDORF, North Rhine-Westphalia"), pune DOAR codul (SCN2, respectiv DNW3) în loadPlace/unloadPlace, nu orașul întreg. ` +
+    `Pentru loadCountry/unloadCountry întoarce codul ISO din 2 litere al țării, dedus din adresa completă, oraș, regiune sau cod poștal (nu doar din codul de depozit). ` +
+    `Extrage câmpurile cerute apelând tool-ul extract_job_details. Nu inventa informații care nu apar în text sau în poză.`;
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("Anthropic API a răspuns cu eroare:", res.status, errText);
+  try {
+    let res: Response | null = null;
+    let lastStatus = 0;
+    let lastDetail = "";
+    for (const model of MODELS) {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: [{ role: "user", content }],
+          tools: [EXTRACT_TOOL],
+          tool_choice: { type: "tool", name: "extract_job_details" },
+        }),
+      });
+      if (r.ok) {
+        res = r;
+        break;
+      }
+      const errText = await r.text();
+      console.error(`Anthropic API (model ${model}) a răspuns cu eroare:`, r.status, errText);
+      lastStatus = r.status;
+      try {
+        const j = JSON.parse(errText) as { error?: { message?: string } };
+        lastDetail = j.error?.message ?? errText;
+      } catch {
+        lastDetail = errText;
+      }
+      // Model inexistent / indisponibil → încearcă următorul; orice altă eroare e definitivă.
+      if (r.status !== 404) break;
+    }
+
+    if (!res) {
+      let msg = "Serviciul AI a răspuns cu o eroare. Încearcă din nou.";
+      if (lastStatus === 401) msg = "Cheia ANTHROPIC_API_KEY din Vercel e invalidă sau a fost revocată.";
+      else if (lastStatus === 404) msg = "Niciun model AI din listă nu e disponibil pentru cheia ta.";
+      else if (/credit balance|billing/i.test(lastDetail))
+        msg = "Contul Anthropic nu mai are credit — reîncarcă la console.anthropic.com → Billing.";
+      else if (lastStatus === 429) msg = "Prea multe cereri către serviciul AI. Încearcă peste un minut.";
+      else if (lastStatus === 529 || lastStatus >= 500) msg = "Serviciul AI e momentan supraîncărcat. Încearcă din nou.";
       return NextResponse.json(
-        { error: "Serviciul AI a răspuns cu o eroare. Încearcă din nou." },
+        { error: `${msg} (cod ${lastStatus}${lastDetail ? ": " + lastDetail.slice(0, 200) : ""})` },
         { status: 502 }
       );
     }
