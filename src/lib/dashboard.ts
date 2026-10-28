@@ -1,4 +1,5 @@
 import { pool } from "@/lib/db";
+import { orgId } from "@/lib/org";
 
 /**
  * Venitul unei curse, pentru Dashboard:
@@ -70,7 +71,8 @@ export async function getDashboardTotals(): Promise<DashboardTotals> {
        coalesce(sum(case when status = 'anulat' then coalesce(cancel_fee,0) else 0 end), 0)::float as anulari,
        (count(*) filter (where status = 'anulat'))::int as anulari_nr
      from jobs
-     where ${venitFilter()}`
+     where organization_id = $1 and ${venitFilter()}`,
+    [await orgId()]
   );
   const r = rows[0];
   const venitTotal = Number(r?.venit) || 0;
@@ -106,11 +108,12 @@ export async function getMonthlyTrend(months = 6): Promise<MonthlyPoint[]> {
        coalesce(sum(case when status = 'finalizat' then coalesce(miles,0) else 0 end), 0)::float as km,
        (count(*) filter (where status = 'finalizat'))::int as curse
      from jobs
-     where ${venitFilter()}
+     where organization_id = $2
+       and ${venitFilter()}
        and coalesce(start_at, created_at) >= date_trunc('month', now()) - make_interval(months => $1::int)
      group by 1
      order by 1`,
-    [months - 1]
+    [months - 1, await orgId()]
   );
 
   const byMonth = new Map(rows.map((r) => [r.month, r]));
@@ -144,13 +147,14 @@ export async function getTopDriversThisMonth(limit = 5): Promise<TopDriver[]> {
        (count(*) filter (where j.status = 'finalizat'))::int as curse
      from jobs j
      join drivers d on d.id = j.driver_id
-     where ${venitFilter("j")}
+     where j.organization_id = $2
+       and ${venitFilter("j")}
        and coalesce(j.start_at, j.created_at) >= date_trunc('month', now())
        and coalesce(j.start_at, j.created_at) < date_trunc('month', now()) + interval '1 month'
      group by d.name
      order by venit desc
      limit $1`,
-    [limit]
+    [limit, await orgId()]
   );
   return rows.map((r) => ({
     name: r.name,
@@ -202,10 +206,12 @@ export async function getDailyProgram(): Promise<DailyProgram> {
      left join customers c on c.id = j.client_id
      left join drivers d on d.id = j.driver_id
      left join vehicles v on v.id = j.vehicle_id
-     where j.start_at is not null
+     where j.organization_id = $1
+       and j.start_at is not null
        and j.start_at::date between current_date - 1 and current_date + 1
        and j.status <> 'anulat'
-     order by j.start_at asc`
+     order by j.start_at asc`,
+    [await orgId()]
   );
 
   const toDayJob = (r: (typeof rows)[number]): DayJob => ({
@@ -266,7 +272,7 @@ export async function getPeriodStats(days = 30): Promise<PeriodStats> {
          (status = 'anulat') as anul,
          coalesce(start_at, created_at) as t
        from jobs
-       where ${venitFilter()}
+       where organization_id = $2 and ${venitFilter()}
      )
      select
        coalesce(sum(venit) filter (where t >= now() - make_interval(days => $1::int)), 0)::float as venit,
@@ -292,7 +298,7 @@ export async function getPeriodStats(days = 30): Promise<PeriodStats> {
            and t < now() - make_interval(days => $1::int)
        ), 0)::float as anulari_prev
      from f`,
-    [days]
+    [days, await orgId()]
   );
   const r = rows[0];
   return {
@@ -338,7 +344,9 @@ export async function getJobSituation(): Promise<JobSituation> {
        (count(*) filter (where status = 'anulat' and created_at::date = current_date))::int as anulate_azi,
        (count(*) filter (where created_at >= now() - interval '30 days'))::int as curse_30,
        (count(*) filter (where status = 'anulat' and created_at >= now() - interval '30 days'))::int as anulate_30
-     from jobs`
+     from jobs
+     where organization_id = $1`,
+    [await orgId()]
   );
   const r = rows[0];
   return {
@@ -372,10 +380,10 @@ export async function getJobsTrend(days = 30): Promise<TrendDay[]> {
             current_date::timestamp,
             interval '1 day'
           ) g
-     left join jobs j on j.created_at::date = g::date
+     left join jobs j on j.created_at::date = g::date and j.organization_id = $2
      group by g
      order by g`,
-    [days]
+    [days, await orgId()]
   );
   return rows.map((r) => ({
     day: r.day,
@@ -409,25 +417,25 @@ export async function getExpiringDocs(days = 30): Promise<ExpiringDoc[]> {
        (exp_at - current_date)::int as days_left
      from (
        select plate, 'ITP'::text as doc, nullif(itp_exp::text, '')::date as exp_at
-         from vehicles where active
+         from vehicles where organization_id = $2 and active
        union all
        select plate, 'RCA'::text, nullif(rca_exp::text, '')::date
-         from vehicles where active
+         from vehicles where organization_id = $2 and active
        union all
        select plate, 'CASCO'::text, nullif(casco_exp::text, '')::date
-         from vehicles where active
+         from vehicles where organization_id = $2 and active
        union all
        select plate, 'Asigurare'::text, nullif(insurance_exp::text, '')::date
-         from vehicles where active
+         from vehicles where organization_id = $2 and active
        union all
        select plate, 'Tahograf'::text, nullif(tacho_exp::text, '')::date
-         from vehicles where active
+         from vehicles where organization_id = $2 and active
      ) t
      where exp_at is not null
        and exp_at <= current_date + $1::int
      order by exp_at asc
      limit 20`,
-    [days]
+    [days, await orgId()]
   );
   return rows.map((r) => ({
     plate: r.plate,
@@ -472,9 +480,10 @@ export async function getRecentJobs(limit = 5): Promise<RecentJob[]> {
        coalesce(j.start_at, j.created_at) as t
      from jobs j
      left join drivers d on d.id = j.driver_id
+     where j.organization_id = $2
      order by j.created_at desc
      limit $1`,
-    [limit]
+    [limit, await orgId()]
   );
   return rows.map((r) => ({
     id: r.id,
