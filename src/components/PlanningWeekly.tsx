@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Time24Input } from "@/components/Time24Input";
 import { useTimezone } from "@/components/TimezoneProvider";
-import { formatTimeInTz, nowTimeInTz, zonedTimeToDate } from "@/lib/tz";
+import { formatTimeInTz, nowTimeInTz, zonedParts, zonedTimeToDate } from "@/lib/tz";
 import { fmtCountdown, patchVehicle } from "@/lib/planning-helpers";
 
 /** Iconiță de lună, pentru cardurile de repaus săptămânal (45h / 24h). */
@@ -17,6 +17,27 @@ function MoonIcon({ className }: { className?: string }) {
 }
 
 const WEEKLY_REST_HOURS: Record<"45" | "24", number> = { "45": 45, "24": 24 };
+
+/** „AAAA-LL-ZZ" pentru un moment, în fusul ales (format pentru <input type="date">). */
+function isoDateInTz(value: Date | string | number, tz: string): string {
+  const p = zonedParts(new Date(value), tz);
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
+}
+
+/** „ZZ.LL" dintr-un moment, în fusul ales. */
+function shortDateInTz(value: Date | string | number, tz: string): string {
+  const p = zonedParts(new Date(value), tz);
+  return `${String(p.day).padStart(2, "0")}.${String(p.month).padStart(2, "0")}`;
+}
+
+/** Momentul exact pentru data „AAAA-LL-ZZ" și ora „HH:MM" din fusul ales. */
+function zonedDateTimeToDate(date: string, time: string, tz: string): Date {
+  const m = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return zonedTimeToDate(time, tz);
+  // Prânz UTC = aceeași zi calendaristică în orice fus european din listă.
+  const base = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0));
+  return zonedTimeToDate(time, tz, base);
+}
 
 /**
  * Pauză Săptămânală vehicul: dacă nu e activă, arată „— [+]"; dispecerul
@@ -47,20 +68,35 @@ export function WeeklyRestControl({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [startTime, setStartTime] = useState(() => nowTimeInTz(tz));
+  const [startDate, setStartDate] = useState(() => isoDateInTz(new Date(), tz));
 
   // Orele afișate, în fusul orar ales (cu rezervă pe textul salvat).
   const shownWStart = (weeklyRestStartAt && formatTimeInTz(weeklyRestStartAt, tz)) || weeklyRestStart;
   const shownWEnd = (weeklyRestEndAt && formatTimeInTz(weeklyRestEndAt, tz)) || weeklyRestEnd;
 
+  // Dacă pauza nu a început azi, arătăm și datele (ex. „29.10 18:00 – 31.10 15:00").
+  const showDates =
+    !!weeklyRestStartAt &&
+    !!weeklyRestEndAt &&
+    isoDateInTz(weeklyRestStartAt, tz) !== isoDateInTz(new Date(), tz);
+  const pillText =
+    showDates && weeklyRestStartAt && weeklyRestEndAt
+      ? `${shortDateInTz(weeklyRestStartAt, tz)} ${shownWStart} – ${shortDateInTz(weeklyRestEndAt, tz)} ${shownWEnd}`
+      : `${shownWStart} – ${shownWEnd}`;
+
   function openEditor() {
-    setStartTime(nowTimeInTz(tz));
+    // Pauză activă: pornim de la începutul ei; altfel de la momentul curent.
+    const base = weeklyRest && weeklyRestStartAt ? new Date(weeklyRestStartAt) : new Date();
+    const valid = !Number.isNaN(base.getTime());
+    setStartTime(valid ? formatTimeInTz(base, tz) : nowTimeInTz(tz));
+    setStartDate(isoDateInTz(valid ? base : new Date(), tz));
     setOpen(true);
   }
 
   async function start(type: "45" | "24") {
     setSaving(true);
     const hours = WEEKLY_REST_HOURS[type];
-    const now = zonedTimeToDate(startTime, tz);
+    const now = zonedDateTimeToDate(startDate, startTime, tz);
     const end = new Date(now.getTime() + hours * 60 * 60 * 1000);
     const fmt = (d: Date) => formatTimeInTz(d, tz);
     await patchVehicle(vehicleId, {
@@ -110,7 +146,7 @@ export function WeeklyRestControl({
           <span
             className={`whitespace-nowrap rounded-lg ${pillColor} px-2 py-1 text-sm font-semibold text-white`}
           >
-            {shownWStart} – {shownWEnd}
+            {pillText}
           </span>
           <button
             type="button"
@@ -159,13 +195,22 @@ export function WeeklyRestControl({
             </div>
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-1">
-                <label className="text-xs text-slate-500">Ora de început</label>
-                <Time24Input
-                  className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
-                  value={startTime}
-                  disabled={saving}
-                  onChange={setStartTime}
-                />
+                <label className="text-xs text-slate-500">Început pauză</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                    value={startDate}
+                    disabled={saving}
+                    onChange={(e) => setStartDate(e.target.value)}
+                  />
+                  <Time24Input
+                    className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                    value={startTime}
+                    disabled={saving}
+                    onChange={setStartTime}
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <button
