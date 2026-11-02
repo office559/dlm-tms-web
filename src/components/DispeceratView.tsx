@@ -107,12 +107,15 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
   const monthLabel = `${MONTHS[mo - 1]} ${y}`;
   const [priceError, setPriceError] = useState<string | null>(null);
 
-  // meniul „+ Adaugă", ferestrele „Mașină nouă" / „Client nou" / „Gestionează firme"
+  // meniul „+ Adaugă", ferestrele „Adaugă mașină" / „Client nou" / „Gestionează firme"
   const [menuOpen, setMenuOpen] = useState(false);
   const [modal, setModal] = useState<null | "vehicle" | "client" | "firms">(null);
   const [plate, setPlate] = useState("");
   const [firmId, setFirmId] = useState("");
   const [clientName, setClientName] = useState("");
+  const [vehMode, setVehMode] = useState<"new" | "existing">("new");
+  const [pickId, setPickId] = useState("");
+  const [pickFilter, setPickFilter] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const hiddenFirms = data.allFirms.filter((f) => f.hidden);
@@ -122,6 +125,9 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
     setModalError(null);
     setPlate("");
     setClientName("");
+    setVehMode("new");
+    setPickId("");
+    setPickFilter("");
     setFirmId(presetFirm);
     setModal(kind);
   }
@@ -134,6 +140,20 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
     if (r.error) return setModalError(r.error);
     setModal(null);
     setFlash(`Mașina ${plate.trim().toUpperCase()} a fost adăugată. Adaugă-i o perioadă din „+ Adaugă → Perioadă".`);
+    router.refresh();
+  }
+
+  async function submitExisting() {
+    if (!pickId) return setModalError("Alege o mașină din listă.");
+    if (!firmId) return setModalError("Alege firma.");
+    const veh = data.vehicleOptions.find((o) => o.id === pickId);
+    setBusy(true);
+    setModalError(null);
+    const err = await call("PATCH", { vehicleId: pickId, companyId: firmId }, "?t=vehicle");
+    setBusy(false);
+    if (err) return setModalError(err);
+    setModal(null);
+    setFlash(`Mașina ${veh?.plate ?? ""} a fost pusă la firma aleasă. Adaugă-i o perioadă din „+ Adaugă → Perioadă".`);
     router.refresh();
   }
 
@@ -300,7 +320,7 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
                   className="fixed inset-0 z-30 cursor-default"
                   onClick={() => setMenuOpen(false)}
                 />
-                <div className="absolute right-0 z-40 mt-1 w-56 rounded-xl border border-slate-200 bg-white p-1.5 text-sm shadow-lg">
+                <div className="absolute right-0 z-40 mt-1 w-64 rounded-xl border border-slate-200 bg-white p-1.5 text-sm shadow-lg">
                   <button
                     type="button"
                     className="block w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
@@ -316,7 +336,7 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
                     className="block w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
                     onClick={() => openModal("vehicle")}
                   >
-                    Mașină nouă
+                    Mașină (nouă sau din Vehicule)
                   </button>
                   <button
                     type="button"
@@ -475,25 +495,96 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
       </div>
 
       {modal === "vehicle" && (
-        <Modal title="Mașină nouă" onClose={() => setModal(null)}>
+        <Modal title="Adaugă mașină" onClose={() => setModal(null)}>
           <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">Număr de înmatriculare</label>
-              <input
-                className={inputCls}
-                value={plate}
-                autoFocus
-                placeholder="ex. SV 99 ABC"
-                onChange={(e) => setPlate(e.target.value.toUpperCase())}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !busy) submitVehicle();
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1 text-sm font-semibold">
+              <button
+                type="button"
+                className={`rounded-md px-2 py-1.5 ${vehMode === "new" ? "bg-white text-brand shadow-sm" : "text-slate-500"}`}
+                onClick={() => {
+                  setVehMode("new");
+                  setModalError(null);
                 }}
-              />
+              >
+                Mașină nouă
+              </button>
+              <button
+                type="button"
+                className={`rounded-md px-2 py-1.5 ${vehMode === "existing" ? "bg-white text-brand shadow-sm" : "text-slate-500"}`}
+                onClick={() => {
+                  setVehMode("existing");
+                  setModalError(null);
+                }}
+              >
+                Din Vehicule
+              </button>
             </div>
+
+            {vehMode === "new" && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Număr de înmatriculare</label>
+                <input
+                  className={inputCls}
+                  value={plate}
+                  autoFocus
+                  placeholder="ex. SV 99 ABC"
+                  onChange={(e) => setPlate(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !busy) submitVehicle();
+                  }}
+                />
+              </div>
+            )}
+
+            {vehMode === "existing" && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Mașina din Vehicule</label>
+                <input
+                  className={`${inputCls} mb-1.5`}
+                  value={pickFilter}
+                  autoFocus
+                  placeholder="Caută după număr…"
+                  onChange={(e) => setPickFilter(e.target.value)}
+                />
+                <div className="max-h-44 overflow-y-auto rounded-lg border border-slate-300 bg-white">
+                  {data.vehicleOptions
+                    .filter((o) => o.firmId !== firmId || firmId === "")
+                    .filter((o) =>
+                      o.plate.replace(/[\s-]/g, "").toUpperCase().includes(pickFilter.replace(/[\s-]/g, "").toUpperCase())
+                    )
+                    .map((o) => (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onClick={() => setPickId(o.id)}
+                        className={`flex w-full items-center justify-between gap-2 px-2.5 py-1.5 text-left text-sm hover:bg-slate-50 ${
+                          pickId === o.id ? "bg-brand/10 font-semibold text-brand-dark" : "text-slate-800"
+                        }`}
+                      >
+                        <span>{o.plate}</span>
+                        <span className="truncate text-xs text-slate-400">
+                          {o.firmName ? `${o.firmName}${o.firmHidden ? " (ascunsă)" : ""}` : "fără firmă"}
+                        </span>
+                      </button>
+                    ))}
+                  {data.vehicleOptions.filter((o) => o.firmId !== firmId || firmId === "").length === 0 && (
+                    <p className="px-2.5 py-3 text-sm text-slate-500">Nu există alte mașini.</p>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1">Firma (clientul)</label>
-              <select className={inputCls} value={firmId} onChange={(e) => setFirmId(e.target.value)}>
-                <option value="">Fără firmă</option>
+              <select
+                className={inputCls}
+                value={firmId}
+                onChange={(e) => {
+                  setFirmId(e.target.value);
+                  setPickId("");
+                }}
+              >
+                <option value="">{vehMode === "new" ? "Fără firmă" : "Alege firma…"}</option>
                 {data.allFirms
                   .filter((f) => !f.hidden)
                   .map((f) => (
@@ -502,13 +593,32 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
                     </option>
                   ))}
               </select>
-              <p className="mt-1 text-xs text-slate-500">Mașina apare și în Flotă și Planificare. Restul datelor le completezi acolo.</p>
+              {vehMode === "new" ? (
+                <p className="mt-1 text-xs text-slate-500">Mașina apare și în Flotă și Planificare. Restul datelor le completezi acolo.</p>
+              ) : (
+                (() => {
+                  const sel = data.vehicleOptions.find((o) => o.id === pickId);
+                  return sel && sel.firmId && sel.firmId !== firmId ? (
+                    <p className="mt-1 text-xs text-amber-700">
+                      {sel.plate} e acum la firma {sel.firmName}. Va fi mutată la firma aleasă și în Flotă și Planificare.
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs text-slate-500">Firma mașinii se setează și în Flotă și Planificare.</p>
+                  );
+                })()
+              )}
             </div>
             {modalError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{modalError}</div>}
             <div className="flex gap-2">
-              <button type="button" className={btnPrimary} disabled={busy || plate.trim() === ""} onClick={submitVehicle}>
-                Adaugă mașina
-              </button>
+              {vehMode === "new" ? (
+                <button type="button" className={btnPrimary} disabled={busy || plate.trim() === ""} onClick={submitVehicle}>
+                  Adaugă mașina
+                </button>
+              ) : (
+                <button type="button" className={btnPrimary} disabled={busy || !pickId || !firmId} onClick={submitExisting}>
+                  Pune la firmă
+                </button>
+              )}
               <button type="button" className={btnGhost} disabled={busy} onClick={() => setModal(null)}>
                 Anulează
               </button>
