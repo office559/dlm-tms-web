@@ -51,6 +51,16 @@ export type DispatchFirmInfo = {
   vehicleCount: number;
 };
 
+/** O mașină existentă în TMS (din Vehicule), care poate fi pusă la o firmă din Dispecerat. */
+export type DispatchVehicleOption = {
+  id: string;
+  plate: string;
+  firmId: string | null;
+  firmName: string | null;
+  /** Firma ei actuală e ascunsă din Dispecerat. */
+  firmHidden: boolean;
+};
+
 export type DispatchMonth = {
   /** „AAAA-LL" */
   month: string;
@@ -60,6 +70,8 @@ export type DispatchMonth = {
   firms: DispatchFirm[];
   /** Toate firmele (afișate și ascunse), pentru „Gestionează firme". */
   allFirms: DispatchFirmInfo[];
+  /** Toate mașinile active din TMS, pentru „Din Vehicule". */
+  vehicleOptions: DispatchVehicleOption[];
   totalEuro: number;
   totalDays: number;
   /** Mașini cu cel puțin o perioadă în lună. */
@@ -202,6 +214,16 @@ export async function getDispatchMonth(month: string, tz: string): Promise<Dispa
     if (c.dispatch_hidden || c.active === false) continue;
     firmsMap.set(c.id, { id: c.id, name: c.name, days: 0, total: 0, vehicles: [] });
   }
+  const vehicleOptions: DispatchVehicleOption[] = vehRes.rows
+    .filter((v) => v.active)
+    .map((v) => ({
+      id: v.id,
+      plate: v.plate,
+      firmId: v.company_id && v.company_name ? v.company_id : null,
+      firmName: v.company_id && v.company_name ? v.company_name : null,
+      firmHidden: !!v.company_id && hiddenIds.has(v.company_id),
+    }))
+    .sort((x, y) => x.plate.localeCompare(y.plate, "ro", { numeric: true }));
   let totalEuro = 0;
   let totalDays = 0;
   let vehiclesWorking = 0;
@@ -246,6 +268,7 @@ export async function getDispatchMonth(month: string, tz: string): Promise<Dispa
     today,
     firms,
     allFirms,
+    vehicleOptions,
     totalEuro: Math.round(totalEuro * 100) / 100,
     totalDays,
     vehiclesWorking,
@@ -388,6 +411,23 @@ export async function addVehicle(input: { plate: string; companyId: string | nul
   if (dup.rows[0]) return { ok: false, error: `Există deja o mașină cu numărul ${dup.rows[0].plate}.` };
   const v = await createVehicle({ plate, companyId: input.companyId });
   return { ok: true, id: v.id };
+}
+
+/**
+ * Pune o mașină existentă (din Vehicule) la o firmă din Dispecerat.
+ * Firma mașinii se schimbă în tot TMS-ul (Flotă, Planificare), pentru că Dispecerat folosește aceeași firmă.
+ */
+export async function assignVehicleToFirm(input: { vehicleId: string; companyId: string }): Promise<Ok | Fail> {
+  const org = await orgId();
+  if (!(await vehicleInOrg(input.vehicleId, org))) return { ok: false, error: "Alege o mașină." };
+  const c = await pool.query(`select 1 from companies where id = $1 and organization_id = $2`, [input.companyId, org]);
+  if (c.rows.length === 0) return { ok: false, error: "Alege o firmă." };
+  await pool.query(`update vehicles set company_id = $3 where id = $1 and organization_id = $2`, [
+    input.vehicleId,
+    org,
+    input.companyId,
+  ]);
+  return { ok: true };
 }
 
 /** Adaugă un client nou (firmă). */
