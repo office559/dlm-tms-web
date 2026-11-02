@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrgContext } from "@/lib/org";
-import { addClient, addPeriod, addVehicle, deletePeriod, setFirmHidden, setRate, updatePeriod } from "@/lib/dispatch";
+import { addClient, addPeriod, addVehicle, assignVehicleToFirm, deletePeriod, setFirmHidden, setRate, updatePeriod } from "@/lib/dispatch";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +25,7 @@ function serverError(e: unknown) {
 // POST   /api/dispatch?t=vehicle        { plate, companyId? }       — mașină nouă
 // POST   /api/dispatch?t=company        { name }                    — client (firmă) nou
 // PATCH  /api/dispatch                  { id, start, end? }         — modifică o perioadă
+// PATCH  /api/dispatch?t=vehicle        { vehicleId, companyId }   — pune o mașină existentă la o firmă
 // PATCH  /api/dispatch?t=firm           { id, hidden }              — ascunde / arată o firmă în Dispecerat
 // DELETE /api/dispatch?id=...                                        — șterge o perioadă
 // PUT    /api/dispatch                  { vehicleId, month, rate|null } — prețul pe zi (€) al mașinii pe luna „AAAA-LL" (null = șterge)
@@ -57,6 +58,16 @@ export async function PATCH(req: NextRequest) {
     if (!(await allowed())) return NextResponse.json({ error: "Neautorizat" }, { status: 403 });
     const body = await req.json().catch(() => null);
     const id = str(body?.id);
+    if (req.nextUrl.searchParams.get("t") === "vehicle") {
+      const vehicleId = str(body?.vehicleId);
+      const companyId = str(body?.companyId);
+      if (!vehicleId || vehicleId.length > 64 || !companyId || companyId.length > 64) {
+        return NextResponse.json({ error: "Cerere invalidă." }, { status: 400 });
+      }
+      const res = await assignVehicleToFirm({ vehicleId, companyId });
+      if (!res.ok) return NextResponse.json({ error: res.error }, { status: 400 });
+      return NextResponse.json({ ok: true });
+    }
     if (req.nextUrl.searchParams.get("t") === "firm") {
       if (!id || id.length > 64 || typeof body?.hidden !== "boolean") {
         return NextResponse.json({ error: "Cerere invalidă." }, { status: 400 });
