@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DispatchMonth, DispatchVehicle, DispatchPeriod } from "@/lib/dispatch";
@@ -45,19 +45,47 @@ function pluralZile(n: number): string {
   return n === 1 ? "1 zi" : `${n} zile`;
 }
 
-async function call(method: "POST" | "PATCH" | "DELETE" | "PUT", body?: unknown, query = ""): Promise<string | null> {
+async function callJson(
+  method: "POST" | "PATCH" | "DELETE" | "PUT",
+  body?: unknown,
+  query = ""
+): Promise<{ error: string | null; json: { id?: string } | null }> {
   try {
     const res = await fetch(`/api/dispatch${query}`, {
       method,
       headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (res.ok) return null;
     const j = await res.json().catch(() => null);
-    return (j && typeof j.error === "string" && j.error) || `Nu s-a putut salva (cod ${res.status}). Încearcă din nou.`;
+    if (res.ok) return { error: null, json: j };
+    return {
+      error: (j && typeof j.error === "string" && j.error) || `Nu s-a putut salva (cod ${res.status}). Încearcă din nou.`,
+      json: null,
+    };
   } catch {
-    return "Nu s-a putut salva. Verifică conexiunea și încearcă din nou.";
+    return { error: "Nu s-a putut salva. Verifică conexiunea și încearcă din nou.", json: null };
   }
+}
+
+async function call(method: "POST" | "PATCH" | "DELETE" | "PUT", body?: unknown, query = ""): Promise<string | null> {
+  return (await callJson(method, body, query)).error;
+}
+
+function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+      <button type="button" aria-label="Închide" className="absolute inset-0 bg-slate-900/30" onClick={onClose} />
+      <div className="relative w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-semibold text-slate-900">{title}</h2>
+          <button type="button" className="text-lg leading-none text-slate-500 hover:text-slate-900" onClick={onClose}>
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
 }
 
 export function DispeceratView({ data }: { data: DispatchMonth }) {
@@ -78,6 +106,56 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
   const [y, mo] = data.month.split("-").map(Number);
   const monthLabel = `${MONTHS[mo - 1]} ${y}`;
   const [priceError, setPriceError] = useState<string | null>(null);
+
+  // meniul „+ Adaugă", ferestrele „Mașină nouă" / „Client nou" / „Gestionează firme"
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [modal, setModal] = useState<null | "vehicle" | "client" | "firms">(null);
+  const [plate, setPlate] = useState("");
+  const [firmId, setFirmId] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const hiddenFirms = data.allFirms.filter((f) => f.hidden);
+
+  function openModal(kind: "vehicle" | "client" | "firms", presetFirm = "") {
+    setMenuOpen(false);
+    setModalError(null);
+    setPlate("");
+    setClientName("");
+    setFirmId(presetFirm);
+    setModal(kind);
+  }
+
+  async function submitVehicle() {
+    setBusy(true);
+    setModalError(null);
+    const r = await callJson("POST", { plate, companyId: firmId || null }, "?t=vehicle");
+    setBusy(false);
+    if (r.error) return setModalError(r.error);
+    setModal(null);
+    setFlash(`Mașina ${plate.trim().toUpperCase()} a fost adăugată. Adaugă-i o perioadă din „+ Adaugă → Perioadă".`);
+    router.refresh();
+  }
+
+  async function submitClient() {
+    setBusy(true);
+    setModalError(null);
+    const r = await callJson("POST", { name: clientName }, "?t=company");
+    setBusy(false);
+    if (r.error) return setModalError(r.error);
+    setModal(null);
+    setFlash(`Clientul ${clientName.trim()} a fost adăugat. Adaugă-i mașini cu „+ Mașină în această firmă".`);
+    router.refresh();
+  }
+
+  async function toggleFirm(id: string, hidden: boolean) {
+    setBusy(true);
+    setModalError(null);
+    const err = await call("PATCH", { id, hidden }, "?t=firm");
+    setBusy(false);
+    if (err) return setModalError(err);
+    router.refresh();
+  }
 
   function resetForm() {
     setEdits({});
@@ -158,20 +236,20 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
     );
   }
 
-  async function savePrice(v: DispatchVehicle, text: string) {
+  async function saveRate(v: DispatchVehicle, text: string) {
     const t = text.trim().replace(",", ".");
     const next = t === "" ? null : Number(t);
     if (next !== null && (!Number.isFinite(next) || next < 0)) {
-      setPriceError(`Prețul pentru ${v.plate} nu este valid.`);
+      setPriceError(`Prețul pe zi pentru ${v.plate} nu este valid.`);
       router.refresh();
       return;
     }
-    if (next === v.price) {
+    if (next === v.rate) {
       setPriceError(null);
       return;
     }
     setPriceError(null);
-    const err = await call("PUT", { vehicleId: v.id, month: data.month, amount: next });
+    const err = await call("PUT", { vehicleId: v.id, month: data.month, rate: next });
     if (err) setPriceError(err);
     router.refresh();
   }
@@ -189,7 +267,7 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
         <div>
           <h1 className="text-xl font-bold text-slate-900">Dispecerat</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Perioadele mașinilor la dispecerat, pe firme, cu zile și preț. Prețul îl scrii tu, pe lună.
+            Perioadele mașinilor la dispecerat, pe firme. Scrii prețul pe zi, iar totalul lunii = zile × preț pe zi.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -210,9 +288,47 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
               ▶
             </Link>
           </div>
-          <button type="button" className={btnPrimary} onClick={() => openPanel("")}>
-            + Adaugă perioadă
-          </button>
+          <div className="relative">
+            <button type="button" className={btnPrimary} onClick={() => setMenuOpen((o) => !o)}>
+              + Adaugă ▾
+            </button>
+            {menuOpen && (
+              <>
+                <button
+                  type="button"
+                  aria-label="Închide meniul"
+                  className="fixed inset-0 z-30 cursor-default"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div className="absolute right-0 z-40 mt-1 w-56 rounded-xl border border-slate-200 bg-white p-1.5 text-sm shadow-lg">
+                  <button
+                    type="button"
+                    className="block w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      openPanel("");
+                    }}
+                  >
+                    Perioadă la dispecerat
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
+                    onClick={() => openModal("vehicle")}
+                  >
+                    Mașină nouă
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-100"
+                    onClick={() => openModal("client")}
+                  >
+                    Client nou
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -235,13 +351,22 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
         </div>
       </div>
 
+      {flash && (
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          <span>{flash}</span>
+          <button type="button" className="text-emerald-700 hover:text-emerald-900" onClick={() => setFlash(null)}>
+            ✕
+          </button>
+        </div>
+      )}
+
       {priceError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{priceError}</div>
       )}
 
       {data.firms.length === 0 && (
         <div className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-          Nu există mașini. Adaugă mai întâi mașinile în secțiunea Mașini.
+          Nu ai nicio firmă sau mașină în Dispecerat. Adaugă un client din „+ Adaugă".
         </div>
       )}
 
@@ -256,10 +381,18 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
                   <th className="text-left font-semibold px-2 py-1.5">In</th>
                   <th className="text-left font-semibold px-2 py-1.5">Out</th>
                   <th className="text-right font-semibold px-2 py-1.5">Zile</th>
-                  <th className="text-right font-semibold px-3 py-1.5">Preț €</th>
+                  <th className="text-right font-semibold px-2 py-1.5">Preț/zi €</th>
+                  <th className="text-right font-semibold px-3 py-1.5">Total €</th>
                 </tr>
               </thead>
               <tbody>
+                {firm.vehicles.length === 0 && (
+                  <tr className="border-t border-slate-100">
+                    <td colSpan={6} className="px-3 py-3 text-center text-slate-400">
+                      Nicio mașină la această firmă.
+                    </td>
+                  </tr>
+                )}
                 {firm.vehicles.map((v) => {
                   const rows = v.periods.length > 0 ? v.periods : [null];
                   return rows.map((p, i) => (
@@ -282,28 +415,40 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
                         ) : null}
                       </td>
                       <td className="px-2 py-1.5 text-right tabular-nums text-slate-700">{p ? p.days : ""}</td>
-                      <td className="px-3 py-1 text-right" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-2 py-1 text-right" onClick={(e) => e.stopPropagation()}>
                         {i === 0 && (
                           <input
-                            key={`${v.id}-${data.month}-${v.price ?? ""}`}
+                            key={`${v.id}-${data.month}-${v.rate ?? ""}`}
                             type="text"
                             inputMode="decimal"
-                            defaultValue={v.price === null ? "" : money(v.price)}
+                            defaultValue={v.rate === null ? "" : money(v.rate)}
                             placeholder="–"
-                            aria-label={`Preț ${v.plate}`}
-                            className="w-[68px] rounded-md border border-transparent hover:border-slate-300 focus:border-brand bg-transparent px-1.5 py-0.5 text-right text-xs tabular-nums outline-none"
-                            onBlur={(e) => savePrice(v, e.target.value)}
+                            aria-label={`Preț pe zi ${v.plate}`}
+                            className="w-[58px] rounded-md border border-transparent hover:border-slate-300 focus:border-brand bg-transparent px-1.5 py-0.5 text-right text-xs tabular-nums outline-none"
+                            onBlur={(e) => saveRate(v, e.target.value)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter") (e.target as HTMLInputElement).blur();
                             }}
                           />
                         )}
                       </td>
+                      <td className="px-3 py-1.5 text-right font-semibold tabular-nums text-slate-900">
+                        {i === 0 && (v.rate === null ? <span className="font-normal text-slate-300">–</span> : money(v.total))}
+                      </td>
                     </tr>
                   ));
                 })}
               </tbody>
             </table>
+            {firm.id && (
+              <button
+                type="button"
+                className="block w-full border-t border-dashed border-slate-300 bg-white px-4 py-2 text-left text-xs font-semibold text-brand hover:bg-slate-50"
+                onClick={() => openModal("vehicle", firm.id as string)}
+              >
+                + Mașină în această firmă
+              </button>
+            )}
             <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
               <span>
                 {pluralZile(firm.days)} · TOTAL:
@@ -313,6 +458,128 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
           </section>
         ))}
       </div>
+
+      <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-600">
+        {hiddenFirms.length > 0 ? (
+          <>
+            Firme ascunse din Dispecerat ({hiddenFirms.length}):{" "}
+            <b className="text-brand-dark">{hiddenFirms.map((f) => f.name).join(", ")}</b>
+          </>
+        ) : (
+          <>Nicio firmă ascunsă din Dispecerat.</>
+        )}
+        {" · "}
+        <button type="button" className="font-semibold text-brand hover:underline" onClick={() => openModal("firms")}>
+          Gestionează firme
+        </button>
+      </div>
+
+      {modal === "vehicle" && (
+        <Modal title="Mașină nouă" onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Număr de înmatriculare</label>
+              <input
+                className={inputCls}
+                value={plate}
+                autoFocus
+                placeholder="ex. SV 99 ABC"
+                onChange={(e) => setPlate(e.target.value.toUpperCase())}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !busy) submitVehicle();
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Firma (clientul)</label>
+              <select className={inputCls} value={firmId} onChange={(e) => setFirmId(e.target.value)}>
+                <option value="">Fără firmă</option>
+                {data.allFirms
+                  .filter((f) => !f.hidden)
+                  .map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-500">Mașina apare și în Flotă și Planificare. Restul datelor le completezi acolo.</p>
+            </div>
+            {modalError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{modalError}</div>}
+            <div className="flex gap-2">
+              <button type="button" className={btnPrimary} disabled={busy || plate.trim() === ""} onClick={submitVehicle}>
+                Adaugă mașina
+              </button>
+              <button type="button" className={btnGhost} disabled={busy} onClick={() => setModal(null)}>
+                Anulează
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {modal === "client" && (
+        <Modal title="Client nou" onClose={() => setModal(null)}>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1">Nume firmă</label>
+              <input
+                className={inputCls}
+                value={clientName}
+                autoFocus
+                placeholder="ex. TRANSPORT EXPRES SRL"
+                onChange={(e) => setClientName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !busy) submitClient();
+                }}
+              />
+            </div>
+            {modalError && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{modalError}</div>}
+            <div className="flex gap-2">
+              <button type="button" className={btnPrimary} disabled={busy || clientName.trim() === ""} onClick={submitClient}>
+                Adaugă clientul
+              </button>
+              <button type="button" className={btnGhost} disabled={busy} onClick={() => setModal(null)}>
+                Anulează
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {modal === "firms" && (
+        <Modal title="Firme în Dispecerat" onClose={() => setModal(null)}>
+          <p className="mb-3 text-xs text-slate-500">
+            Debifează firmele care nu sunt dispecerat (ex. mașinile tale). Ele dispar doar din această pagină; mașinile
+            rămân în Flotă, Planificare și Tacho.
+          </p>
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {data.allFirms.length === 0 && <p className="text-sm text-slate-500">Nu există firme.</p>}
+            {data.allFirms.map((f) => (
+              <label
+                key={f.id}
+                className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50"
+              >
+                <span className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!f.hidden}
+                    disabled={busy}
+                    onChange={(e) => toggleFirm(f.id, !e.target.checked)}
+                  />
+                  <span className={f.hidden ? "text-slate-400" : "font-medium text-slate-900"}>{f.name}</span>
+                </span>
+                <span className="text-xs text-slate-400">{f.vehicleCount} mașini</span>
+              </label>
+            ))}
+          </div>
+          {modalError && <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{modalError}</div>}
+          <div className="mt-4">
+            <button type="button" className={btnPrimary} onClick={() => setModal(null)}>
+              Gata
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 flex justify-end">
