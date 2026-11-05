@@ -11,6 +11,7 @@ import { WhatsAppLink } from "@/components/WhatsAppLink";
 import { matchesQuery } from "@/lib/search";
 import { waLink } from "@/lib/whatsapp";
 import { AppShell } from "@/components/AppShell";
+import { RestoreCancelledStatus } from "@/components/RestoreCancelledStatus";
 
 const STATUS_LABELS: Record<string, string> = {
   planificare: "Planificare",
@@ -262,13 +263,20 @@ export default async function JobsPage({
                             : "—"}
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={`rounded-full border-2 bg-white px-2.5 py-0.5 text-[13px] font-bold ${
-                            STATUS_STYLES[j.status] ?? "border-slate-400 text-slate-600"
-                          }`}
-                        >
-                          {STATUS_LABELS[j.status] ?? j.status}
-                        </span>
+                        {j.status === "anulat" ? (
+                          <RestoreCancelledStatus
+                            jobId={j.id}
+                            badgeClassName={`rounded-full border-2 bg-white px-2.5 py-0.5 text-[13px] font-bold ${STATUS_STYLES.anulat}`}
+                          />
+                        ) : (
+                          <span
+                            className={`rounded-full border-2 bg-white px-2.5 py-0.5 text-[13px] font-bold ${
+                              STATUS_STYLES[j.status] ?? "border-slate-400 text-slate-600"
+                            }`}
+                          >
+                            {STATUS_LABELS[j.status] ?? j.status}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <WaConfirmBadge
