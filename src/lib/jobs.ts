@@ -268,7 +268,8 @@ export async function deleteJob(id: string) {
 
 /**
  * Schimbare rapidă doar a statusului unei curse (din Planificare).
- * `cancelFee` se salvează doar când statusul devine "anulat".
+ * `cancelFee` se salvează doar când statusul devine "anulat"; la ieșirea din "anulat" (restabilirea cursei)
+ * taxa de anulare se șterge.
  * `km` (opțional) salvează kilometrajul de pe bord: start și/sau final;
  * o valoare lipsă (null) nu șterge ce era salvat deja.
  * La "finalizat": locația mașinii = locul de descărcare; mașina trece în "Viitor" dacă mai are
@@ -285,7 +286,7 @@ export async function patchJobStatus(
   const { rows } = await pool.query<Job>(
     `update jobs set
        status = $2,
-       cancel_fee = case when $2 = 'anulat' then $3 else cancel_fee end,
+       cancel_fee = case when $2 = 'anulat' then $3 when status = 'anulat' then null else cancel_fee end,
        km_start = coalesce($4::numeric, km_start),
        km_end = coalesce($5::numeric, km_end)
      where id = $1 and organization_id = $6
