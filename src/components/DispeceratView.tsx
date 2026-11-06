@@ -41,6 +41,19 @@ function spanDays(start: string, end: string): number {
   return dayNum(end) - dayNum(start) + 1;
 }
 
+const FIRM_COLORS = ["#2563eb", "#06b6d4", "#8b5cf6", "#f59e0b", "#10b981", "#ef4444", "#ec4899"];
+
+/** „01–30 noi" când e în aceeași lună, altfel „28 oct – 03 noi". */
+function periodLabel(p: DispatchPeriod): string {
+  if (!p.end) return fmtShort(p.start);
+  if (p.start.slice(0, 7) === p.end.slice(0, 7)) {
+    const [, m, d1] = p.start.split("-").map(Number);
+    const d2 = Number(p.end.slice(8, 10));
+    return `${String(d1).padStart(2, "0")}–${String(d2).padStart(2, "0")} ${MONTHS_SHORT[m - 1]}`;
+  }
+  return `${fmtShort(p.start)} – ${fmtShort(p.end)}`;
+}
+
 function pluralZile(n: number): string {
   return n === 1 ? "1 zi" : `${n} zile`;
 }
@@ -107,7 +120,7 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
   const monthLabel = `${MONTHS[mo - 1]} ${y}`;
   const [priceError, setPriceError] = useState<string | null>(null);
 
-  // meniul „+ Adaugă", ferestrele „Adaugă mașină" / „Client nou" / „Gestionează firme"
+  // meniul „+ Adaugă", ferestrele „Mașină nouă" / „Client nou" / „Gestionează firme"
   const [menuOpen, setMenuOpen] = useState(false);
   const [modal, setModal] = useState<null | "vehicle" | "client" | "firms">(null);
   const [plate, setPlate] = useState("");
@@ -119,6 +132,10 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
   const [modalError, setModalError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const hiddenFirms = data.allFirms.filter((f) => f.hidden);
+  const [expanded, setExpanded] = useState<string[]>([]);
+  const hasPeriods = (f: DispatchMonth["firms"][number]) => f.vehicles.some((v) => v.periods.length > 0);
+  const shownFirms = data.firms.filter((f) => hasPeriods(f) || expanded.includes(f.id ?? "none"));
+  const emptyFirms = data.firms.filter((f) => !hasPeriods(f) && !expanded.includes(f.id ?? "none"));
 
   function openModal(kind: "vehicle" | "client" | "firms", presetFirm = "") {
     setMenuOpen(false);
@@ -390,94 +407,114 @@ export function DispeceratView({ data }: { data: DispatchMonth }) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-4 items-start">
-        {data.firms.map((firm) => (
-          <section key={firm.id ?? "none"} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-            <div className="bg-brand text-white px-4 py-2.5 font-semibold text-sm">{firm.name}</div>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50 text-[10.5px] uppercase tracking-wide text-slate-500">
-                  <th className="text-left font-semibold px-3 py-1.5">Mașină</th>
-                  <th className="text-left font-semibold px-2 py-1.5">In</th>
-                  <th className="text-left font-semibold px-2 py-1.5">Out</th>
-                  <th className="text-right font-semibold px-2 py-1.5">Zile</th>
-                  <th className="text-right font-semibold px-2 py-1.5">Preț/zi €</th>
-                  <th className="text-right font-semibold px-3 py-1.5">Total €</th>
-                </tr>
-              </thead>
-              <tbody>
-                {firm.vehicles.length === 0 && (
-                  <tr className="border-t border-slate-100">
-                    <td colSpan={6} className="px-3 py-3 text-center text-slate-400">
-                      Nicio mașină la această firmă.
-                    </td>
-                  </tr>
-                )}
-                {firm.vehicles.map((v) => {
-                  const rows = v.periods.length > 0 ? v.periods : [null];
-                  return rows.map((p, i) => (
-                    <tr
-                      key={`${v.id}-${p ? p.id : "x"}`}
-                      onClick={() => openPanel(v.id)}
-                      className={`${i === 0 ? "border-t border-slate-100" : ""} hover:bg-slate-50 cursor-pointer`}
-                    >
-                      <td className="px-3 py-1.5 font-semibold text-slate-900 whitespace-nowrap">{i === 0 ? v.plate : ""}</td>
-                      <td className="px-2 py-1.5 text-slate-700 whitespace-nowrap">{p ? fmtShort(p.start) : ""}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap">
-                        {p ? (
-                          p.end ? (
-                            <span className="text-slate-700">{fmtShort(p.end)}</span>
-                          ) : (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-bold text-amber-800">
-                              în curs
-                            </span>
-                          )
-                        ) : null}
-                      </td>
-                      <td className="px-2 py-1.5 text-right tabular-nums text-slate-700">{p ? p.days : ""}</td>
-                      <td className="px-2 py-1 text-right" onClick={(e) => e.stopPropagation()}>
-                        {i === 0 && (
-                          <input
-                            key={`${v.id}-${data.month}-${v.rate ?? ""}`}
-                            type="text"
-                            inputMode="decimal"
-                            defaultValue={v.rate === null ? "" : money(v.rate)}
-                            placeholder="–"
-                            aria-label={`Preț pe zi ${v.plate}`}
-                            className="w-[58px] rounded-md border border-transparent hover:border-slate-300 focus:border-brand bg-transparent px-1.5 py-0.5 text-right text-xs tabular-nums outline-none"
-                            onBlur={(e) => saveRate(v, e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                            }}
-                          />
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+        {shownFirms.map((firm) => {
+          const idx = data.firms.indexOf(firm);
+          const color = FIRM_COLORS[idx % FIRM_COLORS.length];
+          const share = data.totalEuro > 0 ? Math.min(100, (firm.total / data.totalEuro) * 100) : 0;
+          return (
+            <section
+              key={firm.id ?? "none"}
+              className="rounded-xl border border-slate-200 bg-white px-4 pb-3 pt-3 shadow-sm"
+              style={{ borderTop: `4px solid ${color}` }}
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 className="truncate text-[15px] font-extrabold text-slate-900">{firm.name}</h2>
+                <b className="shrink-0 text-[15px] tabular-nums" style={{ color }}>
+                  {money(firm.total)} €
+                </b>
+              </div>
+              <div className="mb-1 mt-1.5 flex items-center justify-between gap-3 text-[11px] text-slate-400">
+                <span>
+                  {firm.vehicles.length} {firm.vehicles.length === 1 ? "mașină" : "mașini"} · {pluralZile(firm.days)}
+                </span>
+                <span>{Math.round(share)}% din total</span>
+              </div>
+              <div className="mb-2 h-1 rounded-full bg-slate-100">
+                <div className="h-1 rounded-full" style={{ width: `${share}%`, background: color }} />
+              </div>
+
+              {firm.vehicles.length === 0 && (
+                <p className="py-2 text-center text-xs text-slate-400">Nicio mașină la această firmă.</p>
+              )}
+
+              {firm.vehicles.map((v) => (
+                <div
+                  key={v.id}
+                  onClick={() => openPanel(v.id)}
+                  className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-1.5 py-1.5 text-[13px] hover:bg-slate-50"
+                >
+                  <div className="w-[92px] shrink-0 font-bold text-slate-900">{v.plate}</div>
+                  <div className="min-w-[110px] flex-1 text-slate-400">
+                    {v.periods.length === 0 && <span className="text-slate-300">fără perioadă</span>}
+                    {v.periods.map((p, i) => (
+                      <span key={p.id} className="whitespace-nowrap">
+                        {i > 0 && ", "}
+                        {periodLabel(p)}
+                        {!p.end && (
+                          <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                            în curs
+                          </span>
                         )}
-                      </td>
-                      <td className="px-3 py-1.5 text-right font-semibold tabular-nums text-slate-900">
-                        {i === 0 && (v.rate === null ? <span className="font-normal text-slate-300">–</span> : money(v.total))}
-                      </td>
-                    </tr>
-                  ));
-                })}
-              </tbody>
-            </table>
-            {firm.id && (
+                      </span>
+                    ))}
+                  </div>
+                  <div className="w-10 text-right tabular-nums text-slate-600">{v.days > 0 ? `${v.days} z` : ""}</div>
+                  <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      key={`${v.id}-${data.month}-${v.rate ?? ""}`}
+                      type="text"
+                      inputMode="decimal"
+                      defaultValue={v.rate === null ? "" : money(v.rate)}
+                      placeholder="preț/zi"
+                      aria-label={`Preț pe zi ${v.plate}`}
+                      className="w-[68px] rounded-md border border-slate-300 bg-white px-1.5 py-0.5 text-right text-xs tabular-nums outline-none focus:border-brand"
+                      onBlur={(e) => saveRate(v, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      }}
+                    />
+                    <span className="ml-1 text-xs text-slate-400">€</span>
+                  </div>
+                  <div className="w-[76px] text-right font-bold tabular-nums text-slate-900">
+                    {v.rate === null ? <span className="font-normal text-slate-300">–</span> : `${money(v.total)} €`}
+                  </div>
+                </div>
+              ))}
+
+              {firm.id && (
+                <button
+                  type="button"
+                  className="mt-1 px-1.5 py-1 text-xs font-bold text-brand hover:underline"
+                  onClick={() => openModal("vehicle", firm.id as string)}
+                >
+                  + Mașină în această firmă
+                </button>
+              )}
+            </section>
+          );
+        })}
+      </div>
+
+      {emptyFirms.length > 0 && (
+        <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-600">
+          <span className="font-semibold text-slate-700">Fără perioade în {MONTHS[mo - 1]}:</span>{" "}
+          {emptyFirms.map((f, i) => (
+            <span key={f.id ?? "none"}>
+              {i > 0 && " · "}
               <button
                 type="button"
-                className="block w-full border-t border-dashed border-slate-300 bg-white px-4 py-2 text-left text-xs font-semibold text-brand hover:bg-slate-50"
-                onClick={() => openModal("vehicle", firm.id as string)}
+                className="font-medium text-brand hover:underline"
+                title="Arată firma"
+                onClick={() => setExpanded((prev) => [...prev, f.id ?? "none"])}
               >
-                + Mașină în această firmă
+                {f.name} ({f.vehicles.length})
               </button>
-            )}
-            <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-t border-slate-200 text-xs text-slate-600">
-              <span>
-                {pluralZile(firm.days)} · TOTAL:
-              </span>
-              <b className="text-sm text-brand-dark tabular-nums">{money(firm.total)} €</b>
-            </div>
-          </section>
-        ))}
-      </div>
+            </span>
+          ))}
+          <span className="ml-1 text-xs text-slate-400">— apasă pe o firmă ca să o deschizi</span>
+        </div>
+      )}
 
       <div className="rounded-xl border border-dashed border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-600">
         {hiddenFirms.length > 0 ? (
