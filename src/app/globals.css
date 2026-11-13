@@ -7,7 +7,39 @@ body {
   height: 100%;
 }
 
-/* ---------- telefon / tabletă: tabelele late se derulează pe lateral, nu se mai suprapun ---------- */
+/* ================================================================
+   TELEFON ȘI TABLETĂ — corecturi generale pentru toată aplicația
+   ================================================================ */
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* înălțimea reală a ecranului pe telefon (nu se mai ascunde jos sub bara browserului) */
+@supports (height: 100dvh) {
+  .h-screen {
+    height: 100dvh;
+  }
+  .min-h-screen {
+    min-height: 100dvh;
+  }
+}
+
+/* ferestrele (dialoguri): pe ecran jos (telefon culcat, tabletă mică) nu mai depășesc ecranul, se derulează în interior */
+@media (max-height: 760px) {
+  .fixed.inset-0.items-center.justify-center > div {
+    max-height: calc(100vh - 2rem);
+    overflow-y: auto;
+  }
+  @supports (height: 100dvh) {
+    .fixed.inset-0.items-center.justify-center > div {
+      max-height: calc(100dvh - 2rem);
+    }
+  }
+}
+
+/* tabelele late se derulează pe lateral, nu se mai suprapun */
 @media (max-width: 1023px) {
   .rounded-2xl:has(> table),
   .rounded-2xl:has(> div > table),
@@ -20,6 +52,50 @@ body {
   div.overflow-hidden > table.w-full,
   .overflow-x-auto > table.w-full {
     min-width: 640px;
+  }
+}
+
+/* telefon */
+@media (max-width: 767px) {
+  /* iPhone nu mai mărește pagina când apeși într-un câmp */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+  /* câmpuri și butoane mai ușor de apăsat cu degetul */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select {
+    min-height: 40px;
+  }
+}
+
+/* telefon îngust */
+@media (max-width: 639px) {
+  /* formularele: câmpurile unul sub altul */
+  form .grid-cols-2,
+  form .grid-cols-3 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* titlul paginii și butonul „+ Adaugă” nu se mai înghesuie */
+  [class*="space-y-"] > .flex.items-center.justify-between,
+  [class*="space-y-"] > .flex.items-start.justify-between {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+  /* rândurile de căutare */
+  form.flex {
+    flex-wrap: wrap;
+  }
+  form.flex > input[type="text"],
+  form.flex > input[type="search"] {
+    flex: 1 1 12rem;
+    min-width: 0;
+    max-width: none;
+  }
+  /* cardurile nu ating marginea ecranului */
+  .max-w-\[1500px\] {
+    padding: 0.75rem;
   }
 }
 
@@ -77,7 +153,7 @@ html[data-theme="glass"] aside.bg-white {
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
 }
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   html[data-theme="glass"] aside,
   html[data-theme="glass"] aside.bg-white {
     background: rgba(255, 255, 255, 0.13) !important;
