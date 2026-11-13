@@ -241,6 +241,18 @@ function DispecerateIcon() {
   );
 }
 
+/** Doi oameni — Salariați (doar proprietarul platformei). */
+function EmployeesIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5" />
+      <circle cx="17.5" cy="9" r="2.5" />
+      <path d="M17 14.2c2.3.1 4 1.6 4.5 4.3" />
+    </svg>
+  );
+}
+
 /** Săgeată stânga/dreapta — butonul de strâns/extins meniul. */
 function CollapseChevron({ collapsed }: { collapsed: boolean }) {
   return (
@@ -271,6 +283,7 @@ const NAV_ICONS: Record<string, () => ReactElement> = {
   settings: SettingsIcon,
   restrictions: RestrictionsIcon,
   platform: PlatformIcon,
+  employees: EmployeesIcon,
 };
 
 function NavIcon({ navKey }: { navKey: string }) {
@@ -388,22 +401,22 @@ export function ShellFrame({
     router.refresh();
   }
 
-  // Etichetele se ascund doar pe ecran mare (md+), când meniul e strâns.
-  const hideWhenCollapsed = collapsed ? "md:hidden" : "";
+  // Etichetele se ascund doar pe ecran mare (lg+), când meniul e strâns.
+  const hideWhenCollapsed = collapsed ? "lg:hidden" : "";
 
   return (
     <TimezoneProvider value={tz}>
       <div className="h-screen flex overflow-hidden bg-slate-100">
         {open && (
-          <div className="fixed inset-0 bg-black/40 z-20 md:hidden" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 bg-black/40 z-20 lg:hidden" onClick={() => setOpen(false)} />
         )}
 
         <aside
-          className={`fixed md:relative md:static inset-y-0 left-0 z-30 h-full w-60 ${
-            collapsed ? "md:w-[68px]" : "md:w-60"
+          className={`fixed lg:relative lg:static inset-y-0 left-0 z-30 h-full w-60 max-w-[85vw] ${
+            collapsed ? "lg:w-[68px]" : "lg:w-60"
           } bg-[var(--sidebar-bg,#ffffff)] border-r border-slate-200 flex flex-col transition-[transform,width] duration-200 ${
             open ? "translate-x-0" : "-translate-x-full"
-          } md:translate-x-0`}
+          } lg:translate-x-0`}
         >
           {/* Linia de pe marginea meniului: apasă ca să strângi / extinzi meniul. */}
           <button
@@ -411,14 +424,14 @@ export function ShellFrame({
             onClick={toggleCollapsed}
             title={collapsed ? "Extinde meniul" : "Restrânge meniul"}
             aria-label={collapsed ? "Extinde meniul" : "Restrânge meniul"}
-            className="hidden md:block absolute top-0 -right-[3px] z-40 h-full w-[6px] cursor-pointer bg-transparent transition hover:bg-sky-400/60"
+            className="hidden lg:block absolute top-0 -right-[3px] z-40 h-full w-[6px] cursor-pointer bg-transparent transition hover:bg-sky-400/60"
           />
           <button
             type="button"
             onClick={toggleCollapsed}
             title={collapsed ? "Extinde meniul" : "Restrânge meniul"}
             aria-label={collapsed ? "Extinde meniul" : "Restrânge meniul"}
-            className="hidden md:grid absolute top-1/2 -right-3 z-40 h-6 w-6 -translate-y-1/2 place-items-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-sm transition hover:border-sky-400 hover:text-sky-600"
+            className="hidden lg:grid absolute top-1/2 -right-3 z-40 h-6 w-6 -translate-y-1/2 place-items-center rounded-full border border-slate-300 bg-white text-slate-500 shadow-sm transition hover:border-sky-400 hover:text-sky-600"
           >
             <CollapseChevron collapsed={collapsed} />
           </button>
@@ -428,7 +441,7 @@ export function ShellFrame({
               <TmsLogo />
             </div>
             {collapsed && (
-              <div className="tms-logo-box hidden md:grid h-10 w-full place-items-center rounded-lg border border-slate-200 bg-white">
+              <div className="tms-logo-box hidden lg:grid h-10 w-full place-items-center rounded-lg border border-slate-200 bg-white">
                 <TmsMark />
               </div>
             )}
@@ -441,7 +454,7 @@ export function ShellFrame({
                 >
                   {g.title}
                 </h4>
-                {collapsed && <div className="hidden md:block mt-2.5 mb-1.5 mx-2 border-t border-slate-200" />}
+                {collapsed && <div className="hidden lg:block mt-2.5 mb-1.5 mx-2 border-t border-slate-200" />}
                 {g.items.map((item) => {
                   const on = activeKey === item.key;
                   return (
@@ -451,7 +464,7 @@ export function ShellFrame({
                       onClick={() => setOpen(false)}
                       title={collapsed ? item.label : undefined}
                       className={`flex items-center gap-2.5 px-2.5 py-1.5 mb-0.5 rounded-lg text-sm border-l-[3px] transition ${
-                        collapsed ? "md:justify-center md:px-0 md:gap-0" : ""
+                        collapsed ? "lg:justify-center lg:px-0 lg:gap-0" : ""
                       } ${
                         on
                           ? "bg-orange-50 text-brand-dark border-orange-500 font-bold"
@@ -473,7 +486,7 @@ export function ShellFrame({
               disabled={loggingOut}
               title={collapsed ? "Deconectare" : undefined}
               className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-slate-800 transition hover:bg-red-50 hover:text-red-600 disabled:opacity-50 ${
-                collapsed ? "md:justify-center md:px-0 md:gap-0" : ""
+                collapsed ? "lg:justify-center lg:px-0 lg:gap-0" : ""
               }`}
             >
               <LogoutIcon />
@@ -489,7 +502,7 @@ export function ShellFrame({
           <header className="flex items-center gap-3 px-4 md:px-5 py-2.5 bg-white border-b border-slate-200 flex-none">
             <button
               type="button"
-              className="md:hidden rounded-lg border border-slate-300 w-8 h-8 grid place-items-center text-slate-600 flex-none"
+              className="lg:hidden rounded-lg border border-slate-300 w-10 h-10 sm:w-8 sm:h-8 grid place-items-center text-slate-600 flex-none"
               aria-label="Meniu"
               onClick={() => setOpen((v) => !v)}
             >
@@ -498,7 +511,7 @@ export function ShellFrame({
             <div className="text-xs text-slate-500 whitespace-nowrap hidden sm:block">
               TMS &rsaquo; <b className="text-slate-800">{crumb}</b>
             </div>
-            <form action="/jobs" method="GET" className="hidden md:block flex-1 max-w-xs">
+            <form action="/jobs" method="GET" className="hidden lg:block flex-1 max-w-xs">
               <input
                 type="text"
                 name="q"
