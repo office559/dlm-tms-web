@@ -7,6 +7,22 @@ body {
   height: 100%;
 }
 
+/* ---------- telefon / tabletă: tabelele late se derulează pe lateral, nu se mai suprapun ---------- */
+@media (max-width: 1023px) {
+  .rounded-2xl:has(> table),
+  .rounded-2xl:has(> div > table),
+  div.overflow-hidden:has(> table) {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .rounded-2xl > table.w-full,
+  .rounded-2xl > div > table.w-full,
+  div.overflow-hidden > table.w-full,
+  .overflow-x-auto > table.w-full {
+    min-width: 640px;
+  }
+}
+
 body {
   background: #f4f6fb;
   color: #0e1a2b;
