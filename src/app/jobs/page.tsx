@@ -86,6 +86,12 @@ function jobMessage(j: {
   return lines.join("\n");
 }
 
+function rateText(j: { status: string; cancel_fee?: unknown; currency?: string | null; rate?: unknown }): string {
+  if (j.status === "anulat") return `${Number(j.cancel_fee ?? 0)} ${j.currency ?? "€"}`;
+  if (j.rate != null) return `${j.rate} ${j.currency ?? ""}`;
+  return "—";
+}
+
 export default async function JobsPage({
   searchParams,
 }: {
@@ -165,7 +171,7 @@ export default async function JobsPage({
   return (
     <AppShell active="jobs" crumb="Job Center">
       <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-brand-dark">Job Center</h1>
           <p className="text-slate-600 mt-1">Cursele planificate și în desfășurare.</p>
@@ -175,13 +181,13 @@ export default async function JobsPage({
         </a>
       </div>
 
-      <form className="flex gap-2">
+      <form className="flex flex-wrap gap-2">
         <input
           type="text"
           name="q"
           defaultValue={q}
           placeholder="Caută după traseu, referință, client, șofer, vehicul..."
-          className="w-full max-w-sm rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
+          className="min-w-0 flex-1 basis-56 max-w-sm rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-brand"
         />
         <button type="submit" className="rounded-lg border border-slate-300 px-4 py-2 text-slate-700 hover:bg-slate-50 transition">
           Caută
@@ -197,7 +203,7 @@ export default async function JobsPage({
         const total = groupTotal(g.jobs);
         return (
           <div key={g.key} className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <div className="flex items-center justify-between gap-3 bg-[#1e3a5f] px-4 py-3 text-white">
+            <div className="flex flex-col gap-2 bg-[#1e3a5f] px-4 py-3 text-white sm:flex-row sm:items-center sm:justify-between sm:gap-3">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-base font-extrabold">{g.name}</span>
                 {STATUS_ORDER.map((st) => {
@@ -213,12 +219,63 @@ export default async function JobsPage({
                   );
                 })}
               </div>
-              <div className="whitespace-nowrap text-[13px] font-semibold opacity-85">
+              <div className="text-[13px] font-semibold opacity-85 sm:whitespace-nowrap">
                 {g.jobs.length} {g.jobs.length === 1 ? "cursă" : "curse"}
                 {total ? ` · total ${total}` : ""}
               </div>
             </div>
-            <table className="w-full table-fixed text-[14.5px]">
+            <div className="xl:hidden">
+              {g.jobs.map((j) => {
+                const dName = j.driver_id ? driverName.get(j.driver_id) : null;
+                const dPhone = j.driver_id ? driverPhone.get(j.driver_id) : null;
+                const cName = j.client_id ? customerName.get(j.client_id) ?? null : null;
+                const waHref = dName && dPhone ? waLink(dPhone, waCountry, jobMessage(j, dName, cName)) : null;
+                const plate = j.vehicle_id ? vehiclePlate.get(j.vehicle_id) ?? null : null;
+                return (
+                  <div key={j.id} className="border-t border-slate-200 px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <b className="min-w-0 break-words text-[15px] font-extrabold">
+                        {j.load_place || "—"} → {j.unload_place || "—"}
+                      </b>
+                      <b className="whitespace-nowrap text-[15px] font-extrabold">{rateText(j)}</b>
+                    </div>
+                    <div className="mt-1 text-[13px] text-slate-600">
+                      {dName ?? "—"} · <b className="text-slate-800">{plate ?? "—"}</b>
+                    </div>
+                    <div className="text-[13px] text-slate-600">Start {fmtStart(j.start_at)}</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-2">
+                      {j.status === "anulat" ? (
+                        <RestoreCancelledStatus
+                          jobId={j.id}
+                          badgeClassName={`rounded-full border-2 bg-white px-2.5 py-0.5 text-[13px] font-bold ${STATUS_STYLES.anulat}`}
+                        />
+                      ) : (
+                        <span
+                          className={`rounded-full border-2 bg-white px-2.5 py-0.5 text-[13px] font-bold ${
+                            STATUS_STYLES[j.status] ?? "border-slate-400 text-slate-600"
+                          }`}
+                        >
+                          {STATUS_LABELS[j.status] ?? j.status}
+                        </span>
+                      )}
+                      <WaConfirmBadge
+                        waMessageSid={j.wa_message_sid}
+                        waReadAt={j.wa_read_at}
+                        waConfirmedAt={j.wa_confirmed_at}
+                      />
+                      <span className="ml-auto flex items-center gap-3 text-sm font-bold">
+                        <WhatsAppLink href={waHref} label="Anunță șofer" />
+                        <a href={`/jobs/${j.id}`} className="text-slate-900 hover:text-brand">
+                          Editează
+                        </a>
+                        <DeleteButton url={`/api/jobs/${j.id}`} confirmText={`Ștergi cursa ${j.ref || j.id}?`} />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <table className="hidden w-full table-fixed text-[14.5px] xl:table">
               <colgroup>
                 <col style={{ width: "16%" }} />
                 <col style={{ width: "15%" }} />
