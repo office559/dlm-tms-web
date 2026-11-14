@@ -18,11 +18,21 @@ export async function PATCH(
     return NextResponse.json({ error: "Numărul de înmatriculare este obligatoriu" }, { status: 400 });
   }
 
-  const trailer = await updateTrailer(id, body);
-  if (!trailer) {
-    return NextResponse.json({ error: "Remorca nu a fost găsită" }, { status: 404 });
+  try {
+    const trailer = await updateTrailer(id, body);
+    if (!trailer) {
+      return NextResponse.json({ error: "Remorca nu a fost găsită" }, { status: 404 });
+    }
+    return NextResponse.json(trailer);
+  } catch (err) {
+    const e = err as { message?: string; detail?: string; constraint?: string; code?: string } | null;
+    const why =
+      [e?.message, e?.detail, e?.constraint ? `(constrângere: ${e.constraint})` : "", e?.code ? `[cod ${e.code}]` : ""]
+        .filter(Boolean)
+        .join(" ") || "Eroare necunoscută";
+    console.error("PATCH /api/trailers/[id] a eșuat:", err);
+    return NextResponse.json({ error: `Nu s-a putut salva: ${why}` }, { status: 500 });
   }
-  return NextResponse.json(trailer);
 }
 
 export async function DELETE(
