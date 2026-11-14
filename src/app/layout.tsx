@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./themes.css";
 import { ThemeSwitch } from "@/components/ThemeSwitch";
 
 export const metadata: Metadata = {
@@ -8,8 +9,9 @@ export const metadata: Metadata = {
 };
 
 // Se rulează înainte de afișarea paginii, ca să nu „clipească” tema.
-// Implicit rămâne aspectul clasic; „glass” se aplică doar dacă utilizatorul l-a ales.
-const THEME_SCRIPT = `try{if(localStorage.getItem("dlm-theme")==="glass"){document.documentElement.setAttribute("data-theme","glass");}}catch(e){}`;
+// Implicit rămâne aspectul clasic; orice altă temă (glass, ocean, grafit etc.)
+// se aplică doar dacă utilizatorul a ales-o din Setări sau din butonul „Aspect”.
+const THEME_SCRIPT = `try{var t=localStorage.getItem("dlm-theme");if(t&&t!=="classic"&&/^[a-z]+$/.test(t)){document.documentElement.setAttribute("data-theme",t);}}catch(e){}`;
 
 export default function RootLayout({
   children,
