@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getBrokerage } from "@/lib/brokerage";
 import { BrokerageForm } from "@/components/BrokerageForm";
 import { AppShell } from "@/components/AppShell";
+import { dateInputValue } from "@/lib/date-input";
 
 export default async function EditBrokeragePage({
   params,
@@ -28,8 +29,8 @@ export default async function EditBrokeragePage({
               client: item.client,
               ref: item.ref ?? "",
               route: item.route ?? "",
-              collectDate: item.collect_date ? String(item.collect_date).slice(0, 10) : "",
-              deliverDate: item.deliver_date ? String(item.deliver_date).slice(0, 10) : "",
+              collectDate: dateInputValue(item.collect_date),
+              deliverDate: dateInputValue(item.deliver_date),
               clientPrice: item.client_price != null ? String(item.client_price) : "",
               sub: item.sub ?? "",
               subPrice: item.sub_price != null ? String(item.sub_price) : "",
