@@ -7,6 +7,7 @@ import { listTrailers } from "@/lib/trailers";
 import { listCompanies } from "@/lib/companies";
 import { VehicleForm } from "@/components/VehicleForm";
 import { AppShell } from "@/components/AppShell";
+import { dateInputValue } from "@/lib/date-input";
 
 export default async function EditVehiclePage({
   params,
@@ -37,11 +38,11 @@ export default async function EditVehiclePage({
               type: vehicle.type ?? "TRACTOR",
               price: vehicle.price != null ? String(vehicle.price) : "",
               location: vehicle.location ?? "",
-              itpExp: vehicle.itp_exp ? String(vehicle.itp_exp).slice(0, 10) : "",
-              rcaExp: vehicle.rca_exp ? String(vehicle.rca_exp).slice(0, 10) : "",
-              cascoExp: vehicle.casco_exp ? String(vehicle.casco_exp).slice(0, 10) : "",
-              insuranceExp: vehicle.insurance_exp ? String(vehicle.insurance_exp).slice(0, 10) : "",
-              tachoExp: vehicle.tacho_exp ? String(vehicle.tacho_exp).slice(0, 10) : "",
+              itpExp: dateInputValue(vehicle.itp_exp),
+              rcaExp: dateInputValue(vehicle.rca_exp),
+              cascoExp: dateInputValue(vehicle.casco_exp),
+              insuranceExp: dateInputValue(vehicle.insurance_exp),
+              tachoExp: dateInputValue(vehicle.tacho_exp),
               driverId: vehicle.driver_id ?? "",
               trailerId: vehicle.trailer_id ?? "",
               companyId: vehicle.company_id ?? "",
