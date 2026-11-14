@@ -7,6 +7,7 @@ import { listDrivers } from "@/lib/drivers";
 import { WhatsAppLink } from "@/components/WhatsAppLink";
 import { waLink } from "@/lib/whatsapp";
 import { AppShell } from "@/components/AppShell";
+import { RenewDocButton } from "@/components/RenewDocButton";
 
 function badgeClass(daysLeft: number) {
   if (daysLeft < 0) return "bg-red-50 text-red-700";
@@ -115,7 +116,8 @@ export default async function AlertsPage({
                       {daysLabel(a.days_left)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right space-x-3">
+                  <td className="px-4 py-3 text-right space-x-3 whitespace-nowrap">
+                    <RenewDocButton kind={a.kind} id={a.id} plate={a.plate} doc={a.doc} expIso={a.exp_iso} />
                     <WhatsAppLink href={waHrefFor(a)} label="Anunță șofer" />
                     <a href={a.kind === "vehicul" ? `/vehicles/${a.id}` : `/trailers/${a.id}`} className="text-brand hover:text-brand-dark text-sm">
                       Editează
@@ -157,7 +159,8 @@ export default async function AlertsPage({
                     {daysLabel(a.days_left)}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right space-x-3">
+                <td className="px-4 py-3 text-right space-x-3 whitespace-nowrap">
+                  <RenewDocButton kind={a.kind} id={a.id} plate={a.plate} doc={a.doc} expIso={a.exp_iso} />
                   <WhatsAppLink href={waHrefFor(a)} label="Anunță șofer" />
                   <a href={a.kind === "vehicul" ? `/vehicles/${a.id}` : `/trailers/${a.id}`} className="text-brand hover:text-brand-dark text-sm">
                     Editează
