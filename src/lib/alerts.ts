@@ -7,13 +7,15 @@ export type ExpiryAlert = {
   plate: string;
   doc: string;
   exp_date: string;
+  /** aceeași dată, ca text „AAAA-LL-ZZ” (pentru câmpurile de dată din formulare) */
+  exp_iso: string;
   days_left: number;
   driver_id: string | null;
 };
 
 export async function listExpiryAlerts(days: number) {
   const { rows } = await pool.query<ExpiryAlert>(
-    `select kind, id, plate, doc, exp_date, (exp_date - current_date)::int as days_left, driver_id
+    `select kind, id, plate, doc, exp_date, to_char(exp_date, 'YYYY-MM-DD') as exp_iso, (exp_date - current_date)::int as days_left, driver_id
      from (
        select 'vehicul' as kind, id, plate, 'ITP' as doc, itp_exp as exp_date, driver_id from vehicles where organization_id = $2 and active and itp_exp is not null
        union all
