@@ -23,6 +23,15 @@ function textOrNull(v: unknown): string | null {
   return s === "" ? null : s;
 }
 
+/** Mesajul real al erorii (inclusiv cel din baza de date), ca să nu mai vezi doar „A apărut o eroare”. */
+function describeError(err: unknown): string {
+  const e = err as { message?: string; code?: string; detail?: string; constraint?: string } | null;
+  const parts = [e?.message, e?.detail, e?.constraint ? `(constrângere: ${e.constraint})` : "", e?.code ? `[cod ${e.code}]` : ""]
+    .filter(Boolean)
+    .join(" ");
+  return parts || "Eroare necunoscută";
+}
+
 function numOrNull(v: unknown): number | null {
   if (v === undefined || v === null || v === "") return null;
   const n = Number(v);
@@ -58,7 +67,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: "Vehiculul nu există" }, { status: 404 });
   }
 
-  const body = (await req.json()) as Record<string, unknown>;
+  let body: Record<string, unknown>;
+  try {
+    body = (await req.json()) as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Cerere invalidă" }, { status: 400 });
+  }
 
   const pickText = (camel: string, snake: string, current: string | null) => {
     const r = read(body, camel, snake);
@@ -88,11 +102,16 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     active: active.has ? Boolean(active.value) : existing.active,
   };
 
-  const updated = await updateVehicle(id, input);
-  if (!updated) {
-    return NextResponse.json({ error: "Vehiculul nu există" }, { status: 404 });
+  try {
+    const updated = await updateVehicle(id, input);
+    if (!updated) {
+      return NextResponse.json({ error: "Vehiculul nu există" }, { status: 404 });
+    }
+    return NextResponse.json(updated);
+  } catch (err) {
+    console.error("PATCH /api/vehicles/[id] a eșuat:", err);
+    return NextResponse.json({ error: `Nu s-a putut salva: ${describeError(err)}` }, { status: 500 });
   }
-  return NextResponse.json(updated);
 }
 
 /** Ștergerea unui vehicul (butonul „Șterge" din lista Vehicule). */
