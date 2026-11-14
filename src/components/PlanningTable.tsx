@@ -1,530 +1,275 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import type { PlanningRow } from "@/components/planning-types";
-import { FLEET_ROW_STYLES } from "@/lib/fleet-labels";
-import {
-  CazuriControl,
-  DriverSelect,
-  LocationControl,
-  PauseBadgeControl,
-  ProgramControl,
-  StareControl,
-  WeeklyRestControl,
-} from "@/components/PlanningCells";
-import { NoteControl } from "@/components/PlanningExtras";
-import { RouteCell } from "@/components/PlanningRoute";
-import { CabotageCell } from "@/components/PlanningCabotage";
-import { DragHandleIcon, ResetIcon, waBadge } from "@/components/PlanningIcons";
+import { useState } from "react";
+import { Time24Input } from "@/components/Time24Input";
+import { useTimezone } from "@/components/TimezoneProvider";
+import { formatTimeInTz, nowTimeInTz, zonedParts, zonedTimeToDate } from "@/lib/tz";
+import { fmtCountdown, patchVehicle } from "@/lib/planning-helpers";
 
-export type { PlanningRow } from "@/components/planning-types";
-
-type ColumnKey =
-  | "vehicul"
-  | "vrid"
-  | "scac"
-  | "data"
-  | "stare"
-  | "sofer"
-  | "program"
-  | "pauza"
-  | "pauzaSapt"
-  | "locatie"
-  | "cabotaj"
-  | "traseu"
-  | "cazuri"
-  | "whatsapp"
-  | "notita";
-
-const DEFAULT_ORDER: ColumnKey[] = [
-  "vehicul",
-  "scac",
-  "cabotaj",
-  "vrid",
-  "data",
-  "stare",
-  "sofer",
-  "program",
-  "pauza",
-  "locatie",
-  "traseu",
-  "whatsapp",
-  "pauzaSapt",
-  "cazuri",
-  "notita",
-];
-
-const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
-  vehicul: 260,
-  vrid: 170,
-  scac: 100,
-  data: 110,
-  stare: 170,
-  sofer: 230,
-  program: 210,
-  pauza: 200,
-  pauzaSapt: 200,
-  locatie: 130,
-  cabotaj: 150,
-  traseu: 240,
-  cazuri: 170,
-  whatsapp: 170,
-  notita: 240,
-};
-
-const MIN_WIDTH = 60;
-
-/** La câte secunde se reîmprospătează automat datele tabelului. */
-const AUTO_REFRESH_SECONDS = 10;
-
-// v3: ordinea standard a coloanelor a fost schimbată pentru toți utilizatorii.
-// Ordinea veche (v2) se ignoră; lățimile alese în v2 se păstrează.
-const STORAGE_KEY = "dlm-planning-columns-v3";
-const OLD_STORAGE_KEY = "dlm-planning-columns-v2";
-
-type StoredState = {
-  order: ColumnKey[];
-  widths: Partial<Record<ColumnKey, number>>;
-};
-
-function parseWidths(raw: unknown): Partial<Record<ColumnKey, number>> {
-  const widths: Partial<Record<ColumnKey, number>> = {};
-  if (raw && typeof raw === "object") {
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
-      if ((DEFAULT_ORDER as string[]).includes(k) && typeof v === "number" && v >= MIN_WIDTH) {
-        widths[k as ColumnKey] = v;
-      }
-    }
-  }
-  return widths;
-}
-
-function loadState(): StoredState {
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      // Prima încărcare după schimbare: ordinea standard nouă + lățimile vechi.
-      const old = window.localStorage.getItem(OLD_STORAGE_KEY);
-      const oldParsed = old ? (JSON.parse(old) as { widths?: unknown }) : null;
-      return { order: DEFAULT_ORDER, widths: parseWidths(oldParsed?.widths) };
-    }
-    const parsed = JSON.parse(raw) as { order?: unknown; widths?: unknown };
-    const rawOrder = Array.isArray(parsed.order) ? (parsed.order as string[]) : [];
-    const valid = rawOrder.filter((k): k is ColumnKey => (DEFAULT_ORDER as string[]).includes(k));
-    const missing = DEFAULT_ORDER.filter((k) => !valid.includes(k));
-    return { order: [...valid, ...missing], widths: parseWidths(parsed.widths) };
-  } catch {
-    return { order: DEFAULT_ORDER, widths: {} };
-  }
-}
-
-/** Camionul alb din pătratul portocaliu al coloanei Vehicul. */
-function TruckSvg() {
+/** Iconiță de lună, pentru cardurile de repaus săptămânal (45h / 24h). */
+function MoonIcon({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M14 17h1a1 1 0 0 0 1-1v-2.5a1 1 0 0 0-.29-.7l-2.5-2.5a1 1 0 0 0-.71-.3H10" />
-      <path d="M3 6h9v10H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" />
-      <circle cx="7" cy="17" r="2" />
-      <circle cx="17" cy="17" r="2" />
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M20.354 15.354A9 9 0 0 1 8.646 3.646 9.003 9.003 0 1 0 20.354 15.354Z" />
     </svg>
   );
 }
 
-/** Culoarea etichetei cu tipul remorcii: Box albastru, Prelată portocaliu, restul gri. */
-function trailerTypeStyle(type: string): string {
-  const t = type.toLowerCase();
-  if (t.includes("box")) return "border-blue-700 text-blue-700";
-  if (t.includes("prelat")) return "border-orange-700 text-orange-700";
-  return "border-slate-500 text-slate-600";
+const WEEKLY_REST_HOURS: Record<"45" | "24", number> = { "45": 45, "24": 24 };
+
+/** „AAAA-LL-ZZ" pentru un moment, în fusul ales (format pentru <input type="date">). */
+function isoDateInTz(value: Date | string | number, tz: string): string {
+  const p = zonedParts(new Date(value), tz);
+  return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
-type ColumnDef = {
-  key: ColumnKey;
-  label: string;
-  cellClassName?: string;
-  render: (row: PlanningRow, drivers: { id: string; name: string }[]) => ReactNode;
-};
+/** „ZZ.LL" dintr-un moment, în fusul ales. */
+function shortDateInTz(value: Date | string | number, tz: string): string {
+  const p = zonedParts(new Date(value), tz);
+  return `${String(p.day).padStart(2, "0")}.${String(p.month).padStart(2, "0")}`;
+}
 
-const COLUMNS: ColumnDef[] = [
-  {
-    key: "vehicul",
-    label: "Vehicul",
-    render: (r) => (
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-amber-500 text-white">
-          <TruckSvg />
-        </span>
-        <div className="min-w-0">
-          <div className="whitespace-nowrap text-[15px] font-bold text-slate-900">{r.plate}</div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {r.trailerPlate ? (
-              <span className="whitespace-nowrap text-[12.5px] font-semibold text-slate-600">+ {r.trailerPlate}</span>
-            ) : (
-              <span className="whitespace-nowrap text-[12.5px] font-semibold italic text-slate-500">fără remorcă</span>
-            )}
-            {r.trailerType && (
-              <span
-                className={`rounded-md border-[1.5px] bg-white/70 px-1.5 text-[10.5px] font-extrabold uppercase tracking-wide ${trailerTypeStyle(
-                  r.trailerType
-                )}`}
-              >
-                {r.trailerType}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-    ),
-  },
-  {
-    key: "vrid",
-    label: "VRID",
-    cellClassName: "font-mono text-sm font-semibold",
-    render: (r) =>
-      r.jobId ? (
-        <div className="flex flex-col items-start gap-1">
-          <a href={`/jobs/${r.jobId}`} className="text-brand hover:text-brand-dark">
-            {r.jobRef || r.jobId}
-          </a>
-          {r.nextJobCount > 0 && (
-            <span
-              title={`Următoarea cursă: ${r.nextJobRef}`}
-              className="max-w-full truncate rounded-md border border-orange-700 bg-white px-1.5 font-sans text-[11.5px] font-semibold text-orange-900"
-            >
-              +{r.nextJobCount} urmează: {r.nextJobRef}
-            </span>
-          )}
-        </div>
-      ) : (
-        "—"
-      ),
-  },
-  {
-    key: "scac",
-    label: "SCAC",
-    cellClassName: "font-mono text-sm font-semibold",
-    render: (r) => r.scac || "—",
-  },
-  {
-    key: "data",
-    label: "Dată",
-    render: (r) => <span className="text-sm font-semibold">{r.jobDateLabel}</span>,
-  },
-  {
-    key: "stare",
-    label: "Stare",
-    render: (r) => <StareControl vehicleId={r.vehicleId} jobId={r.jobId} state={r.state} />,
-  },
-  {
-    key: "sofer",
-    label: "Șofer",
-    render: (r, drivers) => (
-      <DriverSelect vehicleId={r.vehicleId} drivers={drivers} value={r.driverId} state={r.state} />
-    ),
-  },
-  {
-    key: "program",
-    label: "Program",
-    render: (r) => (
-      <ProgramControl
-        vehicleId={r.vehicleId}
-        programStart={r.programStart}
-        programEnd={r.programEnd}
-        programStartAt={r.programStartAt}
-        programEndAt={r.programEndAt}
-      />
-    ),
-  },
-  {
-    key: "pauza",
-    label: "Pauză",
-    render: (r) => (
-      <PauseBadgeControl
-        vehicleId={r.vehicleId}
-        pause={r.pause}
-        restStart={r.restStart}
-        restEnd={r.restEnd}
-        restStartAt={r.restStartAt}
-        restEndAt={r.restEndAt}
-      />
-    ),
-  },
-  {
-    key: "pauzaSapt",
-    label: "Pauză Săpt.",
-    render: (r) => (
-      <WeeklyRestControl
-        vehicleId={r.vehicleId}
-        weeklyRest={r.weeklyRest}
-        weeklyRestType={r.weeklyRestType}
-        weeklyRestStart={r.weeklyRestStart}
-        weeklyRestEnd={r.weeklyRestEnd}
-        weeklyRestStartAt={r.weeklyRestStartAt}
-        weeklyRestEndAt={r.weeklyRestEndAt}
-        suggestedType={r.weeklyRestSuggested}
-      />
-    ),
-  },
-  {
-    key: "locatie",
-    label: "Locație",
-    render: (r) => (
-      <LocationControl vehicleId={r.vehicleId} value={r.location} fallback={r.fallbackLocation} />
-    ),
-  },
-  {
-    key: "cabotaj",
-    label: "Cabotaj",
-    render: (r) => <CabotageCell cabotage={r.cabotage} />,
-  },
-  {
-    key: "traseu",
-    label: "ÎNC - DSC",
-    render: (r) => <RouteCell row={r} />,
-  },
-  {
-    key: "cazuri",
-    label: "Cazuri",
-    render: (r) => <CazuriControl vehicleId={r.vehicleId} cases={r.cases} />,
-  },
-  {
-    key: "whatsapp",
-    label: "WhatsApp",
-    render: (r) => waBadge(r.waState, r.waRead),
-  },
-  {
-    key: "notita",
-    label: "Notiță",
-    render: (r) => <NoteControl vehicleId={r.vehicleId} value={r.note} />,
-  },
-];
-
-const COLUMN_MAP: Record<ColumnKey, ColumnDef> = COLUMNS.reduce(
-  (acc, col) => {
-    acc[col.key] = col;
-    return acc;
-  },
-  {} as Record<ColumnKey, ColumnDef>
-);
+/** Momentul exact pentru data „AAAA-LL-ZZ" și ora „HH:MM" din fusul ales. */
+function zonedDateTimeToDate(date: string, time: string, tz: string): Date {
+  const m = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return zonedTimeToDate(time, tz);
+  // Prânz UTC = aceeași zi calendaristică în orice fus european din listă.
+  const base = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0));
+  return zonedTimeToDate(time, tz, base);
+}
 
 /**
- * Tabelul Planificare: antetul coloanelor se poate reordona prin tragerea
- * mânerului (⠿), și fiecare coloană se poate lărgi/îngusta trăgând de
- * marginea din dreapta a antetului (▐). Ordinea și lățimile alese se
- * salvează în browser (localStorage), per dispozitiv.
- *
- * Datele se reîmprospătează automat la câteva secunde (router.refresh),
- * ca să apară singure confirmările WhatsApp și celelalte schimbări.
+ * Pauză Săptămânală vehicul: dacă nu e activă, arată „— [+]"; dispecerul
+ * alege repaus normal (45h) sau redus (24h), iar ora de final se calculează
+ * automat (ora de start + 45/24h), la fel ca la Pauză (zilnică).
  */
-export function PlanningTable({
-  rows,
-  drivers,
-  emptyMessage,
+export function WeeklyRestControl({
+  vehicleId,
+  weeklyRest,
+  weeklyRestType,
+  weeklyRestStart,
+  weeklyRestEnd,
+  weeklyRestStartAt,
+  weeklyRestEndAt,
+  suggestedType,
 }: {
-  rows: PlanningRow[];
-  drivers: { id: string; name: string }[];
-  emptyMessage: string;
+  vehicleId: string;
+  weeklyRest: boolean;
+  weeklyRestType: string | null;
+  weeklyRestStart: string | null;
+  weeklyRestEnd: string | null;
+  weeklyRestStartAt: string | null;
+  weeklyRestEndAt: string | null;
+  suggestedType: "45" | "24";
 }) {
   const router = useRouter();
-  const [order, setOrder] = useState<ColumnKey[]>(DEFAULT_ORDER);
-  const [widths, setWidths] = useState<Partial<Record<ColumnKey, number>>>({});
-  const [dragKey, setDragKey] = useState<ColumnKey | null>(null);
-  const [resizingKey, setResizingKey] = useState<ColumnKey | null>(null);
-  const widthsRef = useRef<Partial<Record<ColumnKey, number>>>({});
+  const tz = useTimezone();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [startTime, setStartTime] = useState(() => nowTimeInTz(tz));
+  const [startDate, setStartDate] = useState(() => isoDateInTz(new Date(), tz));
 
-  useEffect(() => {
-    const stored = loadState();
-    setOrder(stored.order);
-    setWidths(stored.widths);
-    widthsRef.current = stored.widths;
-  }, []);
+  // Orele afișate, în fusul orar ales (cu rezervă pe textul salvat).
+  const shownWStart = (weeklyRestStartAt && formatTimeInTz(weeklyRestStartAt, tz)) || weeklyRestStart;
+  const shownWEnd = (weeklyRestEndAt && formatTimeInTz(weeklyRestEndAt, tz)) || weeklyRestEnd;
 
-  // Reîmprospătare automată: doar când fila e vizibilă și nu scrii într-un
-  // câmp (text / oră / număr / notiță) dintr-o fereastră de editare deschisă.
-  useEffect(() => {
-    const tick = () => {
-      if (document.visibilityState !== "visible") return;
-      const tag = document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
-      router.refresh();
-    };
-    const id = setInterval(tick, AUTO_REFRESH_SECONDS * 1000);
-    document.addEventListener("visibilitychange", tick);
-    window.addEventListener("focus", tick);
-    return () => {
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", tick);
-      window.removeEventListener("focus", tick);
-    };
-  }, [router]);
+  // Dacă pauza nu a început azi, arătăm și datele (ex. „29.10 18:00 – 31.10 15:00").
+  const showDates =
+    !!weeklyRestStartAt &&
+    !!weeklyRestEndAt &&
+    isoDateInTz(weeklyRestStartAt, tz) !== isoDateInTz(new Date(), tz);
+  const pillText =
+    showDates && weeklyRestStartAt && weeklyRestEndAt
+      ? `${shortDateInTz(weeklyRestStartAt, tz)} ${shownWStart} – ${shortDateInTz(weeklyRestEndAt, tz)} ${shownWEnd}`
+      : `${shownWStart} – ${shownWEnd}`;
 
-  function persistOrder(next: ColumnKey[]) {
-    setOrder(next);
-    try {
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({ order: next, widths: widthsRef.current })
-      );
-    } catch {
-      // ordinea rămâne schimbată doar pentru sesiunea curentă
-    }
+  function openEditor() {
+    // Pauză activă: pornim de la începutul ei; altfel de la momentul curent.
+    const base = weeklyRest && weeklyRestStartAt ? new Date(weeklyRestStartAt) : new Date();
+    const valid = !Number.isNaN(base.getTime());
+    setStartTime(valid ? formatTimeInTz(base, tz) : nowTimeInTz(tz));
+    setStartDate(isoDateInTz(valid ? base : new Date(), tz));
+    setOpen(true);
   }
 
-  function persistWidths(next: Partial<Record<ColumnKey, number>>) {
-    widthsRef.current = next;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ order, widths: next }));
-    } catch {
-      // lățimile rămân schimbate doar pentru sesiunea curentă
-    }
+  async function start(type: "45" | "24") {
+    setSaving(true);
+    const hours = WEEKLY_REST_HOURS[type];
+    const now = zonedDateTimeToDate(startDate, startTime, tz);
+    const end = new Date(now.getTime() + hours * 60 * 60 * 1000);
+    const fmt = (d: Date) => formatTimeInTz(d, tz);
+    await patchVehicle(vehicleId, {
+      weeklyRest: true,
+      weeklyRestType: type,
+      weeklyRestStart: fmt(now),
+      weeklyRestEnd: fmt(end),
+      weeklyRestStartAt: now.toISOString(),
+      weeklyRestEndAt: end.toISOString(),
+    });
+    setSaving(false);
+    setOpen(false);
+    router.refresh();
   }
 
-  function moveColumn(from: ColumnKey, to: ColumnKey) {
-    if (from === to) return;
-    const next = [...order];
-    const fromIdx = next.indexOf(from);
-    const toIdx = next.indexOf(to);
-    if (fromIdx === -1 || toIdx === -1) return;
-    next.splice(fromIdx, 1);
-    next.splice(toIdx, 0, from);
-    persistOrder(next);
+  async function endRest() {
+    setSaving(true);
+    await patchVehicle(vehicleId, {
+      weeklyRest: false,
+      weeklyRestType: null,
+      weeklyRestStart: null,
+      weeklyRestEnd: null,
+      weeklyRestStartAt: null,
+      weeklyRestEndAt: null,
+    });
+    setSaving(false);
+    setOpen(false);
+    router.refresh();
   }
 
-  function startResize(key: ColumnKey, e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
-    const th = (e.currentTarget as HTMLElement).closest("th");
-    const startWidth = th ? th.getBoundingClientRect().width : DEFAULT_WIDTHS[key];
-    const startX = e.clientX;
-    setResizingKey(key);
-    document.body.style.userSelect = "none";
-    document.body.style.cursor = "col-resize";
-
-    function onMove(ev: MouseEvent) {
-      const next = Math.max(MIN_WIDTH, Math.round(startWidth + (ev.clientX - startX)));
-      widthsRef.current = { ...widthsRef.current, [key]: next };
-      setWidths(widthsRef.current);
-    }
-    function onUp() {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      document.body.style.userSelect = "";
-      document.body.style.cursor = "";
-      setResizingKey(null);
-      persistWidths(widthsRef.current);
-    }
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+  const endAtDate = weeklyRestEndAt ? new Date(weeklyRestEndAt) : null;
+  const now = Date.now();
+  let subText: string | null = null;
+  if (weeklyRest && endAtDate) {
+    subText =
+      now < endAtDate.getTime()
+        ? `Mai are ${fmtCountdown(endAtDate.getTime() - now)}`
+        : "Repaus încheiat";
   }
 
-  function resetLayout() {
-    persistOrder(DEFAULT_ORDER);
-    setWidths({});
-    persistWidths({});
-  }
-
-  const orderedColumns = order.map((k) => COLUMN_MAP[k]);
+  const pillColor = weeklyRestType === "45" ? "bg-purple-500" : "bg-sky-500";
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-x-auto">
-      <div className="flex items-center justify-end px-2 py-1">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      {weeklyRest && shownWStart && shownWEnd ? (
+        <div className="flex items-center gap-1.5">
+          <span
+            className={`whitespace-nowrap rounded-lg ${pillColor} px-2 py-1 text-sm font-semibold text-white`}
+          >
+            {pillText}
+          </span>
+          <button
+            type="button"
+            onClick={openEditor}
+            aria-label="Editează pauza săptămânală"
+            className="text-slate-400 hover:text-slate-600"
+          >
+            ✎
+          </button>
+        </div>
+      ) : (
         <button
           type="button"
-          onClick={resetLayout}
-          title="Resetează coloanele"
-          aria-label="Resetează coloanele"
-          className="grid h-7 w-7 place-items-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-brand"
+          onClick={openEditor}
+          className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600"
         >
-          <ResetIcon />
+          <span>—</span>
+          <span aria-hidden="true">✎</span>
         </button>
-      </div>
-      <table className="w-full text-sm">
-        <colgroup>
-          {orderedColumns.map((col, i) => {
-            const isLast = i === orderedColumns.length - 1;
-            return (
-              <col
-                key={col.key}
-                style={isLast ? undefined : { width: `${widths[col.key] ?? DEFAULT_WIDTHS[col.key]}px` }}
-              />
-            );
-          })}
-        </colgroup>
-        <thead className="bg-gradient-to-r from-orange-100 to-orange-50 text-orange-900 text-left">
-          <tr>
-            {orderedColumns.map((col) => {
-              const thClass = `relative border-l border-orange-200 px-4 py-3 font-bold whitespace-nowrap select-none first:border-l-0 ${
-                dragKey === col.key ? "opacity-40" : ""
-              }`;
-              return (
-                <th
-                  key={col.key}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => {
-                    if (dragKey) moveColumn(dragKey, col.key);
-                    setDragKey(null);
-                  }}
-                  className={thClass}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <span
-                      draggable
-                      onDragStart={() => setDragKey(col.key)}
-                      onDragEnd={() => setDragKey(null)}
-                      className="cursor-move"
-                      title="Trage ca să muți coloana"
-                    >
-                      <DragHandleIcon />
-                    </span>
-                    {col.label}
-                  </span>
-                  <span
-                    onMouseDown={(e) => startResize(col.key, e)}
-                    title="Trage ca să lărgești / îngustezi coloana"
-                    className={`absolute right-0 top-0 h-full w-2 cursor-col-resize hover:bg-brand/30 ${
-                      resizingKey === col.key ? "bg-brand/40" : ""
-                    }`}
+      )}
+      {subText && <div className="text-xs text-slate-400">{subText}</div>}
+      {!weeklyRest && (
+        <div className="text-sm font-semibold text-slate-900">
+          Recomandat: {suggestedType}h
+        </div>
+      )}
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 px-4"
+          onClick={() => setOpen(false)}
+        >
+          <div
+            className="w-full max-w-xs rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-brand-dark">Pauză Săptămânală</h3>
+              <button
+                type="button"
+                onClick={() => setOpen(false)}
+                className="text-lg leading-none text-slate-400 hover:text-slate-600"
+              >
+                ×
+              </button>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-slate-500">Început pauză</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    type="date"
+                    className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                    value={startDate}
+                    disabled={saving}
+                    onChange={(e) => setStartDate(e.target.value)}
                   />
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => {
-            const rowClass = `border-t border-slate-100 align-middle ${FLEET_ROW_STYLES[r.state]}`;
-            return (
-              <tr key={r.vehicleId} className={rowClass}>
-                {orderedColumns.map((col) => (
-                  <td
-                    key={col.key}
-                    className={`px-4 py-3 overflow-hidden ${col.cellClassName ?? ""}`}
-                  >
-                    {col.render(r, drivers)}
-                  </td>
-                ))}
-              </tr>
-            );
-          })}
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={orderedColumns.length} className="px-4 py-6 text-center text-slate-400">
-                {emptyMessage}
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+                  <Time24Input
+                    className="rounded-lg border border-slate-200 px-2 py-1 text-sm disabled:opacity-50"
+                    value={startTime}
+                    disabled={saving}
+                    onChange={setStartTime}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => start("45")}
+                  className={`relative flex flex-col items-center gap-1 rounded-2xl border-2 bg-white px-2 py-3 transition disabled:opacity-50 ${
+                    suggestedType === "45"
+                      ? "border-purple-400 bg-purple-50/50"
+                      : "border-purple-200 hover:border-purple-400 hover:bg-purple-50"
+                  }`}
+                >
+                  {suggestedType === "45" && (
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-purple-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                      Recomandat
+                    </span>
+                  )}
+                  <MoonIcon className="h-6 w-6 text-purple-500" />
+                  <span className="text-sm font-bold text-slate-700">45h</span>
+                  <span className="text-[11px] text-center font-medium text-purple-600">
+                    Repaus săptămânal
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => start("24")}
+                  className={`relative flex flex-col items-center gap-1 rounded-2xl border-2 bg-white px-2 py-3 transition disabled:opacity-50 ${
+                    suggestedType === "24"
+                      ? "border-sky-400 bg-sky-50/50"
+                      : "border-sky-200 hover:border-sky-400 hover:bg-sky-50"
+                  }`}
+                >
+                  {suggestedType === "24" && (
+                    <span className="absolute -top-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-semibold text-white">
+                      Recomandat
+                    </span>
+                  )}
+                  <MoonIcon className="h-6 w-6 text-sky-500" />
+                  <span className="text-sm font-bold text-slate-700">24h</span>
+                  <span className="text-[11px] text-center font-medium text-sky-600">
+                    Repaus redus
+                  </span>
+                </button>
+              </div>
+              {weeklyRest && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={endRest}
+                  className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100 disabled:opacity-50 transition"
+                >
+                  Finalizează pauza săptămânală
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
