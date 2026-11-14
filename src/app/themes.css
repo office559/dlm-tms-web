@@ -1,0 +1,212 @@
+/* ================================================================
+   TEME DE CULORI — ocean, smarald, violet, grafit, carbune, minimal.
+   Se aplică doar când <html data-theme="..."> are una dintre aceste
+   valori (alegerea se face din Setări sau din butonul „Aspect”).
+   Aspectul clasic (fără atribut) și tema Glass nu sunt atinse.
+   ================================================================ */
+html[data-theme="ocean"] {
+  --brand-color: #1d6fd8;
+  --brand-color-dark: #0f2a4a;
+  --sidebar-bg: #0f2a4a;
+  --k-bg: #e9f0f8;
+  --k-text: #0f172a;
+  --k-line: #d5e0ee;
+  --k-hdr: #ffffff;
+  --k-side-text: #cfe0f5;
+  --k-side-head: #7fa3cf;
+  --k-side-line: rgba(255,255,255,.14);
+  --k-side-hover: rgba(255,255,255,.08);
+  --k-side-act-bg: #1d4e89;
+  --k-side-act-text: #ffffff;
+  --k-side-act-bar: #60a5fa;
+  --k-th-1: #dbeafe;
+  --k-th-2: #eff6ff;
+  --k-th-text: #1e3a8a;
+  --k-r-pauza: #cfe3fb;
+  --k-r-disp: #c8f1d8;
+  --k-r-alocat: #fdf0b0;
+  --k-r-tranzit: #fddcb8;
+  --k-r-pending: #e6dcfb;
+}
+html[data-theme="smarald"] {
+  --brand-color: #0f8a5f;
+  --brand-color-dark: #0b3d2c;
+  --sidebar-bg: #0e3b2c;
+  --k-bg: #eef5f1;
+  --k-text: #0f1f18;
+  --k-line: #d3e4db;
+  --k-hdr: #ffffff;
+  --k-side-text: #d2eadf;
+  --k-side-head: #7fbfa3;
+  --k-side-line: rgba(255,255,255,.14);
+  --k-side-hover: rgba(255,255,255,.08);
+  --k-side-act-bg: #1c6b4f;
+  --k-side-act-text: #ffffff;
+  --k-side-act-bar: #34d399;
+  --k-th-1: #d1fae5;
+  --k-th-2: #ecfdf5;
+  --k-th-text: #065f46;
+  --k-r-pauza: #cfe6f6;
+  --k-r-disp: #bdeed0;
+  --k-r-alocat: #fbeeaa;
+  --k-r-tranzit: #fbd9b5;
+  --k-r-pending: #e4dcf6;
+}
+html[data-theme="violet"] {
+  --brand-color: #6d3fd6;
+  --brand-color-dark: #2a1d5c;
+  --sidebar-bg: #2a1d5c;
+  --k-bg: #f2f0fa;
+  --k-text: #17132b;
+  --k-line: #ddd8f0;
+  --k-hdr: #ffffff;
+  --k-side-text: #dcd5f5;
+  --k-side-head: #9f93d6;
+  --k-side-line: rgba(255,255,255,.14);
+  --k-side-hover: rgba(255,255,255,.08);
+  --k-side-act-bg: #4c36a8;
+  --k-side-act-text: #ffffff;
+  --k-side-act-bar: #a78bfa;
+  --k-th-1: #ede9fe;
+  --k-th-2: #f5f3ff;
+  --k-th-text: #4c1d95;
+  --k-r-pauza: #d3e2fa;
+  --k-r-disp: #c6efd6;
+  --k-r-alocat: #fbeeaa;
+  --k-r-tranzit: #fbd9b5;
+  --k-r-pending: #e2d6fb;
+}
+html[data-theme="grafit"] {
+  --brand-color: #f59e0b;
+  --brand-color-dark: #fbbf24;
+  --sidebar-bg: #0a0e13;
+  --k-bg: #0f141b;
+  --k-text: #e5e9f0;
+  --k-line: #2a3240;
+  --k-hdr: #151b24;
+  --k-side-text: #c3ccd8;
+  --k-side-head: #6b7787;
+  --k-side-line: rgba(255,255,255,.10);
+  --k-side-hover: rgba(255,255,255,.07);
+  --k-side-act-bg: #1f2937;
+  --k-side-act-text: #ffffff;
+  --k-side-act-bar: #f59e0b;
+  --k-th-1: #2a2f3a;
+  --k-th-2: #222833;
+  --k-th-text: #fcd34d;
+  --k-r-pauza: #1c3350;
+  --k-r-disp: #1b4030;
+  --k-r-alocat: #4a4118;
+  --k-r-tranzit: #563a1d;
+  --k-r-pending: #3a2d5c;
+}
+html[data-theme="carbune"] {
+  --brand-color: #ea580c;
+  --brand-color-dark: #7c2d12;
+  --sidebar-bg: #1c1917;
+  --k-bg: #f4f2ef;
+  --k-text: #1c1917;
+  --k-line: #e4dfd8;
+  --k-hdr: #ffffff;
+  --k-side-text: #e7e2dc;
+  --k-side-head: #a39a90;
+  --k-side-line: rgba(255,255,255,.12);
+  --k-side-hover: rgba(255,255,255,.08);
+  --k-side-act-bg: #3a2412;
+  --k-side-act-text: #fff7ed;
+  --k-side-act-bar: #f97316;
+  --k-th-1: #ffedd5;
+  --k-th-2: #fff7ed;
+  --k-th-text: #7c2d12;
+  --k-r-pauza: #d4e4f7;
+  --k-r-disp: #c8f0d6;
+  --k-r-alocat: #fbeeaa;
+  --k-r-tranzit: #fcd9b4;
+  --k-r-pending: #e5dcf6;
+}
+html[data-theme="minimal"] {
+  --brand-color: #111111;
+  --brand-color-dark: #111111;
+  --sidebar-bg: #ffffff;
+  --k-bg: #f5f5f5;
+  --k-text: #111111;
+  --k-line: #e2e2e2;
+  --k-hdr: #ffffff;
+  --k-side-text: #262626;
+  --k-side-head: #8a8a8a;
+  --k-side-line: #e5e5e5;
+  --k-side-hover: rgba(0,0,0,.05);
+  --k-side-act-bg: #111111;
+  --k-side-act-text: #ffffff;
+  --k-side-act-bar: #111111;
+  --k-th-1: #111111;
+  --k-th-2: #1f1f1f;
+  --k-th-text: #ffffff;
+  --k-r-pauza: #e3ecf6;
+  --k-r-disp: #dcf2e3;
+  --k-r-alocat: #f8f0c6;
+  --k-r-tranzit: #f9e2cb;
+  --k-r-pending: #ebe5f6;
+}
+
+/* ---------- reguli comune tuturor temelor de culori ---------- */
+html[data-theme]:not([data-theme="glass"]) body { background: var(--k-bg); color: var(--k-text); }
+html[data-theme]:not([data-theme="glass"]) div.h-screen.bg-slate-100 { background: var(--k-bg) !important; }
+
+/* meniul din stânga */
+html[data-theme]:not([data-theme="glass"]) aside { background: var(--sidebar-bg) !important; border-color: var(--k-side-line) !important; }
+html[data-theme]:not([data-theme="glass"]) aside nav a { color: var(--k-side-text) !important; background: transparent !important; border-color: transparent !important; }
+html[data-theme]:not([data-theme="glass"]) aside nav a:hover { background: var(--k-side-hover) !important; }
+html[data-theme]:not([data-theme="glass"]) aside nav a.bg-orange-50 {
+  background: var(--k-side-act-bg) !important;
+  color: var(--k-side-act-text) !important;
+  border-color: var(--k-side-act-bar) !important;
+}
+html[data-theme]:not([data-theme="glass"]) aside h4 { color: var(--k-side-head) !important; }
+html[data-theme]:not([data-theme="glass"]) aside .border-t, html[data-theme]:not([data-theme="glass"]) aside .border-slate-200 { border-color: var(--k-side-line) !important; }
+html[data-theme]:not([data-theme="glass"]) aside .text-slate-800, html[data-theme]:not([data-theme="glass"]) aside .text-slate-500, html[data-theme]:not([data-theme="glass"]) aside .text-slate-400 { color: var(--k-side-text) !important; }
+html[data-theme]:not([data-theme="glass"]) aside .tms-logo-box { background: #ffffff !important; }
+
+/* antetul de sus */
+html[data-theme]:not([data-theme="glass"]) header { background: var(--k-hdr) !important; border-color: var(--k-line) !important; }
+
+/* antetul tabelelor */
+html[data-theme]:not([data-theme="glass"]) thead.bg-gradient-to-r {
+  background-image: linear-gradient(90deg, var(--k-th-1), var(--k-th-2)) !important;
+  color: var(--k-th-text) !important;
+}
+html[data-theme]:not([data-theme="glass"]) thead.bg-orange-50 { background: var(--k-th-1) !important; color: var(--k-th-text) !important; }
+html[data-theme]:not([data-theme="glass"]) thead.bg-gradient-to-r th, html[data-theme]:not([data-theme="glass"]) thead.bg-orange-50 th { color: var(--k-th-text) !important; border-color: var(--k-line) !important; }
+
+/* culorile de stare ale rândurilor din Planificare */
+html[data-theme]:not([data-theme="glass"]) tbody tr.bg-blue-200 { background-color: var(--k-r-pauza) !important; }
+html[data-theme]:not([data-theme="glass"]) tbody tr.bg-green-200 { background-color: var(--k-r-disp) !important; }
+html[data-theme]:not([data-theme="glass"]) tbody tr.bg-yellow-200 { background-color: var(--k-r-alocat) !important; }
+html[data-theme]:not([data-theme="glass"]) tbody tr.bg-orange-200 { background-color: var(--k-r-tranzit) !important; }
+html[data-theme]:not([data-theme="glass"]) tbody tr.bg-violet-100 { background-color: var(--k-r-pending) !important; }
+
+/* ---------- Grafit: mod întunecat pentru toată aplicația ---------- */
+html[data-theme="grafit"] { color-scheme: dark; }
+html[data-theme="grafit"] .bg-white { background-color: #171d27 !important; }
+html[data-theme="grafit"] .bg-slate-50 { background-color: #1b222d !important; }
+html[data-theme="grafit"] .bg-slate-100 { background-color: #222a36 !important; }
+html[data-theme="grafit"] .border-slate-100,
+html[data-theme="grafit"] .border-slate-200,
+html[data-theme="grafit"] .border-slate-300 { border-color: var(--k-line) !important; }
+html[data-theme="grafit"] .text-slate-900,
+html[data-theme="grafit"] .text-slate-800,
+html[data-theme="grafit"] .text-slate-700,
+html[data-theme="grafit"] .text-slate-600 { color: #e5e9f0 !important; }
+html[data-theme="grafit"] .text-slate-500 { color: #9aa5b5 !important; }
+html[data-theme="grafit"] .text-slate-400 { color: #7d8899 !important; }
+html[data-theme="grafit"] input,
+html[data-theme="grafit"] select,
+html[data-theme="grafit"] textarea { background-color: #1f2733; color: #e5e9f0; border-color: #344052; }
+html[data-theme="grafit"] input::placeholder,
+html[data-theme="grafit"] textarea::placeholder { color: #7d8899; }
+html[data-theme="grafit"] .bg-brand { color: #111827 !important; }
+html[data-theme="grafit"] .border-orange-700,
+html[data-theme="grafit"] .border-blue-700 { border-color: #fbbf24 !important; }
+html[data-theme="grafit"] .text-orange-900 { color: #fbbf24 !important; }
+html[data-theme="grafit"] tbody a { color: #fbbf24; }
+html[data-theme="grafit"] thead.bg-gradient-to-r th, html[data-theme="grafit"] thead.bg-orange-50 th { border-color: var(--k-line) !important; }
