@@ -14,7 +14,7 @@ import {
   StareControl,
   WeeklyRestControl,
 } from "@/components/PlanningCells";
-import { CrewSelect, NoteControl } from "@/components/PlanningExtras";
+import { NoteControl } from "@/components/PlanningExtras";
 import { RouteCell } from "@/components/PlanningRoute";
 import { CabotageCell } from "@/components/PlanningCabotage";
 import {
@@ -34,7 +34,6 @@ type ColumnKey =
   | "data"
   | "stare"
   | "sofer"
-  | "echipaj"
   | "program"
   | "pauza"
   | "pauzaSapt"
@@ -58,7 +57,6 @@ const DEFAULT_ORDER: ColumnKey[] = [
   "locatie",
   "traseu",
   "whatsapp",
-  "echipaj",
   "pauzaSapt",
   "cazuri",
   "notita",
@@ -71,7 +69,6 @@ const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
   data: 110,
   stare: 170,
   sofer: 230,
-  echipaj: 160,
   program: 210,
   pauza: 200,
   pauzaSapt: 200,
@@ -201,11 +198,6 @@ const COLUMNS: ColumnDef[] = [
     render: (r, drivers) => (
       <DriverSelect vehicleId={r.vehicleId} drivers={drivers} value={r.driverId} state={r.state} />
     ),
-  },
-  {
-    key: "echipaj",
-    label: "Echipaj",
-    render: (r) => <CrewSelect vehicleId={r.vehicleId} value={r.crewType} />,
   },
   {
     key: "program",
