@@ -17,13 +17,7 @@ import {
 import { NoteControl } from "@/components/PlanningExtras";
 import { RouteCell } from "@/components/PlanningRoute";
 import { CabotageCell } from "@/components/PlanningCabotage";
-import {
-  ChevronIcon,
-  DragHandleIcon,
-  ResetIcon,
-  TruckIcon,
-  waBadge,
-} from "@/components/PlanningIcons";
+import { DragHandleIcon, ResetIcon, waBadge } from "@/components/PlanningIcons";
 
 export type { PlanningRow } from "@/components/planning-types";
 
@@ -126,6 +120,34 @@ function loadState(): StoredState {
   }
 }
 
+/** Camionul alb din pătratul portocaliu al coloanei Vehicul. */
+function TruckSvg() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className="h-4 w-4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M14 17h1a1 1 0 0 0 1-1v-2.5a1 1 0 0 0-.29-.7l-2.5-2.5a1 1 0 0 0-.71-.3H10" />
+      <path d="M3 6h9v10H3a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1Z" />
+      <circle cx="7" cy="17" r="2" />
+      <circle cx="17" cy="17" r="2" />
+    </svg>
+  );
+}
+
+/** Culoarea etichetei cu tipul remorcii: Box albastru, Prelată portocaliu, restul gri. */
+function trailerTypeStyle(type: string): string {
+  const t = type.toLowerCase();
+  if (t.includes("box")) return "border-blue-700 text-blue-700";
+  if (t.includes("prelat")) return "border-orange-700 text-orange-700";
+  return "border-slate-500 text-slate-600";
+}
+
 type ColumnDef = {
   key: ColumnKey;
   label: string;
@@ -138,19 +160,30 @@ const COLUMNS: ColumnDef[] = [
     key: "vehicul",
     label: "Vehicul",
     render: (r) => (
-      <>
-        <div className="flex items-center gap-1.5">
-          <TruckIcon />
-          <span className="whitespace-nowrap text-sm font-semibold">
-            {r.plate}
-            {r.trailerPlate ? ` / ${r.trailerPlate}` : ""}
-          </span>
-          <ChevronIcon />
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[10px] bg-amber-500 text-white">
+          <TruckSvg />
+        </span>
+        <div className="min-w-0">
+          <div className="whitespace-nowrap text-[15px] font-bold text-slate-900">{r.plate}</div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {r.trailerPlate ? (
+              <span className="whitespace-nowrap text-[12.5px] font-semibold text-slate-600">+ {r.trailerPlate}</span>
+            ) : (
+              <span className="whitespace-nowrap text-[12.5px] font-semibold italic text-slate-500">fără remorcă</span>
+            )}
+            {r.trailerType && (
+              <span
+                className={`rounded-md border-[1.5px] bg-white/70 px-1.5 text-[10.5px] font-extrabold uppercase tracking-wide ${trailerTypeStyle(
+                  r.trailerType
+                )}`}
+              >
+                {r.trailerType}
+              </span>
+            )}
+          </div>
         </div>
-        {r.trailerType && (
-          <div className="pl-[22px] text-[13px] font-bold text-slate-600">({r.trailerType})</div>
-        )}
-      </>
+      </div>
     ),
   },
   {
