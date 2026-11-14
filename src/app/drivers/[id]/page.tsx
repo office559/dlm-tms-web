@@ -7,6 +7,7 @@ import { DriverForm } from "@/components/DriverForm";
 import { WhatsAppLink } from "@/components/WhatsAppLink";
 import { waLink } from "@/lib/whatsapp";
 import { AppShell } from "@/components/AppShell";
+import { dateInputValue } from "@/lib/date-input";
 
 export default async function EditDriverPage({
   params,
@@ -38,10 +39,10 @@ export default async function EditDriverPage({
               salary: driver.salary != null ? String(driver.salary) : "",
               tm: driver.tm ?? "",
               card: driver.card ?? "",
-              permisExp: driver.permis_exp ? String(driver.permis_exp).slice(0, 10) : "",
-              cpcExp: driver.cpc_exp ? String(driver.cpc_exp).slice(0, 10) : "",
-              cardExp: driver.card_exp ? String(driver.card_exp).slice(0, 10) : "",
-              medicalExp: driver.medical_exp ? String(driver.medical_exp).slice(0, 10) : "",
+              permisExp: dateInputValue(driver.permis_exp),
+              cpcExp: dateInputValue(driver.cpc_exp),
+              cardExp: dateInputValue(driver.card_exp),
+              medicalExp: dateInputValue(driver.medical_exp),
               phone: driver.phone ?? "",
               active: driver.active,
             }}
