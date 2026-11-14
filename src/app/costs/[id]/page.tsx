@@ -5,6 +5,7 @@ import { getCost } from "@/lib/costs";
 import { listVehicles } from "@/lib/vehicles";
 import { CostForm } from "@/components/CostForm";
 import { AppShell } from "@/components/AppShell";
+import { dateInputValue } from "@/lib/date-input";
 
 export default async function EditCostPage({
   params,
@@ -26,7 +27,7 @@ export default async function EditCostPage({
           <CostForm
             initial={{
               id: cost.id,
-              date: String(cost.date).slice(0, 10),
+              date: dateInputValue(cost.date),
               category: cost.category,
               vehicleId: cost.vehicle_id ?? "",
               amount: String(cost.amount),
