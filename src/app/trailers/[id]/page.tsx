@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { getTrailer } from "@/lib/trailers";
 import { TrailerForm } from "@/components/TrailerForm";
 import { AppShell } from "@/components/AppShell";
+import { dateInputValue } from "@/lib/date-input";
 
 export default async function EditTrailerPage({
   params,
@@ -27,9 +28,9 @@ export default async function EditTrailerPage({
               id: trailer.id,
               plate: trailer.plate,
               type: trailer.type ?? "Curtainsider",
-              itpExp: trailer.itp_exp ? String(trailer.itp_exp).slice(0, 10) : "",
-              rcaExp: trailer.rca_exp ? String(trailer.rca_exp).slice(0, 10) : "",
-              cascoExp: trailer.casco_exp ? String(trailer.casco_exp).slice(0, 10) : "",
+              itpExp: dateInputValue(trailer.itp_exp),
+              rcaExp: dateInputValue(trailer.rca_exp),
+              cascoExp: dateInputValue(trailer.casco_exp),
               active: trailer.active,
             }}
           />
