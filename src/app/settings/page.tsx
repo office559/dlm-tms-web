@@ -5,6 +5,7 @@ import { getOrgContext } from "@/lib/org";
 import { getSettings } from "@/lib/settings";
 import { SettingsForm } from "@/components/SettingsForm";
 import { AppShell } from "@/components/AppShell";
+import { ThemePicker } from "@/components/ThemeSwitch";
 
 export default async function SettingsPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -35,6 +36,14 @@ export default async function SettingsPage() {
             sidebarColor: settings?.sidebar_color ?? "#ffffff",
           }}
         />
+      </div>
+
+      <div className="bg-white rounded-2xl border border-slate-200 p-6">
+        <h2 className="font-medium text-brand-dark">Aspect aplicație</h2>
+        <p className="text-slate-500 text-sm mt-1 mb-4">
+          Alege culorile aplicației. Alegerea se ține în acest browser — fiecare utilizator își poate alege altă temă.
+        </p>
+        <ThemePicker />
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 p-6 flex items-center justify-between">
