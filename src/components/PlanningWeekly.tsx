@@ -140,7 +140,7 @@ export function WeeklyRestControl({
   const pillColor = weeklyRestType === "45" ? "bg-purple-500" : "bg-sky-500";
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
       {weeklyRest && shownWStart && shownWEnd ? (
         <div className="flex items-center gap-1.5">
           <span
