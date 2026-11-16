@@ -57,7 +57,7 @@ const DEFAULT_ORDER: ColumnKey[] = [
 ];
 
 const DEFAULT_WIDTHS: Record<ColumnKey, number> = {
-  vehicul: 260,
+  vehicul: 320,
   vrid: 170,
   scac: 100,
   data: 110,
@@ -164,24 +164,25 @@ const COLUMNS: ColumnDef[] = [
         <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-amber-500 text-white">
           <TruckSvg />
         </span>
-        <div className="min-w-0">
-          <div className="whitespace-nowrap text-sm font-bold leading-[1.15] text-slate-900">{r.plate}</div>
-          <div className="flex flex-wrap items-center gap-1.5 leading-[1.15]">
-            {r.trailerPlate ? (
-              <span className="whitespace-nowrap text-xs font-semibold text-slate-600">+ {r.trailerPlate}</span>
-            ) : (
-              <span className="whitespace-nowrap text-xs font-semibold italic text-slate-500">fără remorcă</span>
-            )}
-            {r.trailerType && (
-              <span
-                className={`rounded border bg-white/70 px-1 text-[10px] font-extrabold uppercase tracking-wide ${trailerTypeStyle(
-                  r.trailerType
-                )}`}
-              >
-                {r.trailerType}
-              </span>
-            )}
-          </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 leading-[1.2]">
+          <span className="whitespace-nowrap text-[15px] font-extrabold text-slate-900">{r.plate}</span>
+          {r.trailerPlate ? (
+            <>
+              <span className="text-[15px] font-bold text-slate-400">+</span>
+              <span className="whitespace-nowrap text-[15px] font-bold text-slate-800">{r.trailerPlate}</span>
+            </>
+          ) : (
+            <span className="whitespace-nowrap text-[13px] font-semibold italic text-slate-500">· fără remorcă</span>
+          )}
+          {r.trailerType && (
+            <span
+              className={`rounded border bg-white/70 px-1 text-[10.5px] font-extrabold uppercase tracking-wide ${trailerTypeStyle(
+                r.trailerType
+              )}`}
+            >
+              {r.trailerType}
+            </span>
+          )}
         </div>
       </div>
     ),
